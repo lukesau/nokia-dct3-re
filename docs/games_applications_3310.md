@@ -113,8 +113,14 @@ The handler's return value tells the framework what to do next:
 
 - Static: the tick period is the constant 100 in ctx+0xc during play, and
   800 on the continue screen. It does not change with level.
+- Static: the framework converts milliseconds to timer units by dividing by
+  7.96875 (255/32) and dropping the fraction: 100 ms is 12 units, the
+  3000 ms shield 376. The key-repeat timer is 12 units. A timer is
+  restarted when its event has been handled.
 - Runtime: ticks arrive 92.9 ms apart in MAME (225 of 239 intervals at 93 ms,
-  the rest 91..96), measured on writes to the scroll position.
+  the rest 91..96), measured on writes to the scroll position, which makes
+  a unit 7.74 ms there. The first one-shot event of a game comes between
+  ticks 32 and 33 and the next 31 ticks later, as 376 units predicts.
 - Static: a key press plays a sound through a pending return code
   (state+0x2b). The handler returns a pending code before it looks at the
   event, so when a code was left by a tick (a collision sound) the next
@@ -222,10 +228,28 @@ column, bit 0 the top row of the band. The byte for pixel (x, y) is
 `bitmap[width * (y >> 3) + x]`, bit `y & 7`. No word packing or shifting is
 involved, so the format is byte-order neutral.
 
-The level polarity (state+0x329) selects the draw mode for all objects:
-mode 2 levels put a full-screen fill sprite behind everything and draw
-sprites cleared, mode 1 levels draw them set. Pixel-exact collision tests
-read the bitmaps with the matching sense.
+`sprite_render_2dfd88` erases and redraws only what moved, marking every
+sprite that overlaps a redrawn one, so the result is the list drawn in
+order onto a cleared screen. The draw mode chooses the pixel operation for
+a bitmap's set bits and for its clear bits (static):
+
+| Mode | Set bits | Clear bits |
+|---:|---|---|
+| 0 | leave | clear |
+| 1 | set | leave |
+| 2 | flip | leave |
+| 3 | clear | set |
+| 4 | set | clear |
+| 5 | set | clear, and marked in the blink plane |
+| 6, 7 | not drawn | |
+
+A sprite whose right or bottom edge has wrapped past 255 is not drawn.
+
+The level polarity (state+0x329) is used directly as the draw mode of the
+game's objects: polarity 2 levels put a full-screen fill sprite (mode 4)
+behind everything and flip the sprites out of it, polarity 1 levels set
+them on a clear screen. The HUD is always mode 2. Pixel-exact collision
+tests read the bitmaps with the matching sense.
 
 ## Player
 
@@ -264,8 +288,10 @@ the right digits at idle; they have not been compared with a real phone.
 - Losing the ship: explosion, then one life less and a respawn. At zero
   lives the continues counter is checked: at 2 or more it drops by one and
   the continue screen counts down from 5 at 800 ms per step. Keys 1, 3, 4
-  or 6 restart the level from its last checkpoint with 3 lives and 3
-  missiles. Otherwise the game ends with return `0x18`.
+  or 6 restart the level with 3 lives and 3 missiles. Otherwise the game
+  ends with return `0x18`. The level restarts from its beginning: the
+  checkpoint byte is recorded as the script runs, but the reload clears it
+  before it is read.
 
 ## Levels
 
@@ -427,6 +453,18 @@ ctx+0x14 and returns `0x1b`; the framework calls
   at `0x32e022` and in the PMM at `0x3e15e4`. The code that compares the
   score after message `0x5133` and writes the record back was not traced.
 
+## Check against a re-implementation
+
+Runtime. The C port in `nokia-3310-games` replays the event sequence the
+firmware's handler received during the golden run below (logged with a
+breakpoint on `games_dispatch_2dbd2a`) and draws 231 distinct pictures;
+all of them appear, in order, among the frames MAME captured. That
+confirms, for the first 20 s of level 0, the event interface, the pending
+return code, the sprite order and draw modes, the HUD, the player's keys,
+the spawn script, straight-line movement, shot collisions and scoring as
+described here. Terrain, enemy fire, the path patterns and everything
+from the first boss on are not covered by it.
+
 ## Golden run
 
 Runtime. A deterministic 40 s run through the start of level 0:
@@ -465,7 +503,7 @@ the notes file by `make games-doc GAMES_PRODUCT=3310`.
 | `0x2579ac` | function | `si_hud_refresh_2579ac` | Redraws special count, score and the life icons (shown for index < lives). |
 | `0x257a18` | function | `si_ship_spawn_257a18` | (ctx, 10 = new ship \| 0x14 = respawn). Places the ship at (5, 20) with a shield sprite (type 8) at (3, 18); sets ctx period 100 and one-shot 3000 ms, which is the shield time. |
 | `0x257b48` | function | `si_new_game_257b48` | Events 0x24/0x2b. Allocates 60 sprites, fills the tile and tilemap pointer tables, lives 3, special 3 x missile, continues counter 4, loads level 0. |
-| `0x257ce0` | function | `si_continue_key_257ce0` | On the continue screen (phase 0x14), keys 1/3/4/6 restart the current level from its last checkpoint with 3 lives and 3 missiles. |
+| `0x257ce0` | function | `si_continue_key_257ce0` | On the continue screen (phase 0x14), keys 1/3/4/6 restart the current level from its beginning with 3 lives and 3 missiles. The level load clears the checkpoint byte before this function reads it. |
 | `0x257e1c` | function | `si_key_257e1c` | Key handler while playing. 8/0 move up/down, */# left/right (1 px, repeat codes 2 px), 1/3 fire, 4/6 special. Sets ctx+0x14 to the sound and the pending return to 0x1b. |
 | `0x258114` | function | `si_continue_enter_258114` | Builds the continue screen: remaining continues as icons, a countdown digit, tick period 800 ms, phase 0x14. |
 | `0x2581f8` | function | `si_resume_2581f8` | Event 0x35. Re-allocates the sprite engine and recreates every sprite from the saved object records and their saved x/y. |
@@ -554,12 +592,12 @@ the notes file by `make games-doc GAMES_PRODUCT=3310`.
 | `0x2dd82c` | function | `sprite_set_rect_2dd82c` | (id, x, y, w, h) for rectangle sprites (the beam). |
 | `0x2dd8ae` | function | `sprite_reset_all_2dd8ae` | Clears every sprite and rebuilds the free list. |
 | `0x2dd936` | function | `sprite_engine_init_2dd936` | Allocates n sprites of 0x1c bytes; reseeds game_rand16 from the clock if it is set. Returns 1 on success. |
-| `0x2dd9da` | function | `sprite_set_mode_2dd9da` | (id, mode): draw mode in bits 3..5 of the flags byte. Seen: 1 and 2 the two polarities, 4, 6 hidden. |
+| `0x2dd9da` | function | `sprite_set_mode_2dd9da` | (id, mode): draw mode in bits 3..5 of the flags byte. 0 clear bits clear; 1 set; 2 flip; 3 inverse; 4 opaque; 5 opaque and blink; 6 hidden. |
 | `0x2dda1c` | function | `sprite_alloc_2dda1c` | Takes a sprite from the free list and links it in layer order. |
 | `0x2dda8c` | function | `sprite_create_2dda8c` | (descriptor, mode, layer, x, y) -> id. |
 | `0x2ddad8` | function | `sprite_create_rect_2ddad8` | Creates a rectangle sprite (kind 1). |
 | `0x2ddbac` | function | `sprite_create_fill_2ddbac` | Creates a fill sprite (kind 2); used for the full-screen background on inverted levels. |
-| `0x2dfd88` | function | `sprite_render_2dfd88` | Called by games_app_handler after each handled event. Inferred to draw the sprite list. |
+| `0x2dfd88` | function | `sprite_render_2dfd88` | Called by games_app_handler after each handled event. Erases and redraws the sprites that changed and every sprite overlapping them (0x2dfa0a), in list order (0x2dfbe4), or everything when the engine's dirty flag is set. |
 | `0x2e6e98` | function | `tilemap_render_2e6e98` | (layer, scroll x): draws rows of 32x8 tiles into the layer bitmap, 84 px wide, wrapping at width * 32. |
 | `0x2e6f9a` | function | `tilemap_init_2e6f9a` | (layer, width in tiles, rows, map, top flag, tile pointers, mode): allocates rows * 84 bytes and creates the layer sprite at the top (0x2b) or bottom of the 48-row screen. |
 | `0x2e7036` | function | `tilemap_collide_2e7036` | Pixel overlap between a sprite and the terrain layer. |
@@ -587,10 +625,7 @@ the notes file by `make games-doc GAMES_PRODUCT=3310`.
 - Bantumi, Pairs II and Snake II are located only.
 - The per-level boss behaviours in `si_move_boss_258b0c` and the final boss
   state machine are named and summarised, not specified step by step.
-- Sprite draw modes other than the two polarities and hidden (6) are not
-  decoded; `sprite_render_2dfd88` was not read.
-- The conversion from ctx milliseconds to timer units, and the 800 ms
-  continue period, were not measured.
+- The 800 ms continue period was not measured.
 - No run has reached a boss, a level change, a game over or a top-score
   update, so those paths are static only.
 - Three candidate entries inside the game range (`0x259c46`, `0x259ddc`,

@@ -141,7 +141,7 @@
   {
    "addr": "0x257ce0",
    "lines": [
-    "On the continue screen (phase 0x14), keys 1/3/4/6 restart the current level from its last checkpoint with 3 lives and 3 missiles."
+    "On the continue screen (phase 0x14), keys 1/3/4/6 restart the current level from its beginning with 3 lives and 3 missiles. The level load clears the checkpoint byte before this function reads it."
    ]
   },
   {
@@ -519,7 +519,7 @@
   {
    "addr": "0x2dd9da",
    "lines": [
-    "(id, mode): draw mode in bits 3..5 of the flags byte. Seen: 1 and 2 the two polarities, 4, 6 hidden."
+    "(id, mode): draw mode in bits 3..5 of the flags byte. 0 clear bits clear; 1 set; 2 flip; 3 inverse; 4 opaque; 5 opaque and blink; 6 hidden."
    ]
   },
   {
@@ -549,7 +549,7 @@
   {
    "addr": "0x2dfd88",
    "lines": [
-    "Called by games_app_handler after each handled event. Inferred to draw the sprite list."
+    "Called by games_app_handler after each handled event. Erases and redraws the sprites that changed and every sprite overlapping them (0x2dfa0a), in list order (0x2dfbe4), or everything when the engine's dirty flag is set."
    ]
   },
   {
