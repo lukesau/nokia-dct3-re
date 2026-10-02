@@ -7,6 +7,7 @@
 0x0010da5c,label,game_rand_seed_10da5c
 0x0010db68,label,game_digit_sprites_10db68
 0x0010f9e0,label,games_records_10f9e0
+0x0011072c,label,sound_class_state_11072c
 0x001111ec,label,games_app_state_1111ec
 0x00111218,label,game_ctx_111218
 0x00111af0,label,sprite_engine_111af0
@@ -93,6 +94,7 @@
 0x002e6e98,function,tilemap_render_2e6e98
 0x002e6f9a,function,tilemap_init_2e6f9a
 0x002e7036,function,tilemap_collide_2e7036
+0x002ec82c,function,sound_classes_init_2ec82c
 0x002ec8ca,function,sound_play_2ec8ca
 0x002f04fc,function,rt_smod_2f04fc
 0x002f0998,function,rt_umod_2f0998
@@ -111,4 +113,5 @@
 0x00312254,label,si_tiles_312254
 0x00313180,label,si_hud_icons_313180
 0x003131bc,label,si_type_templates_3131bc
+0x00321e6c,label,sound_table_321e6c
 0x0033016c,label,games_table_33016c

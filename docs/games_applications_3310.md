@@ -414,17 +414,60 @@ The tile pointers and tilemap pointers are not tables in ROM:
 
 ## Sounds
 
-Static for the ids, inferred for the player. The game stores an id in
-ctx+0x14 and returns `0x1b`; the framework calls
-`sound_play_2ec8ca(0, 0xf1, id)` when game sounds are enabled.
+The game stores an id in ctx+0x14 and returns `0x1b`; the framework calls
+`sound_play_2ec8ca(0, 0xf1, id)` when the games' sounds are on (static).
 
-| Id | Event |
-|---:|---|
-| `0x17` | ship destroyed |
-| `0x18` | shot |
-| `0x19` | missile or wall |
-| `0x1a` | beam |
-| `0x1f` | bonus collected |
+| Id | Event | Script | Notes, as hertz x timer units |
+|---:|---|---|---|
+| `0x17` | ship destroyed | `0x321bac` | 880x2 4186x6 932x2 4186x6 988x2 4186x6 |
+| `0x18` | shot | `0x321bc8` | 440x5 466x5 494x5 523x5 |
+| `0x19` | missile or wall | `0x321bd4` | 4186x8 3951x2 3729x2 3520x2 3322x2 3136x2 2960x2 2794x2 2637x2 |
+| `0x1a` | beam | `0x321bf0` | 1397x2 then 988, 932, 880, 831, 784, 740, 698, 659, 622, 587, each x2 and each followed by 1397x2, except that the 1397 after 880 is 1568 and none follows 587 |
+| `0x1f` | bonus collected | `0x321cbc` | 2637x1 |
+
+- Static: `sound_play_2ec8ca` posts an 8-byte message to task 6, the tone
+  task (its loop is around `0x2ca540`): +0 a pointer to the sound's
+  8-byte record in `sound_table_321e6c` (ids `0`..`0x3c`), +4 the id,
+  +5 the value 2, +7 the caller's second argument.
+- Static: a table record is a pointer to a tone script, a tone class
+  `0`..`3` at +4 and flags at +5. The games' five sounds are class 0 with
+  no flags; the keypad tones are class 1.
+- Static: the five scripts are a `0x00` byte, the command `0x09`, pairs
+  of note and length, and the end command `0x0b`. Other sounds in the
+  table use more commands (`0x02`, `0x05`..`0x07`, `0x0a` with an
+  argument, and note `0x40`, which looks like a rest); they were not
+  traced, nor was what `0x09` does.
+- Runtime: a note byte n sounds at 440 Hz x 2^((n - 0x7c) / 12): the
+  buzzer dividers written for the shot's `0x7c`..`0x7f` are 29545, 27897,
+  26316 and 24857 of 13 MHz, and those of every other note in the five
+  scripts fit the same scale. Each note is first written with a divider a
+  little off and corrected within the same instant.
+- Runtime: a length is in the units of the games' timers. Notes of length
+  2 last 15.5 ms and of length 5 38.7 ms in MAME, 7.73 ms a unit, the
+  unit the game's tick measures there (see Timing). Adjacent notes of the
+  same pitch run together: the 4186 Hz groups of `0x17` and the start of
+  `0x19` are single tones. The first note of a sound comes out up to a
+  unit short, the 1-unit bonus blip at 3.6 ms.
+- Runtime: a sound asked for while another plays replaces it.
+- Static: the tone task plays a sound only if its class is switched on,
+  the byte at +0xe of the class's `0x1c`-byte record in
+  `sound_class_state_11072c`, or the record's flags have bit 0. For class
+  0 `sound_classes_init_2ec82c` sets the switch to whether byte 6 of the
+  profile block is 4. Inferred: that is the profile's Warning and game
+  tones setting.
+- Runtime: on a fresh NVRAM both that switch and the games' own setting
+  (`0x111505`; Games, Settings, Sounds) are off, and no game makes a
+  sound. `mame_nokia_3310_game_sound_log.lua` sets both in RAM, logs
+  every sound asked for, and can play given ids in place of the first
+  sounds of a run; `tools/game_sound_trace.py` lists the notes from the
+  log:
+
+  ```
+  make run-keys GAMES_PRODUCT=3310 RUN_DIR=$PWD/run_3310_sound SECONDS=40 KEYS=<the golden run's> \
+      RUN_ENV=NOKIA_3310_GAME_SOUND_AS=1a,1f,19,17,18 \
+      RUN_EXTRA_ARGS="-verbose -autoboot_script $PWD/mame_nokia_3310_game_sound_log.lua -debug -debugger none"
+  python3 tools/game_sound_trace.py run_3310_sound/error.log
+  ```
 
 `game_vibrate_2dd70e` is called on ship hits and boss explosions.
 
@@ -606,17 +649,20 @@ the notes file by `make games-doc GAMES_PRODUCT=3310`.
 
 | Address | Kind | Name | Evidence |
 |---|---|---|---|
+| `0x11072c` | label | `sound_class_state_11072c` | Four 0x1c-byte records, one per tone class. +0xe: the class is switched on; +0x14: the script being played. Class 0 is the games' sounds, class 1 the keypad tones. |
 | `0x111bf0` | label | `rand_seed_111bf0` | Seed of the ANSI rand at 0x2f1b44. |
 | `0x299450` | function | `timer_cancel_299450` | Inferred from its use with timer ids 0x32, 0x37, 0x38. |
 | `0x2995ea` | function | `timer_start_2995ea` | (id, ticks). Inferred. 0x32 game tick, 0x37 one-shot, 0x38 key repeat (12 ticks). |
 | `0x29a74e` | function | `heap_free_29a74e` | Inferred. |
 | `0x29a810` | function | `heap_alloc_29a810` | Inferred. |
-| `0x2ec8ca` | function | `sound_play_2ec8ca` | Called as (0, 0xf1, ctx+0x14) on return code 0x1b/0x1f when game sounds are on (0x111505). Inferred. |
+| `0x2ec82c` | function | `sound_classes_init_2ec82c` | Sets the tone classes' switches from the profile block. Class 0 is on when the block's byte 6 is 4; inferred to be Warning and game tones. |
+| `0x2ec8ca` | function | `sound_play_2ec8ca` | (0, class argument, id): posts the sound's record in sound_table to the tone task. Games call it as (0, 0xf1, ctx+0x14) on return code 0x1b/0x1f when their sounds are on (0x111505). |
 | `0x2f04fc` | function | `rt_smod_2f04fc` | Signed remainder in r0 (quotient in r1). |
 | `0x2f0998` | function | `rt_umod_2f0998` | Unsigned remainder in r0. |
 | `0x2f1158` | function | `memcpy_2f1158` |  |
 | `0x2f1b44` | function | `rand_2f1b44` | ANSI rand: seed = seed * 0x41c64e6d + 0x3039; returns (seed & 0x7fffffff) >> 16. |
 | `0x2f1c8c` | function | `memset_2f1c8c` |  |
+| `0x321e6c` | label | `sound_table_321e6c` | 0x3d 8-byte records by sound id: tone script pointer, tone class at +4, flags at +5. |
 
 <!-- end address map -->
 

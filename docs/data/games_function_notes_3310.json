@@ -55,6 +55,12 @@
    ]
   },
   {
+   "addr": "0x11072c",
+   "lines": [
+    "Four 0x1c-byte records, one per tone class. +0xe: the class is switched on; +0x14: the script being played. Class 0 is the games' sounds, class 1 the keypad tones."
+   ]
+  },
+  {
    "addr": "0x1111ec",
    "lines": [
     "Framework state: +0 suspended flag, +2 u16 last key code | 0x80 for repeat, +4 u16 game id, +8 pointer to the active context."
@@ -571,9 +577,15 @@
    ]
   },
   {
+   "addr": "0x2ec82c",
+   "lines": [
+    "Sets the tone classes' switches from the profile block. Class 0 is on when the block's byte 6 is 4; inferred to be Warning and game tones."
+   ]
+  },
+  {
    "addr": "0x2ec8ca",
    "lines": [
-    "Called as (0, 0xf1, ctx+0x14) on return code 0x1b/0x1f when game sounds are on (0x111505). Inferred."
+    "(0, class argument, id): posts the sound's record in sound_table to the tone task. Games call it as (0, 0xf1, ctx+0x14) on return code 0x1b/0x1f when their sounds are on (0x111505)."
    ]
   },
   {
@@ -664,6 +676,12 @@
    "addr": "0x3131bc",
    "lines": [
     "37 object templates, 12 bytes each, indexed by type; copied into the object record at spawn."
+   ]
+  },
+  {
+   "addr": "0x321e6c",
+   "lines": [
+    "0x3d 8-byte records by sound id: tone script pointer, tone class at +4, flags at +5."
    ]
   },
   {
