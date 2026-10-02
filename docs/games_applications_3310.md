@@ -492,9 +492,19 @@ The game stores an id in ctx+0x14 and returns `0x1b`; the framework calls
   event.
 - Runtime: the Top score screen shows 4075 on a fresh NVRAM, and the
   Space Impact record at `0x10fa0c` holds `0x0feb` at +2.
-- Inferred: +2 is the top score. Its default appears twice in the image,
-  at `0x32e022` and in the PMM at `0x3e15e4`. The code that compares the
-  score after message `0x5133` and writes the record back was not traced.
+- Static: +2 is the top score. The Top score page at `0x298710` formats
+  the u16 at +2, and the save routine at `0x2981ba` packs the record into
+  a `0x28`-byte NV record (key `0x750`, indexed by game id): +0 big-endian
+  top score from record +2, +2 level from +4, +3 three 11-byte strings
+  from +7, +0x12 and +0x1d, +0x24 and +0x25 from +0x28 and +0x29, +0x26
+  u16 from +0x2a.
+- Static: 4075 is not a firmware default. The only copy is in the PMM
+  dump, where the five records start at `0x3e15be`: top scores 27, 4075,
+  0, 1706 and 197 with levels 8, 0, 4, 6 and 6, the rest of each record
+  being stack leftovers (return addresses, RAM pointers) behind the
+  strings. They are scores saved on the phone the PMM was read from. The
+  `0x0feb` at `0x32e022` is an entry in an ascending id table, unrelated.
+  The code that compares the score after message `0x5133` was not traced.
 
 ## Check against a re-implementation
 
@@ -609,7 +619,7 @@ the notes file by `make games-doc GAMES_PRODUCT=3310`.
 |---|---|---|---|
 | `0x10da5c` | label | `game_rand_seed_10da5c` | Seed of game_rand16_2dd7d0. 1 after boot; sprite_engine_init reseeds it from the clock when the clock is set (runtime: stays unseeded in MAME). |
 | `0x10db68` | label | `game_digit_sprites_10db68` | RAM copy of 0x2f2350: ten 12-byte sprite descriptors for the 4x5 HUD digits, glyphs at 0x10dbe0 (ROM image 0x2f2320). |
-| `0x10f9e0` | label | `games_records_10f9e0` | Per-game record, 0x2c bytes each, indexed by game id: +0 u16 result word (ctx+0x12 after every event), +2 u16 top score (runtime: Space Impact shows 4075 from 0x10fa0e), +4 level setting. |
+| `0x10f9e0` | label | `games_records_10f9e0` | Per-game record, 0x2c bytes each, indexed by game id: +0 u16 result word (ctx+0x12 after every event), +2 u16 top score (runtime: Space Impact shows 4075 from 0x10fa0e, a score saved in the PMM dump), +4 level setting. |
 | `0x1111ec` | label | `games_app_state_1111ec` | Framework state: +0 suspended flag, +2 u16 last key code \| 0x80 for repeat, +4 u16 game id, +8 pointer to the active context. |
 | `0x111218` | label | `game_ctx_111218` | Context passed to every game handler in r1. +0xc u16 tick period ms, +0xe u16 one-shot delay ms, +0x10 u32 score/result, +0x14 u16 sound id, +0x16/+0x17 settings. |
 | `0x11fd57` | label | `games_current_id_11fd57` | Index of the selected game (0 Snake II, 1 Space Impact, 2 Bantumi, 3/4 Pairs II). |

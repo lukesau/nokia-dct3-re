@@ -51,7 +51,7 @@
   {
    "addr": "0x10f9e0",
    "lines": [
-    "Per-game record, 0x2c bytes each, indexed by game id: +0 u16 result word (ctx+0x12 after every event), +2 u16 top score (runtime: Space Impact shows 4075 from 0x10fa0e), +4 level setting."
+    "Per-game record, 0x2c bytes each, indexed by game id: +0 u16 result word (ctx+0x12 after every event), +2 u16 top score (runtime: Space Impact shows 4075 from 0x10fa0e, a score saved in the PMM dump), +4 level setting."
    ]
   },
   {
