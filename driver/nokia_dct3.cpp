@@ -27,6 +27,7 @@
 #include "sound/beep.h"
 #include "speaker.h"
 #include "video/pcd8544.h"
+#include "video/sed1520.h"
 
 #include "nokia_ccont.h"
 #include "nokia_b3_flash.h"
@@ -359,6 +360,8 @@ constexpr nokia_kbgpio_device::wiring_contract KEYPAD_NAM2 = { 5, 0x04 };
 // NPE-3 v5.56 scanner 0x4f84c8 drives five bits; special map 0x2869d4
 // decodes bit 4 as Power (0x0d). Normal map 0x2869b8 matches NSM-5.
 constexpr nokia_kbgpio_device::wiring_contract KEYPAD_NPE3 = { 5, 0x10 };
+// NSE-5 v5.01 special table 0x28dcf4 maps column bit 1 to Power.
+constexpr nokia_kbgpio_device::wiring_contract KEYPAD_NSE5 = { 5, 0x02 };
 static_assert(KEYPAD_NSE8.valid());
 static_assert(KEYPAD_NSE1.valid());
 static_assert(KEYPAD_NHM5.valid());
@@ -368,6 +371,7 @@ static_assert(KEYPAD_NSM5.valid());
 static_assert(KEYPAD_NSE3.valid());
 static_assert(KEYPAD_NAM2.valid());
 static_assert(KEYPAD_NPE3.valid());
+static_assert(KEYPAD_NSE5.valid());
 
 // These values currently match but remain separate evidence: NSE-8 and NHM-5
 // have independent organic startup and call gates. A new product must supply
@@ -961,6 +965,23 @@ constexpr nokia_product_config make_6210_config()
 }
 constexpr nokia_product_config PRODUCT_6210 = make_6210_config();
 
+constexpr nokia_product_config make_7110_config()
+{
+	nokia_product_config result;
+	// Scanner 0x474004 and normal/special tables at 0x28dcd8/0x28dcf4.
+	result.keypad_wiring = KEYPAD_NSE5;
+	result.display = { 132, 65, 96, 65, false };
+	// NSE-5 v5.01 0x432eae uploads 227 full sparse-flash blocks and
+	// one terminal block before 0x432f96 waits for a DSP-owned verdict.
+	// Ownership acknowledgements do not establish the final publication.
+	result.dsp_bootstrap = {
+		nokia_dsp_hle_device::bootstrap_exchange_strategy::ping_pong,
+		0, {}, 0, std::nullopt, std::nullopt, 0
+	};
+	return result;
+}
+constexpr nokia_product_config PRODUCT_7110 = make_7110_config();
+
 constexpr offs_t NOKIA_RAM_BASE = 0x100000;
 constexpr offs_t NOKIA_RAM_END = 0x180000;
 constexpr offs_t NOKIA_FLASH1_BASE = 0x00200000;
@@ -1055,6 +1076,7 @@ public:
 		m_simi(*this, "simi"),
 		m_sim_card(*this, "sim_card"),
 		m_lcd(*this, "lcd"),
+		m_sed_lcd(*this, "sed_lcd"),
 		m_buzzer(*this, "buzzer"),
 		m_dsp_tone1(*this, "dsp_tone1"),
 		m_dsp_tone2(*this, "dsp_tone2"),
@@ -1088,6 +1110,7 @@ public:
 	void noki5110(machine_config &config);
 	void noki6110(machine_config &config);
 	void noki7110(machine_config &config);
+	void nse5r4t(machine_config &config);
 	void noki6210(machine_config &config);
 	void noki6250(machine_config &config);
 	void dct3_base(machine_config &config);
@@ -1111,6 +1134,7 @@ private:
 	void post_load();
 	void apply_product_config(nokia_product_config const &product);
 	void apply_sms_config();
+	u8 nse5_roller_gpio_r(offs_t bank);
 
 
 	uint8_t mad2_io_r(offs_t offset);
@@ -1207,7 +1231,8 @@ private:
 	required_device<nokia_radio_peer_device> m_radio_peer;
 	required_device<nokia_simi_device> m_simi;
 	required_device<nokia_sim_card_device> m_sim_card;
-	required_device<pcd8544_device> m_lcd;
+	optional_device<pcd8544_device> m_lcd;
+	optional_device<sed1565_device> m_sed_lcd;
 	required_device<beep_device> m_buzzer;
 	required_device<beep_device> m_dsp_tone1;
 	required_device<beep_device> m_dsp_tone2;
@@ -1707,7 +1732,8 @@ void nokia_dct3_state::machine_reset()
 	// and pixel byte arrives one bit misaligned. Reset the LCD after GENSIO
 	// has settled so the serial link starts aligned, as reset_digital_baseband
 	// already does for firmware-initiated resets.
-	m_lcd->reset();
+	if (m_lcd) m_lcd->reset();
+	if (m_sed_lcd) m_sed_lcd->reset();
 }
 
 void nokia_dct3_state::mad2_fiq_w(int state)
@@ -1850,7 +1876,8 @@ void nokia_dct3_state::reset_digital_baseband()
 	m_radio_peer->reset();
 	m_simi->reset();
 	m_sim_card->reset();
-	m_lcd->reset();
+	if (m_lcd) m_lcd->reset();
+	if (m_sed_lcd) m_sed_lcd->reset();
 	// nokia_gsm_network_device contains immutable cell data; the session, link
 	// and radio peers above own the reset-sensitive protocol phases.
 	machine_reset();
@@ -2796,6 +2823,46 @@ static INPUT_PORTS_START( noki5210 )
 	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_OTHER ) PORT_NAME("Charger connected") PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::charger_irq), 0)
 INPUT_PORTS_END
 
+static INPUT_PORTS_START( noki7110 )
+	PORT_INCLUDE(dct3_network_config)
+	PORT_START("ROLLER")
+	// Mechanical contact position only. IRQ7 delivery remains unvalidated.
+	PORT_BIT( 0x03, 0x00, IPT_POSITIONAL ) PORT_NAME("Navi Roller") PORT_POSITIONS(3) PORT_WRAPS PORT_SENSITIVITY(100) PORT_KEYDELTA(1) PORT_CODE_DEC(KEYCODE_DOWN) PORT_CODE_INC(KEYCODE_UP)
+	// NSE-5 raw index = row * 5 + column. Column zero is not scanned.
+	// Roller rotation is a separate UIF+ contact input, not Up/Down keys.
+	PORT_START("COL.0")
+	PORT_BIT( 0x1f, IP_ACTIVE_LOW, IPT_UNUSED )
+	PORT_START("COL.1")
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Send") PORT_CODE(KEYCODE_S) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::key_irq), 0)
+	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("End") PORT_CODE(KEYCODE_E) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::key_irq), 0)
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Keypad 1") PORT_CODE(KEYCODE_1) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::key_irq), 0)
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Keypad 2") PORT_CODE(KEYCODE_2) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::key_irq), 0)
+	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Keypad 3") PORT_CODE(KEYCODE_3) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::key_irq), 0)
+	PORT_START("COL.2")
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Left Softkey / Menu") PORT_CODE(KEYCODE_ENTER) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::key_irq), 0)
+	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Keypad 0") PORT_CODE(KEYCODE_0) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::key_irq), 0)
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Roller Push") PORT_CODE(KEYCODE_R) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::key_irq), 0)
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Keypad 5") PORT_CODE(KEYCODE_5) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::key_irq), 0)
+	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_UNUSED )
+	PORT_START("COL.3")
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Right Softkey / C") PORT_CODE(KEYCODE_BACKSPACE) PORT_CODE(KEYCODE_DEL) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::key_irq), 0)
+	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Keypad #") PORT_CODE(KEYCODE_MINUS) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::key_irq), 0)
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Keypad 4") PORT_CODE(KEYCODE_4) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::key_irq), 0)
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Keypad 8") PORT_CODE(KEYCODE_8) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::key_irq), 0)
+	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_UNUSED )
+	PORT_START("COL.4")
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Keypad *") PORT_CODE(KEYCODE_ASTERISK) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::key_irq), 0)
+	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Keypad 6") PORT_CODE(KEYCODE_6) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::key_irq), 0)
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Keypad 7") PORT_CODE(KEYCODE_7) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::key_irq), 0)
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Keypad 9") PORT_CODE(KEYCODE_9) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::key_irq), 0)
+	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_UNUSED )
+	PORT_START("PWR")
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Power") PORT_CODE(KEYCODE_SPACE) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::key_irq), 0)
+	PORT_BIT( 0x1e, IP_ACTIVE_LOW, IPT_UNUSED )
+	PORT_START("CHARGER")
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_OTHER ) PORT_NAME("Charger connected") PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::charger_irq), 0)
+INPUT_PORTS_END
+
 static INPUT_PORTS_START( noki6210 )
 	// Independently checked NPE-3 normal/special tables and board switches;
 	// reuse the identical logical matrix, not the NSM-5 hardware profile.
@@ -3281,10 +3348,43 @@ void nokia_dct3_state::noki6110(machine_config &config)
 	apply_product_config(PRODUCT_6110);
 }
 
+u8 nokia_dct3_state::nse5_roller_gpio_r(offs_t bank)
+{
+	// One closed pair, with released pins pulled high. A driven-low contact
+	// pulls its connected mate low; do not synthesize a firmware phase byte.
+	static constexpr u8 masks[3] = { 0x02, 0x01, 0x20 };
+	bool low[3];
+	for (unsigned pin = 0; pin < 3; ++pin)
+		low[pin] = !(m_uif->read(0xb1 + pin) & masks[pin]) &&
+				!(m_uif->read(0x31 + pin) & masks[pin]);
+	const unsigned isolated = ioport("ROLLER")->read() % 3;
+	const unsigned first = (isolated + 1) % 3;
+	const unsigned second = (isolated + 2) % 3;
+	low[first] = low[second] = low[first] || low[second];
+	return bank >= 1 && bank <= 3 && !low[bank - 1] ? masks[bank - 1] : 0;
+}
+
 void nokia_dct3_state::noki7110(machine_config &config)
 {
 	dct3_32mbit_flash_base(config);
-	apply_product_config(PRODUCT_DEFAULT);
+	apply_product_config(PRODUCT_7110);
+	m_uif->input_cb().set(FUNC(nokia_dct3_state::nse5_roller_gpio_r));
+	config.device_remove("lcd");
+	SED1565(config, m_sed_lcd).set_panel_window(18, 96, 65);
+	subdevice<screen_device>("screen")->set_screen_update("sed_lcd", FUNC(sed1565_device::screen_update));
+	m_gensio->lcd_dc_cb().set(m_sed_lcd, FUNC(sed1565_device::dc_w));
+	m_gensio->lcd_sdin_cb().set(m_sed_lcd, FUNC(sed1565_device::sdin_w));
+	m_gensio->lcd_sclk_cb().set(m_sed_lcd, FUNC(sed1565_device::sclk_w));
+}
+
+void nokia_dct3_state::nse5r4t(machine_config &config)
+{
+	// Compatibility instrument, not the fitted NSE-5 mask identity. Execute
+	// the acquired NSE-1 ROM4 against stock NSE-5 flash and local PMM.
+	noki7110(config);
+	config.device_remove("dsp_hle");
+	NOKIA_DSP_C54X(config, m_dsp_c54x, 52'000'000);
+	m_dsp_c54x->tone_update_cb().set(FUNC(nokia_dct3_state::dsp_tone_update_w));
 }
 
 void nokia_dct3_state::noki6210(machine_config &config)
@@ -3486,6 +3586,24 @@ ROM_START( noki7110 )
 	ROM_LOAD("7110 virgin eeprom 005fa000.fls", 0x3fa000, 0x006000, CRC(78e7d8c1) SHA1(8b4dd782fc9d1306268ba63124ee463ac646912b))
 ROM_END
 
+// Explicit research composition: no donor EEPROM/PMM and no fabricated
+// bootstrap reply. The ROM4 mask remains an unproved NSE-5 compatibility input.
+ROM_START( nse5r4t )
+	ROM_REGION16_BE(0x10000, "boot_rom", ROMREGION_ERASEFF)
+	ROM_LOAD("nse5_boot.bin", 0, 0x10000, NO_DUMP)
+	ROM_REGION16_BE(0x20000, "dsp_program", ROMREGION_ERASE00)
+	ROM_LOAD("nse1_rom4_dsp_program.bin", 0, 0x1fffe,
+			CRC(886f35e4) SHA1(a05a1e96a8c36ec5a47e1ea059d15afa54ca5739))
+	ROM_REGION16_BE(0x20000, "dsp_data", ROMREGION_ERASE00)
+	ROM_LOAD("nse1_rom4_dsp_data.bin", 0, 0x20000,
+			CRC(c8111608) SHA1(024c7f970f4ef754d3e90471de48a167515f930d))
+	ROM_REGION16_BE(0x400000, "flash", ROMREGION_ERASEFF)
+	ROM_LOAD("7110f501_ppmc.fls", 0, 0x390000,
+			CRC(919ac753) SHA1(53af8324919f455ba8199d2c05f7a921cfb811d5))
+	ROM_LOAD("7110 virgin eeprom 005fa000.fls", 0x3fa000, 0x6000,
+			CRC(78e7d8c1) SHA1(8b4dd782fc9d1306268ba63124ee463ac646912b))
+ROM_END
+
 ROM_START( noki8210 )
 	DCT3_SHARED_MAD2_INTERNAL_ROMS
 
@@ -3529,7 +3647,8 @@ SYST( 1999, noki3210, 0,      0,      noki3210, noki3210, nokia_dct3_state, empt
 SYST( 2003, noki2100, 0,      0,      noki2100, noki2100, nokia_dct3_state, empty_init, "Nokia", "Nokia 2100 (NAM-2 candidate)", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
 SYST( 1998, noki5110, 0,      0,      noki5110, noki5110, nokia_dct3_state, empty_init, "Nokia", "Nokia 5110 (NSE-1, ROM4 DSP research)", MACHINE_NOT_WORKING )
 SYST( 1997, noki6110, 0,      0,      noki6110, noki6110, nokia_dct3_state, empty_init, "Nokia", "Nokia 6110 (NSE-3)", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
-SYST( 1999, noki7110, 0,      0,      noki7110, noki3310, nokia_dct3_state, empty_init, "Nokia", "Nokia 7110", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
+SYST( 1999, noki7110, 0,      0,      noki7110, noki7110, nokia_dct3_state, empty_init, "Nokia", "Nokia 7110", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
+SYST( 1999, nse5r4t,  noki7110, 0,    nse5r4t,  noki7110, nokia_dct3_state, empty_init, "Nokia", "NSE-5 with NSE-1 ROM4 (compatibility fixture, not fitted mask)", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
 SYST( 1999, noki8210, 0,      0,      noki8210, noki3310, nokia_dct3_state, empty_init, "Nokia", "Nokia 8210", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
 SYST( 1999, noki8850, 0,      0,      noki8xxx, noki3310, nokia_dct3_state, empty_init, "Nokia", "Nokia 8850", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
 SYST( 2000, noki3310, 0,      0,      noki3310, noki3310, nokia_dct3_state, empty_init, "Nokia", "Nokia 3310", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
