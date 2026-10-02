@@ -10,13 +10,14 @@ Usage: naming_worklist.py [--top N] [--boundary]
 import argparse, json, sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import games_product as P
 import symbol_names as N
 ROOT = Path(__file__).resolve().parents[1]
 
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("--top", type=int, default=8); ap.add_argument("--boundary", action="store_true")
     a = ap.parse_args()
-    g = json.load(open(ROOT / "run_games/callgraph.json")); fns = g["functions"]; names = N.load()
+    g = json.load(open(P.path("run_dir") / "callgraph.json")); fns = g["functions"]; names = N.load()
     def nm(h): return names.get(int(h, 16))
     inner = [f for f, r in fns.items() if not r["boundary"]]; bnd = g["boundary"]
     named_i = [f for f in inner if not N.is_auto(nm(f))]; named_b = [f for f in bnd if not N.is_auto(nm(f))]

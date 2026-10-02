@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static call graph of the 3210 games code (Thumb-1, swap16 image).
+"""Static call graph of the games code (Thumb-1, swap16 image).
 
 Scans every BL pair in the image, then walks the closure from the given roots.
 Functions inside the "inner" address ranges are descended into; anything
@@ -8,16 +8,17 @@ on) and not descended into. Function extents are approximated as
 [entry, next entry) using the candidate entry list.
 
 Usage:
-  call_closure.py [--roots 0x... ...] [--inner 0x240600-0x244000,...] [--json out]
+  call_closure.py [--roots 0x... ...] [--inner 0x...-0x...,...] [--json out]
 Defaults: roots = every candidate entry inside the inner ranges.
 Output: JSON {functions: {addr: {callees:[], callers:[], boundary:bool, region:str}}, boundary:[...]}
 """
-import argparse, bisect, json
+import argparse, bisect, json, sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import games_product as P
 FLASH = 0x200000
-DEFAULT_INNER = "0x240600-0x244000,0x2621c0-0x263500"
 
 def load_entries(path):
     return sorted(int(l.split()[0], 16) for l in open(path) if l.strip())
@@ -74,12 +75,13 @@ def build(image, entries_path, roots, inner):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--image", default=str(ROOT / "roms/3210f600a_swap16.bin"))
-    ap.add_argument("--entries", default=str(ROOT / "run_games/entry_candidates.txt"))
+    ap.add_argument("--image", default=str(P.path("image")))
+    ap.add_argument("--entries", default=str(P.path("run_dir") / "entry_candidates.txt"))
     ap.add_argument("--roots", nargs="*")
-    ap.add_argument("--inner", default=DEFAULT_INNER)
-    ap.add_argument("--json", default=str(ROOT / "run_games/callgraph.json"))
+    ap.add_argument("--inner", default=None)
+    ap.add_argument("--json", default=str(P.path("run_dir") / "callgraph.json"))
     a = ap.parse_args()
+    a.inner = a.inner or P.get("inner")
     inner = parse_ranges(a.inner)
     entries = load_entries(a.entries)
     roots = [int(r, 0) for r in a.roots] if a.roots else [e for e in entries if in_ranges(e, inner)]

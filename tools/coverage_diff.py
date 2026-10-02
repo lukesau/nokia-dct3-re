@@ -7,8 +7,10 @@ Prints functions first entered in the --new phases that never appeared in the
 --against phases (default: every phase that precedes the first --new phase),
 sorted by address with symbol names and address-cluster breaks.
 """
-import argparse, collections, csv, re
+import argparse, collections, csv, re, sys
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import games_product as P
 
 def parse(path):
     phase, seen, order = "boot", collections.OrderedDict(), []
@@ -24,7 +26,7 @@ def parse(path):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("log"); ap.add_argument("--new", required=True); ap.add_argument("--against")
-    ap.add_argument("--symbols", default=str(Path(__file__).resolve().parents[1] / "ghidra/symbols/3210.csv"))
+    ap.add_argument("--symbols", default=str(P.path("symbols")))
     ap.add_argument("--gap", type=lambda s: int(s, 0), default=0x800, help="cluster break distance")
     a = ap.parse_args()
     seen, order = parse(a.log)

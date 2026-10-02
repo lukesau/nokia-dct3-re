@@ -99,6 +99,7 @@ corresponding subsystem:
 - `sim_emulator_scope.md`
 - `firmware_code_maps.md`
 - `games_applications.md` (built-in games, their framework and boundary services)
+- `games_applications_3310.md` (Space Impact on the 3310 v6.39: dispatch, state, levels, assets)
 - `message_topology_census.md`
 - `battery_classifier_analysis.md` (mapped battery ADC/classifier contract)
 

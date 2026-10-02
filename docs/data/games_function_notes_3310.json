@@ -1,0 +1,676 @@
+{
+ "blocks": [
+  {
+   "addr": "0x109df0",
+   "lines": [
+    "Scratch block outside the saved state: +0 s8 vertical-bounce direction, +1 final-boss volley counter, +2 burst pause for pattern-20 fire, +4 u16 sprite currently flashed, +8 pointer to the active y-path table, +0xc boss-fire cooldown, +0x10.. tile pointer arrays filled by si_new_game."
+   ]
+  },
+  {
+   "addr": "0x109e68",
+   "lines": [
+    "8 pointers, one per level, to that level's array of 32-byte tile bitmap pointers (inside si_work). Filled by si_new_game."
+   ]
+  },
+  {
+   "addr": "0x109ea0",
+   "lines": [
+    "8 pointers, one per level, to a 32-byte tilemap in ROM (0x311740..0x31181f; levels 2 and 3 share 0x311760). Filled by si_new_game."
+   ]
+  },
+  {
+   "addr": "0x109ec4",
+   "lines": [
+    "Space Impact state, 0x34c bytes; event 0x33/0x34 hands this address and size to the framework. Layout in docs/games_applications_3310.md."
+   ]
+  },
+  {
+   "addr": "0x10a210",
+   "lines": [
+    "RAM copy of si_type_frames_init_2f3108: per object type, pointer to its array of 12-byte sprite descriptors."
+   ]
+  },
+  {
+   "addr": "0x10a2a4",
+   "lines": [
+    "RAM copy of si_level_table_init_2f30d4: 8 pointers to the 16-byte level headers."
+   ]
+  },
+  {
+   "addr": "0x10da5c",
+   "lines": [
+    "Seed of game_rand16_2dd7d0. 1 after boot; sprite_engine_init reseeds it from the clock when the clock is set (runtime: stays unseeded in MAME)."
+   ]
+  },
+  {
+   "addr": "0x10db68",
+   "lines": [
+    "RAM copy of 0x2f2350: ten 12-byte sprite descriptors for the 4x5 HUD digits, glyphs at 0x10dbe0 (ROM image 0x2f2320)."
+   ]
+  },
+  {
+   "addr": "0x10f9e0",
+   "lines": [
+    "Per-game record, 0x2c bytes each, indexed by game id: +0 u16 result word (ctx+0x12 after every event), +2 u16 top score (runtime: Space Impact shows 4075 from 0x10fa0e), +4 level setting."
+   ]
+  },
+  {
+   "addr": "0x1111ec",
+   "lines": [
+    "Framework state: +0 suspended flag, +2 u16 last key code | 0x80 for repeat, +4 u16 game id, +8 pointer to the active context."
+   ]
+  },
+  {
+   "addr": "0x111218",
+   "lines": [
+    "Context passed to every game handler in r1. +0xc u16 tick period ms, +0xe u16 one-shot delay ms, +0x10 u32 score/result, +0x14 u16 sound id, +0x16/+0x17 settings."
+   ]
+  },
+  {
+   "addr": "0x111af0",
+   "lines": [
+    "Sprite engine: +0 u16 free-list head, +2 u16 sprite count, +4 pointer to the 0x1c-byte sprite records (heap), +8 dirty flag."
+   ]
+  },
+  {
+   "addr": "0x111bf0",
+   "lines": [
+    "Seed of the ANSI rand at 0x2f1b44."
+   ]
+  },
+  {
+   "addr": "0x11fd57",
+   "lines": [
+    "Index of the selected game (0 Snake II, 1 Space Impact, 2 Bantumi, 3/4 Pairs II)."
+   ]
+  },
+  {
+   "addr": "0x2576a0",
+   "lines": [
+    "Marks all 60 object records free (type 0x32) and clears the object count at state+0x2a."
+   ]
+  },
+  {
+   "addr": "0x2576ce",
+   "lines": [
+    "Writes a decimal number into a chain of digit sprites: (first sprite id, value, digits). Follows the sprite next links, so digit sprites must be created consecutively."
+   ]
+  },
+  {
+   "addr": "0x257748",
+   "lines": [
+    "Sets the vertical play limits at state+0x318/+0x319: (0x20, 6) with ground terrain, (0x2a, 0x10) when the terrain is on the ceiling (arg 0x2b)."
+   ]
+  },
+  {
+   "addr": "0x257764",
+   "lines": [
+    "Creates the HUD sprites (5 life icons, special icon, 2-digit special count, 5-digit score) and the terrain layer via tilemap_init; levels 4 and 5 put the terrain at the top."
+   ]
+  },
+  {
+   "addr": "0x2578de",
+   "lines": [
+    "Copies a 16-byte level header to state+0x31c, resets sprites and objects, rebuilds the HUD, sets phase 10."
+   ]
+  },
+  {
+   "addr": "0x25793a",
+   "lines": [
+    "(type, draw mode, x, y) -> sprite id. Creates the sprite with the type's first frame and copies the 12-byte template. Refuses when 40 objects exist."
+   ]
+  },
+  {
+   "addr": "0x2579ac",
+   "lines": [
+    "Redraws special count, score and the life icons (shown for index < lives)."
+   ]
+  },
+  {
+   "addr": "0x257a18",
+   "lines": [
+    "(ctx, 10 = new ship | 0x14 = respawn). Places the ship at (5, 20) with a shield sprite (type 8) at (3, 18); sets ctx period 100 and one-shot 3000 ms, which is the shield time."
+   ]
+  },
+  {
+   "addr": "0x257b48",
+   "lines": [
+    "Events 0x24/0x2b. Allocates 60 sprites, fills the tile and tilemap pointer tables, lives 3, special 3 x missile, continues counter 4, loads level 0."
+   ]
+  },
+  {
+   "addr": "0x257ce0",
+   "lines": [
+    "On the continue screen (phase 0x14), keys 1/3/4/6 restart the current level from its last checkpoint with 3 lives and 3 missiles."
+   ]
+  },
+  {
+   "addr": "0x257e1c",
+   "lines": [
+    "Key handler while playing. 8/0 move up/down, */# left/right (1 px, repeat codes 2 px), 1/3 fire, 4/6 special. Sets ctx+0x14 to the sound and the pending return to 0x1b."
+   ]
+  },
+  {
+   "addr": "0x258114",
+   "lines": [
+    "Builds the continue screen: remaining continues as icons, a countdown digit, tick period 800 ms, phase 0x14."
+   ]
+  },
+  {
+   "addr": "0x2581f8",
+   "lines": [
+    "Event 0x35. Re-allocates the sprite engine and recreates every sprite from the saved object records and their saved x/y."
+   ]
+  },
+  {
+   "addr": "0x258400",
+   "lines": [
+    "Level 7: spawns the final boss (type 0x22) and its two parts (type 0x23) when the scroll position reaches 0x7a, 0x13a or 0x1ba."
+   ]
+  },
+  {
+   "addr": "0x2584c8",
+   "lines": [
+    "True for types 7, 0x12, 0x13, 0x14, 0x17, 0x18, 0x19, 0x22."
+   ]
+  },
+  {
+   "addr": "0x258508",
+   "lines": [
+    "Runs the level script: counts down the delay, then spawns the next entry's group and records checkpoints. y 0x3f picks a random row with the ANSI rand."
+   ]
+  },
+  {
+   "addr": "0x25865a",
+   "lines": [
+    "Returns 1 with probability 1/N, N the object's fire byte (0 and 0x7f never fire), using game_rand16."
+   ]
+  },
+  {
+   "addr": "0x2586b2",
+   "lines": [
+    "Spawns an enemy bullet (type 4) at the object's left edge if it has shots left (bosses have unlimited shots)."
+   ]
+  },
+  {
+   "addr": "0x25871c",
+   "lines": [
+    "Vertical bounce between the play limits and off the terrain; may fire."
+   ]
+  },
+  {
+   "addr": "0x258808",
+   "lines": [
+    "Boss shot: spawns the given projectile type at an offset, with a 6-tick cooldown."
+   ]
+  },
+  {
+   "addr": "0x258882",
+   "lines": [
+    "Moves a boss left 1 px per tick until x <= 0x38; returns 1 once in place."
+   ]
+  },
+  {
+   "addr": "0x2588c8",
+   "lines": [
+    "Final boss state machine on state+0x47 (0x32, 0x3c, 0x46, 0x50)."
+   ]
+  },
+  {
+   "addr": "0x258a04",
+   "lines": [
+    "Boss charge and retreat state machine on state+0x47 (10, 0x14, 0x1e, 0x28)."
+   ]
+  },
+  {
+   "addr": "0x258aec",
+   "lines": [
+    "Restores a sprite's draw mode for the level polarity after a hit flash."
+   ]
+  },
+  {
+   "addr": "0x258b0c",
+   "lines": [
+    "Pattern 23. Per-level boss behaviour: levels 0-1 bounce, 2 charge, 3 bounce and fire type 0x15, 4-6 charge and fire, 7 the final boss."
+   ]
+  },
+  {
+   "addr": "0x258c68",
+   "lines": [
+    "Pattern 22: bobs a final-boss part with the boss animation frame."
+   ]
+  },
+  {
+   "addr": "0x258cac",
+   "lines": [
+    "Frees the sprite and the object record; clears the missile target and boss part ids that pointed at it."
+   ]
+  },
+  {
+   "addr": "0x258cf6",
+   "lines": [
+    "Frees the object when its x is 0 or has wrapped (>= 0xfb)."
+   ]
+  },
+  {
+   "addr": "0x258d18",
+   "lines": [
+    "Patterns 17/18: move left, sliding along the ceiling or the floor."
+   ]
+  },
+  {
+   "addr": "0x258d8e",
+   "lines": [
+    "Patterns 1 and 10..16: move left by the speed and take y from the active y-path table indexed by x mod 84."
+   ]
+  },
+  {
+   "addr": "0x258e64",
+   "lines": [
+    "True for types 0, 1, 2, 8, 9, 10, 0x16, 0x24: objects that are not targets."
+   ]
+  },
+  {
+   "addr": "0x258ea4",
+   "lines": [
+    "Returns the enemy with the most hit points."
+   ]
+  },
+  {
+   "addr": "0x258f1c",
+   "lines": [
+    "Frees the object when x + width passes 84."
+   ]
+  },
+  {
+   "addr": "0x258f44",
+   "lines": [
+    "Pattern 9: the missile moves right 2 px per tick and steers 1 px per tick toward its target's centre."
+   ]
+  },
+  {
+   "addr": "0x25903c",
+   "lines": [
+    "Pattern 7: move left, climb to the ship's row around x 40..42 and fire when level with it."
+   ]
+  },
+  {
+   "addr": "0x259120",
+   "lines": [
+    "Pattern 6: move left by the speed."
+   ]
+  },
+  {
+   "addr": "0x259154",
+   "lines": [
+    "Pattern 5: move right by the speed (player bullets)."
+   ]
+  },
+  {
+   "addr": "0x259190",
+   "lines": [
+    "Pattern 4: move left, climbing between x 0x1d and 0x38."
+   ]
+  },
+  {
+   "addr": "0x259200",
+   "lines": [
+    "Pattern 3: move left and step 1 px toward the ship's y."
+   ]
+  },
+  {
+   "addr": "0x25924c",
+   "lines": [
+    "Pattern 2: move left, descending between x 0x1d and 0x38."
+   ]
+  },
+  {
+   "addr": "0x2592b0",
+   "lines": [
+    "(kind, amount, ctx). 0x11 bonus: random life/missile/wall/beam; 0x21: +3 specials; 0x31: add score, capped below 31500."
+   ]
+  },
+  {
+   "addr": "0x2593a4",
+   "lines": [
+    "Boss kill: explosions, +100, state+0x47 = 0x7f, phase 0x1e (level exit)."
+   ]
+  },
+  {
+   "addr": "0x259534",
+   "lines": [
+    "Beam special: damages every enemy within 3 px of the beam column as it sweeps."
+   ]
+  },
+  {
+   "addr": "0x2596a0",
+   "lines": [
+    "Per-tick walk of the object list: animation, explosion end, ship death, then the 24-entry movement pattern switch at 0x259718."
+   ]
+  },
+  {
+   "addr": "0x259a0e",
+   "lines": [
+    "Bounding-box overlap of two sprites."
+   ]
+  },
+  {
+   "addr": "0x259a60",
+   "lines": [
+    "First non-player object whose box overlaps the given sprite."
+   ]
+  },
+  {
+   "addr": "0x259ab4",
+   "lines": [
+    "Pixel-exact overlap between the ship and an object, honouring the level polarity."
+   ]
+  },
+  {
+   "addr": "0x259c62",
+   "lines": [
+    "Tests a shot against a boss bitmap along its row; returns the row distance or 0."
+   ]
+  },
+  {
+   "addr": "0x259cfe",
+   "lines": [
+    "Hit flash: hides the sprite for a tick (mode 6) and remembers its id."
+   ]
+  },
+  {
+   "addr": "0x259d30",
+   "lines": [
+    "Per-tick collisions: ship against terrain and enemies, then every player shot against terrain and enemies, with damage and scoring."
+   ]
+  },
+  {
+   "addr": "0x25a200",
+   "lines": [
+    "All events except start. 1 = tick, 0 = one-shot timer (shield off), 0x33/0x34 state query/suspend, 0x35 resume; keys go to si_key or si_continue_key first."
+   ]
+  },
+  {
+   "addr": "0x25a52a",
+   "lines": [
+    "Game id 1 entry called by games_dispatch: 0x24/0x2b start a new game, everything else goes to si_event."
+   ]
+  },
+  {
+   "addr": "0x275aa4",
+   "lines": [
+    "Game id 0 entry (Snake II). Not mapped."
+   ]
+  },
+  {
+   "addr": "0x299450",
+   "lines": [
+    "Inferred from its use with timer ids 0x32, 0x37, 0x38."
+   ]
+  },
+  {
+   "addr": "0x2995ea",
+   "lines": [
+    "(id, ticks). Inferred. 0x32 game tick, 0x37 one-shot, 0x38 key repeat (12 ticks)."
+   ]
+  },
+  {
+   "addr": "0x29a74e",
+   "lines": [
+    "Inferred."
+   ]
+  },
+  {
+   "addr": "0x29a810",
+   "lines": [
+    "Inferred."
+   ]
+  },
+  {
+   "addr": "0x2b2398",
+   "lines": [
+    "Game id 2 entry. Inferred from the menu order; not mapped."
+   ]
+  },
+  {
+   "addr": "0x2d76f6",
+   "lines": [
+    "Handler for id 0x81: the Space Impact title animation. Runtime: receives 0x2b then 0x34 when the title is shown and left."
+   ]
+  },
+  {
+   "addr": "0x2da004",
+   "lines": [
+    "Game ids 3 and 4 entry. Inferred from the menu order; not mapped."
+   ]
+  },
+  {
+   "addr": "0x2dbc7c",
+   "lines": [
+    "Loads the per-game record into the context: ctx+0x10 result word, +0x16 level + 1, +0x17 option."
+   ]
+  },
+  {
+   "addr": "0x2dbd2a",
+   "lines": [
+    "(game id, event) -> handler(event, ctx). Ids 0..4 are the games with game_ctx_111218; 0x80..0x84 are their title screens with a second context at 0x1111f8."
+   ]
+  },
+  {
+   "addr": "0x2dbdd4",
+   "lines": [
+    "Application handler shared by all games. Translates phone events to game events and acts on the handler's return code (timers, sound, game over)."
+   ]
+  },
+  {
+   "addr": "0x2dd6dc",
+   "lines": [
+    "Heap allocation followed by a clear."
+   ]
+  },
+  {
+   "addr": "0x2dd70e",
+   "lines": [
+    "Starts a short vibration when a setting at 0x111506 allows it. Inferred from the checks and the timer it starts; called on hits and explosions."
+   ]
+  },
+  {
+   "addr": "0x2dd748",
+   "lines": [
+    "(id, descriptor): copies a 12-byte sprite descriptor into the sprite and marks it dirty."
+   ]
+  },
+  {
+   "addr": "0x2dd790",
+   "lines": [
+    "Unlinks a sprite and returns it to the free list."
+   ]
+  },
+  {
+   "addr": "0x2dd7d0",
+   "lines": [
+    "seed = (seed * 0x625f + 0x3623) mod 0xfff1; returns the seed."
+   ]
+  },
+  {
+   "addr": "0x2dd7e8",
+   "lines": [
+    "(id, x, y)."
+   ]
+  },
+  {
+   "addr": "0x2dd82c",
+   "lines": [
+    "(id, x, y, w, h) for rectangle sprites (the beam)."
+   ]
+  },
+  {
+   "addr": "0x2dd8ae",
+   "lines": [
+    "Clears every sprite and rebuilds the free list."
+   ]
+  },
+  {
+   "addr": "0x2dd936",
+   "lines": [
+    "Allocates n sprites of 0x1c bytes; reseeds game_rand16 from the clock if it is set. Returns 1 on success."
+   ]
+  },
+  {
+   "addr": "0x2dd9da",
+   "lines": [
+    "(id, mode): draw mode in bits 3..5 of the flags byte. Seen: 1 and 2 the two polarities, 4, 6 hidden."
+   ]
+  },
+  {
+   "addr": "0x2dda1c",
+   "lines": [
+    "Takes a sprite from the free list and links it in layer order."
+   ]
+  },
+  {
+   "addr": "0x2dda8c",
+   "lines": [
+    "(descriptor, mode, layer, x, y) -> id."
+   ]
+  },
+  {
+   "addr": "0x2ddad8",
+   "lines": [
+    "Creates a rectangle sprite (kind 1)."
+   ]
+  },
+  {
+   "addr": "0x2ddbac",
+   "lines": [
+    "Creates a fill sprite (kind 2); used for the full-screen background on inverted levels."
+   ]
+  },
+  {
+   "addr": "0x2dfd88",
+   "lines": [
+    "Called by games_app_handler after each handled event. Inferred to draw the sprite list."
+   ]
+  },
+  {
+   "addr": "0x2e6e98",
+   "lines": [
+    "(layer, scroll x): draws rows of 32x8 tiles into the layer bitmap, 84 px wide, wrapping at width * 32."
+   ]
+  },
+  {
+   "addr": "0x2e6f9a",
+   "lines": [
+    "(layer, width in tiles, rows, map, top flag, tile pointers, mode): allocates rows * 84 bytes and creates the layer sprite at the top (0x2b) or bottom of the 48-row screen."
+   ]
+  },
+  {
+   "addr": "0x2e7036",
+   "lines": [
+    "Pixel overlap between a sprite and the terrain layer."
+   ]
+  },
+  {
+   "addr": "0x2ec8ca",
+   "lines": [
+    "Called as (0, 0xf1, ctx+0x14) on return code 0x1b/0x1f when game sounds are on (0x111505). Inferred."
+   ]
+  },
+  {
+   "addr": "0x2f04fc",
+   "lines": [
+    "Signed remainder in r0 (quotient in r1)."
+   ]
+  },
+  {
+   "addr": "0x2f0998",
+   "lines": [
+    "Unsigned remainder in r0."
+   ]
+  },
+  {
+   "addr": "0x2f1b44",
+   "lines": [
+    "ANSI rand: seed = seed * 0x41c64e6d + 0x3039; returns (seed & 0x7fffffff) >> 16."
+   ]
+  },
+  {
+   "addr": "0x2f30d4",
+   "lines": [
+    "Initialised-data image of si_level_table_10a2a4 (8 pointers 0x312084..0x3120f4)."
+   ]
+  },
+  {
+   "addr": "0x2f3108",
+   "lines": [
+    "Initialised-data image of si_type_frames_10a210 (37 pointers, type 0x16 is null)."
+   ]
+  },
+  {
+   "addr": "0x311740",
+   "lines": [
+    "Seven 32-byte tilemaps (2 rows x 16 tile ids, 0 = empty), 0x311740..0x31181f."
+   ]
+  },
+  {
+   "addr": "0x311820",
+   "lines": [
+    "Spawn entries, 12 bytes each, 179 entries for the 8 levels, 0x311820..0x312083."
+   ]
+  },
+  {
+   "addr": "0x312084",
+   "lines": [
+    "Eight 16-byte level headers: spawn count, spawn list pointer, four checkpoint bytes, draw polarity."
+   ]
+  },
+  {
+   "addr": "0x312104",
+   "lines": [
+    "84 signed y values indexed by x: absolute sine path (pattern 1)."
+   ]
+  },
+  {
+   "addr": "0x312158",
+   "lines": [
+    "84 signed y offsets (-4..4) indexed by x (patterns 10..14)."
+   ]
+  },
+  {
+   "addr": "0x3121ac",
+   "lines": [
+    "84 y values rising 6..33 with x (pattern 16)."
+   ]
+  },
+  {
+   "addr": "0x312200",
+   "lines": [
+    "84 y values falling 33..6 with x (pattern 15)."
+   ]
+  },
+  {
+   "addr": "0x312254",
+   "lines": [
+    "Terrain tiles, 32 bytes each (32x8, one byte per column, bit 0 top), 0x312254..0x3129a3."
+   ]
+  },
+  {
+   "addr": "0x313180",
+   "lines": [
+    "Sprite descriptors for the HUD: life icon, then the three special-weapon icons at 0x313198 (missile), 0x3131a4 (wall), 0x3131b0 (beam)."
+   ]
+  },
+  {
+   "addr": "0x3131bc",
+   "lines": [
+    "37 object templates, 12 bytes each, indexed by type; copied into the object record at spawn."
+   ]
+  },
+  {
+   "addr": "0x33016c",
+   "lines": [
+    "Game table, 16-byte records: four parameter bytes, Thumb handler pointer (games_app_handler for all five), text pointer, u16 flags. Five records."
+   ]
+  }
+ ]
+}

@@ -161,6 +161,12 @@
     reviewed notes from `docs/data/games_function_notes.json`).
     `coverage_diff.py` diffs the per-phase `COV` records written by
     `mame_nokia_dct3_coverage.lua`.
+    The loop works on the 3210 v6.00 image by default. `GAMES_PRODUCT=3310`
+    on any of the `games-*` targets or `run-keys` switches image, run
+    directory, symbol map, notes, document and Ghidra program to the 3310
+    v6.39 set (`tools/games_product.py`, `ghidra/symbols/3310.csv`,
+    `docs/data/games_function_notes_3310.json`,
+    `docs/games_applications_3310.md`, ignored `run_games_3310/`).
   - `lcd_frame_sheet.py` / `lcd_pgm_to_png.py` — contact sheets of the LCD
     mirror frames a run captured.
   - `games_doc_tables.py` — regenerates the address-map tables in

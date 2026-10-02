@@ -719,12 +719,30 @@ swap16:
 
 # Built-in games (Rotation, Snake, Memory) static and runtime mapping helpers.
 # Generated artifacts live under the ignored $(GAMES_RUN_DIR); names live in
-# ghidra/symbols/3210.csv and reviewed notes in docs/data/games_function_notes.json.
+# $(GAMES_SYMBOLS) and reviewed notes in docs/data/games_function_notes*.json.
+# GAMES_PRODUCT picks the firmware: 3210 (v6.00, the default) or 3310 (v6.39).
+GAMES_PRODUCT ?= 3210
+ifeq ($(GAMES_PRODUCT),3310)
+GAMES_RUN_DIR ?= run_games_3310
+GAMES_SWAP ?= roms/3310f639e_swap16.bin
+GAMES_INNER ?= 0x2576a0-0x25a584
+GAMES_SYMBOLS ?= ghidra/symbols/3310.csv
+GHIDRA_PROJECT ?= nokia3310
+GHIDRA_PROGRAM ?= 3310f639e_swap16.bin
+KEY_DELAY_MS ?= 6000
+KEY_DURATION_MS ?= 200
+KEY_GAP_MS ?= 200
+KEY_CAPTURE_MS ?= 1200
+else
 GAMES_RUN_DIR ?= run_games
+GAMES_SWAP ?= $(SWAP)
 GAMES_INNER ?= 0x240600-0x244000,0x2621c0-0x263500
-GHIDRA_PROJECTS ?= $(HOME)/ghidra/projects
+GAMES_SYMBOLS ?= ghidra/symbols/3210.csv
 GHIDRA_PROJECT ?= nokia3210
 GHIDRA_PROGRAM ?= 3210f600a_swap16.bin
+endif
+GHIDRA_PROJECTS ?= $(HOME)/ghidra/projects
+export GAMES_PRODUCT
 KEYS ?= enter
 KEY_DELAY_MS ?= 12000
 KEY_DURATION_MS ?= 70
@@ -735,10 +753,10 @@ KEY_CAPTURE_MS ?= 2000
 
 games-entries:
 	@mkdir -p $(GAMES_RUN_DIR)
-	$(PYTHON) tools/thumb_entries.py --image $(SWAP) --out $(GAMES_RUN_DIR)/entry_candidates.txt
+	$(PYTHON) tools/thumb_entries.py --image $(GAMES_SWAP) --symbols $(GAMES_SYMBOLS) --out $(GAMES_RUN_DIR)/entry_candidates.txt
 
 games-callgraph: games-entries
-	$(PYTHON) tools/call_closure.py --image $(SWAP) --entries $(GAMES_RUN_DIR)/entry_candidates.txt \
+	$(PYTHON) tools/call_closure.py --image $(GAMES_SWAP) --entries $(GAMES_RUN_DIR)/entry_candidates.txt \
 		--inner $(GAMES_INNER) --json $(GAMES_RUN_DIR)/callgraph.json
 
 # Push the symbol map into the Ghidra project and re-export decompiled C for
@@ -748,7 +766,7 @@ games-decomp:
 	mkdir -p $(GAMES_RUN_DIR)/decomp; \
 	addrs=$$($(PYTHON) -c "import json; g=json.load(open('$(GAMES_RUN_DIR)/callgraph.json')); print(' '.join('0x'+a for a in g['functions']))"); \
 	analyzeHeadless $(GHIDRA_PROJECTS) $(GHIDRA_PROJECT) -process $(GHIDRA_PROGRAM) -noanalysis -scriptPath ghidra/scripts \
-		-postScript ImportSymbolsCsv.java $(abspath ghidra/symbols/3210.csv) \
+		-postScript ImportSymbolsCsv.java $(abspath $(GAMES_SYMBOLS)) \
 		-postScript ExportFunctionsByAddress.java $(abspath $(GAMES_RUN_DIR))/decomp/_all.c $$addrs 2>&1 | grep -E "ImportSymbolsCsv|ERROR" || true; \
 	$(PYTHON) tools/split_decompile_export.py $(GAMES_RUN_DIR)/decomp/_all.c $(GAMES_RUN_DIR)/decomp
 
@@ -768,14 +786,23 @@ games-next:
 	target=$$(echo "$$out" | awk '/^NEXT/{print "0x"$$2}'); \
 	test -z "$$target" || { echo; $(PYTHON) tools/function_packet.py $$target; }
 
-# Headless 3210 run with a scripted key sequence; unmapped names such as "x"
-# are harmless no-op slots (pauses). The UI accepts keys about 12 s after boot.
+# Headless run with a scripted key sequence; unmapped names such as "x" are
+# harmless no-op slots (pauses). The 3210 UI accepts keys about 12 s after
+# boot. The 3310 (GAMES_PRODUCT=3310, BIOS 639, needs a built MAME) accepts
+# them from 6 s, but the first key only wakes the UI: start KEYS with a
+# throwaway "enter".
+KEYS_RUN_ENV = NOKIA_DCT3_POST_READY_KEYS=$(KEYS) NOKIA_DCT3_POST_READY_KEY_DELAY_MS=$(KEY_DELAY_MS) NOKIA_DCT3_POST_READY_KEY_DURATION_MS=$(KEY_DURATION_MS) NOKIA_DCT3_POST_READY_KEY_GAP_MS=$(KEY_GAP_MS) NOKIA_DCT3_POST_READY_CAPTURE_DELAY_MS=$(KEY_CAPTURE_MS) $(RUN_ENV)
 run-keys:
+ifeq ($(GAMES_PRODUCT),3310)
+	@$(MAKE) --no-print-directory run-prebuilt PHONE=noki3310 BIOS=639 RUN_DIR=$(RUN_DIR) SECONDS=$(SECONDS) \
+		RUN_ENV='$(KEYS_RUN_ENV)' RUN_EXTRA_ARGS='-window $(RUN_EXTRA_ARGS)'
+else
 	@set -e; $(DCT3_EEPROM_GUARD) \
 	$(MAKE) --no-print-directory run PHONE=noki3210 RUN_DIR=$(RUN_DIR) SECONDS=$(SECONDS) \
 		PROVISIONED_IMEI_PREFIX=49015420323751 \
-		RUN_ENV='NOKIA_DCT3_POST_READY_KEYS=$(KEYS) NOKIA_DCT3_POST_READY_KEY_DELAY_MS=$(KEY_DELAY_MS) NOKIA_DCT3_POST_READY_KEY_DURATION_MS=$(KEY_DURATION_MS) NOKIA_DCT3_POST_READY_KEY_GAP_MS=$(KEY_GAP_MS) NOKIA_DCT3_POST_READY_CAPTURE_DELAY_MS=$(KEY_CAPTURE_MS) $(RUN_ENV)' \
+		RUN_ENV='$(KEYS_RUN_ENV)' \
 		RUN_EXTRA_ARGS='-window $(RUN_EXTRA_ARGS)'
+endif
 
 census:
 	@mkdir -p run_census
