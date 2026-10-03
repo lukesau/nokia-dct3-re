@@ -25,10 +25,33 @@ external projects, re-hosted without guessing at the firmware's contracts.
 | 2 | `memory_handler_24075c` | Memory |
 | 3 | `game3_handler_242890` | not offered in the Games menu |
 
+The fourth entry is React: the English text block's `React` string is
+followed by instructions that describe exactly this game ("hit the pictures
+by using keys 1-6", "six tries which you can repeat by pressing key 9",
+"you lose points by hitting the cactuses"). It is a shooting gallery of six
+windows whose pictures come and go on a 375 ms update; see
+`game3_handler_242890` and its callees in the address map for the rules,
+including the off-by-one in its scoring and the reseeding of `rand` from a
+tick counter before every update. The `game3_` prefix is kept in the symbol
+map until a renaming pass.
+
 A fifth handler, `logic_handler_241780`, is not in the table at all. It is a
 complete Mastermind-style game matching Nokia's "Logic" on the 5110/6110 and
-the `Logic` string in the English text block; nothing on this product
-dispatches to it. The settings block reserves five records, one per handler.
+the `Logic` string in the English text block, whose instructions describe
+its keys (2, 4, 8, 5 and `*`) and marks; nothing on this product dispatches
+to it. The settings block reserves five records, one per handler.
+
+Tones: the games post tone ids through `display_type2_post_2b1f24(0, 0xf1,
+id)`, which looks the id up in an 8-byte-record table at `0x2dc178` (the
+literal at `0x2b200c`) whose records point at tone scripts in the 3310's
+format (`games_applications_3310.md`): `0x10` (Snake eats, Memory pairs,
+Logic checks, React hits) is note `0x9a` for one tick; `0x11` loops three
+times over `0x7b` (440 Hz) for two ticks and a two-tick rest; `0x12`
+(React shoots) loops eight times over `0x7b` for one tick and a five-tick
+rest; `0x13` (Rotation solved) is `0x7e` for 15 ticks, a 3-tick rest and
+`0x85` for 57. On this product note n sounds at 440 Hz x 2^((n - 0x7b)/12),
+one below the 3310's scale, as the MAME buzzer traces of Snake's blip
+(2637 Hz) and the game-over pulses (440 Hz) fix it.
 
 Every handler receives one event code: `0x49` init, `0x53` resume, `0x54`
 tick, `0x57` draw, and key events as ASCII (`0x31`..`0x39` digits, `0x23`
@@ -147,12 +170,12 @@ hypotheses in `docs/data/games_function_notes.json` keep neutral prefixes
 
 | Address | Kind | Name | Evidence |
 |---|---|---|---|
-| `0x242890` | function | `game3_handler_242890` |  |
-| `0x242c74` | function | `game3_score_event_242c74` | game3: scores an event for lane arg0. Object type (0x1102cc[lane-1]) 1-2 costs a life (arg1--, score -25 or to 0, status 0x11 = game over at 0 lives), 3/7/8 +10, 4 +5, 5 +15 and shortens arg3, 6 +20 and sets arg2 = 6. A miss (0x1102e0[lane] != 1) just subtracts 10 if score >= 10. Score is game_recor |
-| `0x242dd0` | function | `game3_spawn_objects_242dd0` | game3: for each of 6 lanes with no object, with probability 1-7/8 spawns one: type = rand%8 (nonzero), sub-type = rand%3+1, speed = 8 - level, x from {0x1c,0x2e,0x40}, y 8 (lanes 0-2) or 0x1b (3-5). |
-| `0x242e8c` | function | `game3_draw_242e8c` | game3: draws the scene from bitmap descriptors at 0x2d9a24..0x2d9a78 and sprites 0x2d995c..0x2d9a20 via lcd_blit_bitmap_25f3b6. Not offered in the 3210 Games menu; behaviour matches a falling-object reaction game. |
-| `0x2d9764` | data | `game3_backgrounds_2d9764` |  |
-| `0x2d995c` | data | `game3_sprites_2d995c` |  |
+| `0x242890` | function | `game3_handler_242890` | React (the 'React' entry and instructions in the English text block describe this game: keys 1-6, six tries, key 9, cactuses). Handler: 0x49 init clears six 7-byte window arrays at 0x1102cc (type), 0x1102d3 (x), 0x1102da (y), 0x1102e1 (shown), 0x1102e8 (updates before showing), 0x1102ef (updates sho |
+| `0x242c74` | function | `game3_score_event_242c74` | React: scores a shot at window arg0 (1..6) with pointers to lives, ammo and fired. Not shown (0x1102e0[arg0] != 1, i.e. shown[arg0-1]): score -= 10 when >= 10, nothing else. Shown: writes 0 to 0x1102e1[arg0] = shown[arg0], the NEXT window's flag (off by one: this window's stays set; the next window' |
+| `0x242dd0` | function | `game3_spawn_objects_242dd0` | React: srand(r0) with r0 the tick seed counter 0x110408 as left by the handler, then for each of six windows with type == 0 and delay == 0: t = rand() % 8 and d = rand() % 3 (both drawn first); when t > 0: type = t, delay = d + 1, stay = 8 - level (game_records +4), x from {0x1c, 0x2e, 0x40} by wind |
+| `0x242e8c` | function | `game3_draw_242e8c` | React: draws the scene with lcd_blit_bitmap_25f3b6 from descriptor templates at 0x2d9a24..0x2d9a7f (12-byte bitmap structs {data, -, w, h} and descriptors {bitmap*, x, y, clip x/y, clip w/h, attr}, attr 1): the 84x48 background 0x2d9764 at (0,0); the ammo icon 0x2d9a20 (4x2, clipped to 3x2) at (14,  |
+| `0x2d9764` | data | `game3_backgrounds_2d9764` | React's 84x48 background scene (504 bytes, 6 bytes per column), the only one; the sprites follow at 0x2d995c. |
+| `0x2d995c` | data | `game3_sprites_2d995c` | React's pictures: eight 10x10 sprites of 20 bytes by type (1 cactus outline, 2 cactus, 3/4, 5/6, 7/8 outline/filled pairs), the shot mark at 0x2d99fc (10x10), the life icon at 0x2d9a10 (5x5), the ammo icon at 0x2d9a20 (4x2, drawn clipped to 3x2); bitmap structs and descriptors from 0x2d9a24. |
 
 ### Logic (undispatched)
 
@@ -165,13 +188,13 @@ hypotheses in `docs/data/games_function_notes.json` keep neutral prefixes
 | `0x1103a4` | label | `logic_held_symbol_1103a4` |  |
 | `0x1103a8` | label | `logic_secret_1103a8` |  |
 | `0x1103b0` | label | `logic_palette_1103b0` |  |
-| `0x241780` | function | `logic_handler_241780` | Second dormant game. Event handler with the standard codes (0x49 init, 0x57 draw) and keys '*' submit, '2'/'8' cycle the symbol under the cursor, '4' copy/back, '5' pick. Mechanics are Mastermind: a secret of length logic_params_2d9760[1] (minus one below level 4) over (level&3)*2+5 symbols; guesses |
-| `0x241b10` | function | `logic_draw_board_241b10` | Logic: draws the symbol palette row (top, when cursor row is 0), every guess row with its score pegs, a divider line at y=7, the cursor cell with attr 0x21, and the held symbol; symbols drawn with memory_draw_card_240668 (shared tile drawer). |
+| `0x241780` | function | `logic_handler_241780` | Second dormant game, Logic. Event handler with 0x49 init and 0x57 draw; no tick. Keys (cursor {row, col} at 0x11035c, 'last' {row, col} at 0x110360; code length L = logic_params_2d9760[1] - (level < 4) = 4 or 5, kinds K = ((level & 3) + 2) * 2 = 4, 6, 8 or 10, level from game_records +4): '2'/'8' mo |
+| `0x241b10` | function | `logic_draw_board_241b10` | Logic: the board is drawn with tries as columns: try r's cells at x = r*8, y = c*8 + 9 for cells c < L, drawn with memory_draw_card_240668(palette(symbol)) (0 = blank tile); the divider is lcd_fill_rect(0, 7, 80, 1); each try before the cursor's gets its marks from logic_draw_score_pegs_241e9c above |
 | `0x241cf6` | function | `logic_score_guess_241cf6` | Logic: arg0 == 0 generates the secret (len arg1, symbols 1..arg2) at logic_secret_1103a8; otherwise scores guess arg0 against it: exact matches counted and masked, then misplaced matches among the rest; returns 0xff on a full match else exact*16 + misplaced. |
 | `0x241dd6` | function | `logic_symbol_palette_241dd6` | Logic: arg0 < 0 regenerates the palette of 10 distinct random symbols (1..0x49) at logic_palette_1103b0 (duplicates are rejected by rescanning); arg0 > 0 returns palette[arg0-1]; 0 -> 0. |
-| `0x241e34` | function | `logic_scroll_board_241e34` | Logic: scrolls the board and score arrays up one row when the last row is used (memmove by 5 and by 1, clears the freed row). |
-| `0x241e9c` | function | `logic_draw_score_pegs_241e9c` | Logic: draws a row's score pegs at column arg0*8 from the packed score byte (high nibble exact = 3x2 marks, low nibble misplaced = 3x1 marks), two layouts depending on how many fit. |
-| `0x2d9760` | data | `logic_params_2d9760` |  |
+| `0x241e34` | function | `logic_scroll_board_241e34` | Logic: scrolls the board (rows of 5) and the score bytes up one row when the last row is used, clears the freed board row, and clears scores[rows] (one past the last) instead of scores[rows-1]: the last row keeps its old score, which is never drawn (the cursor's row has no marks) and is overwritten  |
+| `0x241e9c` | function | `logic_draw_score_pegs_241e9c` | Logic: marks for try arg0 at x0 = arg0*8 from the packed score (exact = high nibble, misplaced = low): offset 2 when misplaced*2 + exact*3 < 8 (one column) else 0 (two columns). Exact marks 3x2 at (x0+offset, 3i) for i < min(exact, 2), then at (x0+4, 3i-6) for i = 2..exact-1. Misplaced marks 3x1: wh |
+| `0x2d9760` | data | `logic_params_2d9760` | Logic's parameters: rows (10), code length (5). The level takes one off the length below level 4 and sets the kinds to ((level & 3) + 2) * 2. |
 
 ### Games framework and plugin table
 
@@ -361,11 +384,11 @@ they are menu-framework and phone-side surfaces the games inherit.
 
 ## Naming cautions
 
-- `game3_*` describes behaviour (six lanes, typed targets, lives); the
-  product name is not established. `React` in the text block is the obvious
-  candidate but no code references it yet.
-- `logic_*` is inferred from mechanics plus the `Logic` string; treat it as a
-  strong hypothesis.
+- `game3_*` is React: the instructions string after `React` in the text
+  block describes this game's keys, tries and cactuses. The prefix stays
+  until the symbols are renamed in one pass.
+- `logic_*` is inferred from mechanics plus the `Logic` string and the
+  instructions next to it, which match the handler's keys and marks.
 - Widget `+0x3f` is the style class and the top bits of `+0x41` the style
   variant, established through `widget_measure_22c15c`; the setters were
   renamed once that was proved.
