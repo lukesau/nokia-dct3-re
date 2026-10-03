@@ -436,6 +436,24 @@ shows the game's menu. Other events return 1.
   `pairs2_title_step_2d786e`). Tick 9 sets 1400 ms; tick 10 ends. Runtime:
   steps 0.19..0.2 s apart, the menu 1.4 s after the last.
 
+Static, from the build routines: Snake II's six sprites and Bantumi's
+seven are all on layer 1, Pairs II's nine on layer 0. Space Impact's fill,
+stars and the two logo halves are on layer 0 and the ship with its three
+later pictures on layer 1, so the ship is drawn over the logo; the stars
+are mode 3, cut white out of the fill, and the logo halves, drawn after
+them, cover the stars under them. Space Impact's step returns `0x21`
+(redraw, same period) for steps 1..8 and `0x16` with 700 ms on step 9;
+Snake II's fifth step sets mode 4 on the sprite id stored past its five
+frames (state +0x22), which is none of its own: nothing new appears.
+
+Runtime, in the port (`nokia-3310-games`, `core/title.c`): drawing each
+title's sprites in this order and stepping them on these periods, every
+distinct picture of all four titles appears in order among the frames of
+MAME runs that opened the four games from boot, Space Impact's stars
+drawn from seed 1 (the clock not being set, the reseed leaves it). The
+phone's steps came 0.24 s apart for Snake II (250 ms) and 0.20 s for
+Space Impact (210 ms), the menu 1.38 s and 0.70 s after the last step.
+
 All title pictures are mode 4 on layer 0 or 1 unless stated. Bitmaps and
 descriptors share `0x317ca8`..`0x318f8b`: Snake II's bitmaps from
 `0x317ca8` (descriptors `0x318318`), Bantumi's from `0x318360`
