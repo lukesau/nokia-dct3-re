@@ -360,6 +360,7 @@ end
 
 local function queue_lcd_dump()
 	lcd_full_dumps = lcd_full_dumps + 1
+	machine:logerror(string.format("lcd-dump: seq=%d t=%s\n", lcd_full_dumps, tostring(machine.time)))
 	local zero, ff, other = 0, 0, 0
 	local snapshot = {}
 	for i = 0, (lcd_controller_width * lcd_controller_banks) - 1 do

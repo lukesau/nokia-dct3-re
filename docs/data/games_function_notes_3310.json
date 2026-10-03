@@ -1,6 +1,30 @@
 {
  "blocks": [
   {
+   "addr": "0x1090dc",
+   "lines": [
+    "Sprite ids outside the saved state (static, from every create/free): +0 door (TT intro), +2 flame, +4 saloon / Puzzle picture / explosion, +6 dynamite, +8 fuse rectangle, +0xa cursor, +0xc first and +0xe second enlarged picture, +0x10 eight top and +0x20 eight bottom wipe strips."
+   ]
+  },
+  {
+   "addr": "0x109190",
+   "lines": [
+    "Pairs II state, 0x564 bytes; events 0x33/0x34 hand back this address and size (literal 0x564 at 0x2da064). Layout in docs/games_pairs2_3310.md. Runtime: +0 time 0x32 at board 0, +2 card count 4, +0xd phase 2/0/8/4."
+   ]
+  },
+  {
+   "addr": "0x1096b4",
+   "lines": [
+    "state+0x524: card indices in column order, built by pairs2_column_order_2e9eb2, walked by keys 2/8."
+   ]
+  },
+  {
+   "addr": "0x1096f4",
+   "lines": [
+    "One u16 sprite id per card (state+0x564, not saved; rebuilt on resume)."
+   ]
+  },
+  {
    "addr": "0x109df0",
    "lines": [
     "Scratch block outside the saved state: +0 s8 vertical-bounce direction, +1 final-boss volley counter, +2 burst pause for pattern-20 fire, +4 u16 sprite currently flashed, +8 pointer to the active y-path table, +0xc boss-fire cooldown, +0x10.. tile pointer arrays filled by si_new_game."
@@ -37,6 +61,24 @@
    ]
   },
   {
+   "addr": "0x10c9b0",
+   "lines": [
+    "Snake II globals: +0 u16 collection mask (bit 15 enables the large creature, bits 0..9 collected; loaded from record +0x2a by games_ctx_load with bit 15 = (0x111507 != 0)), +2 s16 board x offset, +4 s16 board y offset (both 0), +8 pointer to the state. Runtime: 0x80 written to +0 at boot (init table 0x2f4224), 0 at the Games menu."
+   ]
+  },
+  {
+   "addr": "0x10c9b8",
+   "lines": [
+    "Pointer to the Snake II state (0x10c9bc), set by new game and by event 0x33."
+   ]
+  },
+  {
+   "addr": "0x10c9bc",
+   "lines": [
+    "Snake II state, 0x2b0 bytes (event 0x33/0x34 hands this address and size). +0 tail index, +2 head index, +4 ring modulus 299, +8/+9 head cell, +0xc/+0xd tail cell, +0x10 direction, +0x11 previous direction, +0x12 ring of 300 sprite ids, +0x270 board w/h, +0x274 occupancy ptr, +0x278 maze record, +0x27c food, +0x284 creature cells, +0x294.. sprite ids, +0x29c period, +0x29e..+0x2ac flags; layout in docs/games_snake2_3310.md. Runtime: fields traced with a frame-polling Lua probe."
+   ]
+  },
+  {
    "addr": "0x10da5c",
    "lines": [
     "Seed of game_rand16_2dd7d0. 1 after boot; sprite_engine_init reseeds it from the clock when the clock is set (runtime: stays unseeded in MAME)."
@@ -49,9 +91,33 @@
    ]
   },
   {
+   "addr": "0x10e178",
+   "lines": [
+    "Bantumi drawing block: +0 player-won flag, +1 sound pending (return 0x1b), +2..+4 intro slide step/toggle/board frame, +5 winner digits draw mode, +8/+0xc hand mask/image sprite ids, +0xa board sprite, +0xe thinking sprite, +0x10 hand closed, +0x14..+0x43 four RAM hand descriptors, +0x44 hand animation state (1 wait, 2 move, 3 arrive, 4 act), +0x48 counter, +0x49..+0x4c hand x,y and target x,y, +0x50/+0x68 closed-hand bitmaps."
+   ]
+  },
+  {
+   "addr": "0x10e1f8",
+   "lines": [
+    "Bantumi game state, 0x28 bytes (the block saved on suspend, events 0x33/0x34): pits[14] (0..5 player, 6 player store, 7..12 computer, 13 computer store), +0xe cursor, +0xf computer's chosen pit, +0x10 hand pit (0xff while thinking), +0x14 u32 turn (0 intro, 1/2 hand to pit, 3 player, 4 computer, 5 game over pause, 6 hint, 7 done), +0x18 game-over countdown 40, +0x19 level 1..5, +0x1c sow pit, +0x1d seeds in hand, +0x1e/+0x1f thinking frame/countdown, +0x20 sow sub-state, +0x24 capture store. Runtime: pits, turn and level logged in MAME."
+   ]
+  },
+  {
+   "addr": "0x10e2e0",
+   "lines": [
+    "14 x {u16 units digit sprite, u16 tens digit sprite}, one per pit, digits from game_digit_sprites_10db68 in draw mode 2."
+   ]
+  },
+  {
+   "addr": "0x10f404",
+   "lines": [
+    "Bantumi search block: +0 u8 chosen pit, +1 u8 depth remaining, +4 root node, +8 current node. Nodes are 0x20-byte heap records: +0 side (3 player, 4 computer), +4 alpha, +6 beta, +8 best (s16), +0xa pits[14], +0x18 first move (0xe none), +0x19 counter, +0x1c parent."
+   ]
+  },
+  {
    "addr": "0x10f9e0",
    "lines": [
-    "Per-game record, 0x2c bytes each, indexed by game id: +0 u16 result word (ctx+0x12 after every event), +2 u16 top score (runtime: Space Impact shows 4075 from 0x10fa0e, a score saved in the PMM dump), +4 level setting."
+    "Per-game record, 0x2c bytes each. Snake II (id 0): +0 result word, +2 u16 top score, +4 level 0..8 (ctx+0x16 = +4 + 1), +0x28 maze 0..5 (ctx+0x17 = +0x28 + 1), +0x2a u16 collection mask. Runtime: writing +4 and +0x28 from Lua changes the game's level and maze."
    ]
   },
   {
@@ -61,15 +127,33 @@
    ]
   },
   {
+   "addr": "0x110d60",
+   "lines": [
+    "Title handlers' state: +0 Bantumi second-round flag, +1 step counter (SI, Bantumi, Pairs II at 0x110d61), +2 Snake II step, +0x14/+0x16 saved ctx+0xc/+0xe, sprite ids from +4 (Snake II), +6 (SI), +0x24 (Bantumi)."
+   ]
+  },
+  {
    "addr": "0x1111ec",
    "lines": [
     "Framework state: +0 suspended flag, +2 u16 last key code | 0x80 for repeat, +4 u16 game id, +8 pointer to the active context."
    ]
   },
   {
+   "addr": "0x1111f8",
+   "lines": [
+    "Context passed by games_dispatch_2dbd2a to the title handlers (ids 0x80..0x84)."
+   ]
+  },
+  {
    "addr": "0x111218",
    "lines": [
     "Context passed to every game handler in r1. +0xc u16 tick period ms, +0xe u16 one-shot delay ms, +0x10 u32 score/result, +0x14 u16 sound id, +0x16/+0x17 settings."
+   ]
+  },
+  {
+   "addr": "0x111507",
+   "lines": [
+    "Games setting byte next to Sounds (0x111505) and Shakes (0x111506); games_ctx_load copies whether it is nonzero into bit 15 of the Snake II collection mask, which the large creature requires. Meaning inferred only; 0 in MAME."
    ]
   },
   {
@@ -82,6 +166,12 @@
    "addr": "0x111bf0",
    "lines": [
     "Seed of the ANSI rand at 0x2f1b44."
+   ]
+  },
+  {
+   "addr": "0x11fcbd",
+   "lines": [
+    "Byte game_vibrate_2dd70e requires nonzero before vibrating. Runtime: 0 on a fresh NVRAM in MAME, so no game vibration starts there; inferred to be the presence of a vibra battery."
    ]
   },
   {
@@ -403,9 +493,147 @@
    ]
   },
   {
+   "addr": "0x2741e0",
+   "lines": [
+    "(ctx, first digit sprite): draws the s16 at ctx+0x12 (low half of the score) as four decimal digits into sprites first+3 (units) .. first+0, using game_digit_sprites_10db68."
+   ]
+  },
+  {
+   "addr": "0x27421c",
+   "lines": [
+    "(units sprite, value): value > 0 shows sprites id, id+1 and id+4 (mode 4) and sets the units and tens digits; value <= 0 hides them (mode 6). The creature countdown and icon."
+   ]
+  },
+  {
+   "addr": "0x274296",
+   "lines": [
+    "(84, 48, out) -> board size in 4-px cells: w = (84-6)/4 + ((84-2)%4 != 0) = 20, h = (48-14)/4 + ((48-2)%4 != 0) = 9."
+   ]
+  },
+  {
+   "addr": "0x2742d6",
+   "lines": [
+    "(out, board) -> first cell with a clear occupancy bit in row-major order from (0,0); returns 0 when the board is full."
+   ]
+  },
+  {
+   "addr": "0x27436e",
+   "lines": [
+    "Food placement (board, food sprite, creature cells, out): up to 100 tries of x = rand16 % w, y = rand16 % h, accepted when the cell is free and shares no row or column with any creature cell; then the first free cell; none: (-1,-1) and the sprite hidden. Sprite at (2+4x, 10+4y). Runtime: positions reproduce from seed 1."
+   ]
+  },
+  {
+   "addr": "0x2744a8",
+   "lines": [
+    "Creature spawn (board, &sprite, cells, food, icon sprite | mode<<16): rand16 % 50 == 0 with mask bit 15, mode 1 and state+0x2aa == 0 tries the 2x2 animated creature, else a 2x1 creature with kind rand16 % 6 (pictures 0x327e1c). 100 tries each, cells free and clear of the food's row and column. Returns 1 when placed. Runtime: spawned on the 5th food with countdown 20."
+   ]
+  },
+  {
+   "addr": "0x274844",
+   "lines": [
+    "Tail removal (snake, board): clears the tail cell's occupancy bit, advances the tail index mod 299, moves the tail cell to the next segment's, gives that segment the tail image (0x327ef4 + direction to the next segment) and returns the old tail sprite for reuse as the head."
+   ]
+  },
+  {
+   "addr": "0x274a58",
+   "lines": [
+    "(board, snake, food, creature cells) -> 1 when the cell ahead of the head (with wrap) is the food or a creature cell: the head is drawn with its mouth open (0x327f84)."
+   ]
+  },
+  {
+   "addr": "0x274b98",
+   "lines": [
+    "Head step (snake, board, sprite or 0, &swallow flag, food, creature cells, creature sprite): ring full (head+2 == tail mod 299) -> returns 100; creates a sprite when none is passed (growth); moves the head with wrap, sets its occupancy bit, head image (closed or open), stores the sprite in the ring; on a creature cell hides the creature and clears the two cells away from the travel direction; re-images the neck (straight/corner, fat when the swallow flag is set) and clears the flag."
+   ]
+  },
+  {
+   "addr": "0x274f0c",
+   "lines": [
+    "(maze, board): draws the playfield frame (four fill sprites around x 0..83, y 8..47) and one 2-px fill sprite per maze segment through the cell centres."
+   ]
+  },
+  {
+   "addr": "0x2750dc",
+   "lines": [
+    "(board, maze record): sets the occupancy bit of every cell of every wall segment (horizontal or vertical runs of 8-byte {x1,y1,0,0,x2,y2,0,0}), then draws with 0x274f0c."
+   ]
+  },
+  {
+   "addr": "0x2752b0",
+   "lines": [
+    "HUD: four score digit sprites at x 0,4,8,12 (mode 4), countdown digits at x 79,75,71,67 and the creature icon at (66,1) (mode 6, hidden), and the rectangle line at y 6."
+   ]
+  },
+  {
+   "addr": "0x27533e",
+   "lines": [
+    "Food and creature init at new game: food sprite (0x327e10, mode 1) then a random placement, creature cells cleared, creature sprite (mode 1) off screen, counter and active flag 0."
+   ]
+  },
+  {
+   "addr": "0x2753f2",
+   "lines": [
+    "(state, snake index, board, &food-eaten flag) -> nonzero when the cell ahead (with wrap) is blocked: its occupancy bit, except that the tail's cell is blocked only when the snake grows this step. Snake records are 0x26c bytes apart; only snake 0 exists. Runtime: walls and the body block."
+   ]
+  },
+  {
+   "addr": "0x2754b6",
+   "lines": [
+    "Large creature eaten: sets a random clear bit 0..9 (rand16 % 10, retried while set) in the collection mask at 0x10c9b0 and sets state+0x2aa. Loops forever if all ten bits are set."
+   ]
+  },
+  {
+   "addr": "0x275502",
+   "lines": [
+    "Frees the occupancy bitmap (state+0x274) if allocated."
+   ]
+  },
+  {
+   "addr": "0x27553c",
+   "lines": [
+    "Suspend: packs each ring entry tail to head into a u16 (x bits 0-4, y bits 5-10, image index bits 11-12, kind bits 13-15 found by comparing the sprite's bitmap pointer with the image sets) and the creature's kind into state+0x296."
+   ]
+  },
+  {
+   "addr": "0x275788",
+   "lines": [
+    "Resume: rebuilds maze, every segment sprite and its occupancy bit from the packed ring, HUD, score, food sprite, creature sprite and countdown."
+   ]
+  },
+  {
    "addr": "0x275aa4",
    "lines": [
-    "Game id 0 entry (Snake II). Not mapped."
+    "Game id 0 entry (Snake II). 0x2b/0x24 new game, 1 tick, 0 blink step, keys via the jump table at 0x275b28, 0x33/0x34/0x35 state query/suspend/resume, 0x13/0x15/0x17/0x18/0x1a end a dying game, 0x1c. Runtime: returns 0x21, 0x1b (eat, sound 0x1f), 0x16 (grace 100 ms), 0x1f (death, sound 0x20), 0x20 (blink), 0x18 (game over)."
+   ]
+  },
+  {
+   "addr": "0x275b28",
+   "lines": [
+    "Jump table for game events 0x0a..0x16 (keys 1..9, 0x13, #, 0x15, *). Keys set the pending direction at state+0x2a3 from the current one; runtime-verified for all of 1-9, # and *."
+   ]
+  },
+  {
+   "addr": "0x2762e0",
+   "lines": [
+    "New game (reached by bl from the handler, returns through 0x276642): board 20x9, period = level table * 10 ms, maze record, start cell, direction right, occupancy and sprite engine (w*h+29), event 0x2b also resets the ring and fills the maze; seven head steps then one tail removal leave 7 visible segments. Runtime: first frame shows cells 5..11 of row 4."
+   ]
+  },
+  {
+   "addr": "0x276472",
+   "lines": [
+    "Inside new game: allocation-failure exit returning 2; the code after it is the rest of new game."
+   ]
+  },
+  {
+   "addr": "0x276640",
+   "lines": [
+    "Handler exit returning 1 (movs r7,#1 falling into 0x276642); reached by bl as a long branch."
+   ]
+  },
+  {
+   "addr": "0x276642",
+   "lines": [
+    "Common handler exit: returns r7."
    ]
   },
   {
@@ -433,27 +661,316 @@
    ]
   },
   {
+   "addr": "0x2b1520",
+   "lines": [
+    "(arg) Draws the hand: arg 0 frees the old pair first. Open hand (0x10e188 == 0) 18x16 from 0x31d120/0x31d0f0 (bottom row, state+0x10 <= 6) or 0x31d138/0x31d108 (top); closed hand 11x13 from 0x31d198/0x31d150 or 0x31d180/0x31d168. Bitmaps are copied to RAM, shifted up and shortened when y < 0; mask sprite mode 0 then image mode 1, layer 3, at (0x10e1c1, 0x10e1c2)."
+   ]
+  },
+  {
+   "addr": "0x2b1732",
+   "lines": [
+    "Returns 1 when pits 0..5 or pits 7..12 are all empty."
+   ]
+  },
+  {
+   "addr": "0x2b1764",
+   "lines": [
+    "(pit, n): sets the pit's count and updates its digit sprites. One digit at (x+4, y+2) for pits, (x+5, y+5) for stores; with two digits the tens sprite is created at (x+1 / x+2) and the units moved 4 px right; going back below 10 frees the tens sprite."
+   ]
+  },
+  {
+   "addr": "0x2b1898",
+   "lines": [
+    "(arg) End of a move: hand idle, hand sprites freed; arg 1 passes the turn (3 <-> 4), arg 0 keeps it (last seed in the store). If a row is empty, sweeps each row into its owner's store, sets the won flag or blinks the computer's store (mode 5) and turn 5. Else: player's turn draws the open hand at the cursor; computer's turn starts the search (0x2dd3bc) and the thinking sprite at (34,16). Runtime: logged at every move end."
+   ]
+  },
+  {
+   "addr": "0x2b1a04",
+   "lines": [
+    "(from, to) Starts a hand animation: state 1, counter 2, start and target positions from the pit table 0x31d1ec with row-dependent offsets (bottom row y-14 start, y-4 pick-up / y-11 sow target; top row y+10 start, y / y+7 / y+10 target); special starts at the stores when turning a corner."
+   ]
+  },
+  {
+   "addr": "0x2b1ad0",
+   "lines": [
+    "(pit) Picks up a pit's seeds: next pit = pit + 1, hand animation, frees the thinking sprite (computer) or the hand pair (player), closed hand, seeds in hand = pit count, pit emptied, sow sub-state 1. Runtime: logged at each pick-up."
+   ]
+  },
+  {
+   "addr": "0x2b1b34",
+   "lines": [
+    "(frame) Resets all sprites and draws board frame 0x31d0c0 + 12*frame at (0,0), mode 4, layer 0. Frame 0 also draws the hand (or the thinking sprite when state+0x10 is 0xff) and creates the 14 digit sprites. Used by new game (frame 3), the intro (2, 1, 0) and resume."
+   ]
+  },
+  {
+   "addr": "0x2b1c10",
+   "lines": [
+    "New game: 45 sprites, cursor 0, turn 0, four seeds per pit, stores 0, level = ctx+0x16, game-over countdown 40, closed board (frame 3) at x = 40, tick 120 ms; returns 0x16 (2 when the sprites cannot be allocated)."
+   ]
+  },
+  {
+   "addr": "0x2b1cc0",
+   "lines": [
+    "Bantumi event handler: tick (hand animation states, sowing and captures, intro, search steps, game over), keys 4/6 and scroll (cursor), 5/0/event 8 (sow), * (hint at level 1), suspend/resume; returns 0x1b when a seed was dropped (sound 0x1b) and 0x1e at game over with ctx+0x10 = pit 6 - pit 13."
+   ]
+  },
+  {
    "addr": "0x2b2398",
    "lines": [
-    "Game id 2 entry. Inferred from the menu order; not mapped."
+    "Game id 2 (Bantumi). Events 0x24/0x2b: ctx+0xc = 120, new game 0x2b1c10; others to 0x2b1cc0. Runtime: called through games_dispatch_2dbd2a with id 2 when Bantumi is played."
+   ]
+  },
+  {
+   "addr": "0x2c6478",
+   "lines": [
+    "(rows, cols): x0 = 7*((12-cols)>>1), y0 = 9*((5-rows)>>1) + 4 if rows even (lsrs/bhs at 0x2c6498); cards row by row on a 7x9 pitch, card back 0x31afc4 mode 4 layer 1 created at (0x27,0x14); state +0x25 = 8; Puzzle picture 0x31afb8 at (0,0) layer 0 into 0x1090e0. Runtime: level 1 first card at (35,13)."
+   ]
+  },
+  {
+   "addr": "0x2c6574",
+   "lines": [
+    "Puzzle board from level (state+0xc): 2x2 at level 1, else cols = 2(L-1), rows = L/2+2; deal(rows*cols), shuffle, layout, column list."
+   ]
+  },
+  {
+   "addr": "0x2c65b2",
+   "lines": [
+    "Time trial layout: 10 column-mask bytes at 0x32fe74 + 10*board; bit r of byte c puts a card at (12+7c, 1+9r); stores the count at state+2. Runtime: board 0 cards at (33,10),(54,10),(33,28),(54,28)."
+   ]
+  },
+  {
+   "addr": "0x2c6674",
+   "lines": [
+    "Time trial board: deal(count from 0x32fee4[board]), shuffle, layout, column list; saloon 0x31afac (mode 4, layer 0) at (0,0) into 0x1090e0, door 0x31afa0 at (0x20,0x11) into 0x1090dc."
+   ]
+  },
+  {
+   "addr": "0x2c66ba",
+   "lines": [
+    "Per play tick: fuse top (state+5) += 1 when time % state+4 == 0; flame frame toggles (0x31af7c + 12*toggle); fuse rectangle remade (mode 1, layer 3, x 4, y 0x1e..top); flame moved to (0, top-5). Runtime: top 8 -> 9 at time 48 on board 0."
+   ]
+  },
+  {
+   "addr": "0x2c6740",
+   "lines": [
+    "Event 1. Puzzle in phase 4/7: period 200 (0x16 if changed), removal animation per card (frames 0x31ad60, state 0..7 -> 9; 0x18 in phase 7 when done). Phases 2/3: deal step. Time trial only: countdowns (phase 0 -> 8, phase 1 -> next board or 0x18 after board 8, bonus time/2), wipe (phase 8), HUD removal (9), explosion (5), time decrement and level period 300/267/233/200/167/133/100 ms (0x2c6ab8). Runtime-confirmed periods 0x12c and 0x64."
+   ]
+  },
+  {
+   "addr": "0x2c6b36",
+   "lines": [
+    "clamp(x, 0, 0x4c)."
+   ]
+  },
+  {
+   "addr": "0x2c6b4c",
+   "lines": [
+    "clamp(y - 1, 0, 0x25)."
+   ]
+  },
+  {
+   "addr": "0x2c6b70",
+   "lines": [
+    "Second enlarged picture (8x11, mode 4, layer 2, id at 0x1090ea); if it would overlap the first (|dx| < 8 and |dy| < 11) it is pushed clear and the clamp shortfall moves the first (0x1090e8)."
+   ]
+  },
+  {
+   "addr": "0x2c6ccc",
+   "lines": [
+    "After a pair: if a card is still face down, cursor to the next one (2e9fca(3)); else Time trial: free cursor, target := current position, phase 9; Puzzle: phase 7. Clears state+3, +0xa."
+   ]
+  },
+  {
+   "addr": "0x2c6d38",
+   "lines": [
+    "Key 5 with one card open. Returns 0 (miss: state+0xa = 2) or 1 (pair: TT frees both sprites, state 9; Puzzle starts the removal animation, state 0). Runtime: return 0x1b with sound 0x1c and +5 at level 1."
+   ]
+  },
+  {
+   "addr": "0x2c6e28",
+   "lines": [
+    "(card): enlarged picture 0x31adc0 + 12*picture at (clamp_x(x), clamp_y(y)), mode 4 layer 2, id into 0x1090e8. Runtime: card at (33,10) shows its picture at (33,9)."
+   ]
+  },
+  {
+   "addr": "0x2c6e64",
+   "lines": [
+    "Key 5 with no card open: show picture, face up, first card := cursor, cursor to the next face-down card; state+0xa = 1. Runtime: cursor 0 -> 1."
+   ]
+  },
+  {
+   "addr": "0x2ca926",
+   "lines": [
+    "Returns the byte at vibra_present_11fcbd."
+   ]
+  },
+  {
+   "addr": "0x2d7538",
+   "lines": [
+    "Builds the Space Impact title: 37-sprite pool, full-screen fill, 30 random 1x1 stars (mode 3), ship 0x31889c at (0,18), hidden 0x3188a8/0x3188b4/0x3188c0, logo halves 0x3188cc (7,1) and 0x3188d8 (3,32). Runtime frames match."
+   ]
+  },
+  {
+   "addr": "0x2d7624",
+   "lines": [
+    "Step k: logo halves to y k+1 and 32-k; k 1..5 ship to x 4k; k 6..8 swap to the next hidden picture."
+   ]
+  },
+  {
+   "addr": "0x2d7694",
+   "lines": [
+    "SI title events: tick steps 1..8, 9 sets 700 ms, then ends (0x10); keys end it."
    ]
   },
   {
    "addr": "0x2d76f6",
    "lines": [
-    "Handler for id 0x81: the Space Impact title animation. Runtime: receives 0x2b then 0x34 when the title is shown and left."
+    "Title id 0x81 (Space Impact): saves ctx+0xc/+0xe, period 210 ms (0xd2), si_title_start; other events to si_title_event. Runtime: steps ~0.2 s apart, menu 0.9 s after the last."
+   ]
+  },
+  {
+   "addr": "0x2d7724",
+   "lines": [
+    "Snake II title build: allocates 6 sprites, creates the 84x48 picture 0x318318 and five hidden overlays (0x318324..0x318354) at x 6."
+   ]
+  },
+  {
+   "addr": "0x2d77b2",
+   "lines": [
+    "Ticks 1..5 show the frame at +0x18+2k and hide the previous (0x318324 never shown, runtime-confirmed), 6 sets 1200 ms, then ends."
+   ]
+  },
+  {
+   "addr": "0x2d780e",
+   "lines": [
+    "Handler for id 0x80, the Snake II title: on 0x24/0x2b saves ctx+0xc/+0xe, sets a 250 ms tick and builds the title; other events step it."
+   ]
+  },
+  {
+   "addr": "0x2d783c",
+   "lines": [
+    "Builds the Pairs II title: 9-sprite pool, background 0x318f20 (card backs)."
+   ]
+  },
+  {
+   "addr": "0x2d786e",
+   "lines": [
+    "Jump table on step 1..8: adds 0x318f2c (6,7), 0x318f38 (3,1), 0x318f44 (3,1), 0x318f50 (19,1), 0x318f5c (35,1), 0x318f68 (38,1), 0x318f74 (35,1), 0x318f80 (35,25), mode 4 layer 0. Runtime: frames match the stacked composites."
+   ]
+  },
+  {
+   "addr": "0x2d7904",
+   "lines": [
+    "Pairs II title events: steps 1..8, step 9 sets 1400 ms, then ends (0x10); keys end it."
+   ]
+  },
+  {
+   "addr": "0x2d7974",
+   "lines": [
+    "Title ids 0x83 and 0x84 (Pairs II), period 200 ms. Runtime: receives 0x2b, ticks, then a key (event 9 for Select) and 0x34."
+   ]
+  },
+  {
+   "addr": "0x2d79b0",
+   "lines": [
+    "Creates the title picture 0x3185c4 (mode 4) and six hidden overlay sprites (mode 6) at (23,18), (34,23), (37,33), (45,19), (53,15), (62,27)."
+   ]
+  },
+  {
+   "addr": "0x2d7a38",
+   "lines": [
+    "Title init: 7 sprites; draws the title unless the event was 0x24."
+   ]
+  },
+  {
+   "addr": "0x2d7a64",
+   "lines": [
+    "Title step: hides the previous overlay, shows the current one (mode 4); returns 0x16."
+   ]
+  },
+  {
+   "addr": "0x2d7a9c",
+   "lines": [
+    "Title events: each tick advances the overlay (70 ms after step 3, 250 ms otherwise), two passes, 700 ms on the last frame, then returns 0x10 restoring ctx+0xc/+0xe; keys end it at once.",
+    "Runtime: two rounds from 14.85 to 17.18 s in a scripted run."
+   ]
+  },
+  {
+   "addr": "0x2d7b3c",
+   "lines": [
+    "Game id 0x82: Bantumi title. Static: games_dispatch_2dbd2a calls it for id 0x82 with context 0x1111f8. Saves ctx+0xc/+0xe, sets a 250 ms tick."
+   ]
+  },
+  {
+   "addr": "0x2d7f82",
+   "lines": [
+    "Returns the byte at 0x11fe97 after writing it to NV key 0x5b0d. The game vibrates only when it is 0; inferred to be a charger's presence."
+   ]
+  },
+  {
+   "addr": "0x2d9a94",
+   "lines": [
+    "For i in 0..n-1 swap the 20-byte card record i with record game_rand16() % n."
+   ]
+  },
+  {
+   "addr": "0x2d9aea",
+   "lines": [
+    "Moves each card's current x/y (+0x28/+0x2c) 1 px toward its place (+0x30/+0x34) and its sprite; in phase 3 frees cards already in place; returns 1 if any moved. Runtime: 15 ticks on board 0."
+   ]
+  },
+  {
+   "addr": "0x2d9ba4",
+   "lines": [
+    "Returns 0 if any card has +0x26 == 0."
+   ]
+  },
+  {
+   "addr": "0x2d9bc6",
+   "lines": [
+    "Dead code (no caller, no pointer): picture 0x21 phase 6 for 40 ticks, 0x22 shows every card, 0x23 adds 30 ticks to the time (max 150)."
+   ]
+  },
+  {
+   "addr": "0x2d9c54",
+   "lines": [
+    "(n): count, phase 2, cursor 0, time = 0x32fed0[board], fuse divisor time/25, fuse top 8; cards 0..n/2-1 and n/2..n-1 get pictures 0..n/2-1, state 8, face down."
+   ]
+  },
+  {
+   "addr": "0x2d9cdc",
+   "lines": [
+    "Dead code: from board 2, the pair with picture rand16 % n becomes picture 0x21..0x23."
+   ]
+  },
+  {
+   "addr": "0x2d9d2c",
+   "lines": [
+    "sprite_engine_init(90), reset, reseed, first board by mode; returns 2 for 0x24 or failure, 1 for 0x2b."
+   ]
+  },
+  {
+   "addr": "0x2d9d68",
+   "lines": [
+    "Event 0x35: recreates background (and TT HUD), cards on the board, cursor; between boards deals the next one; Puzzle phase 7 returns 0x18."
+   ]
+  },
+  {
+   "addr": "0x2d9ee0",
+   "lines": [
+    "Every event but start: tick, keys 2/4/5/6/8 in phase 4 (0xb, 0xd, 0xe, 0xf, 0x11), 0x33/0x34 state, 0x35 resume; match: ctx+0x14 0x1c, score += level+4; miss: 0x1e, score -= 1 if > 0; return 0x1b. Runtime-confirmed."
    ]
   },
   {
    "addr": "0x2da004",
    "lines": [
-    "Game ids 3 and 4 entry. Inferred from the menu order; not mapped."
+    "Game ids 3 (Time trial, ctx+0x17 = 0) and 4 (Puzzle, ctx+0x17 = 1). 0x24/0x2b: ctx+0xc 200, score 0, board 0, mode, level; else pairs2_event."
    ]
   },
   {
    "addr": "0x2dbc7c",
    "lines": [
-    "Loads the per-game record into the context: ctx+0x10 result word, +0x16 level + 1, +0x17 option."
+    "(id, ctx): loads the per-game record into the context: ctx+0x10 result word (+0), ctx+0x16 level + 1 (+4), ctx+0x17 = 0 for id 3 and 1 for id 4 (Pairs II's Time trial and Puzzle), else record +0x28 + 1 (Snake II's maze). For games whose table flags have bit 3, copies the collection mask at record +0x2a, with bit 15 set when games_setting_111507 is nonzero, to snake2_globals_10c9b0."
    ]
   },
   {
@@ -469,6 +986,54 @@
    ]
   },
   {
+   "addr": "0x2dd1c0",
+   "lines": [
+    "(terminal) Evaluates the current node: pit 13 - pit 6; terminal nodes add computer row - player row and +-50; negated for side 3. Runtime: model matches all logged searches."
+   ]
+  },
+  {
+   "addr": "0x2dd214",
+   "lines": [
+    "(node, terminal) Closes a node: evaluate if terminal or depth 0; negate when the side differs from the parent's; raise parent best (records the chosen pit at the root), parent alpha = max(alpha, best); depth + 1; frees the node."
+   ]
+  },
+  {
+   "addr": "0x2dd28e",
+   "lines": [
+    "(parent, pit) Makes a child: copies pits, sows (computer skips 6, player wraps at 13); store landing keeps side and window, else side flips with (-beta, -alpha) and captures. Quirk: the computer's capture tests the live board 0x10e1f8 and is credited to pit 6. Runtime: child order logged and matched by the model."
+   ]
+  },
+  {
+   "addr": "0x2dd3bc",
+   "lines": [
+    "Starts a search from the live board: computer side 4 with depth 2*level-1 (9 becomes 8), or for the hint (turn 6) side 3 depth 5. Root alpha -32000, beta 32000."
+   ]
+  },
+  {
+   "addr": "0x2dd438",
+   "lines": [
+    "First move heuristic: a pit that ends in the store (scanning down from the store, which itself matches when empty), else the last pit with the largest capture value read at 13-(k+c), else the fullest pit."
+   ]
+  },
+  {
+   "addr": "0x2dd554",
+   "lines": [
+    "Next move of the current node: the heuristic pick first, then pits in order skipping it; +7 for the computer."
+   ]
+  },
+  {
+   "addr": "0x2dd5ac",
+   "lines": [
+    "One tick of search: up to 100 iterations; at the end the computer's choice goes to state+0xf/+0x10, turn 2 and a hand animation, or for a hint into the cursor with turn 3. Runtime: tick counts match the model (1 to 242 ticks)."
+   ]
+  },
+  {
+   "addr": "0x2dd698",
+   "lines": [
+    "Frees every node of a running search (used before restarting it on interrupting events)."
+   ]
+  },
+  {
    "addr": "0x2dd6dc",
    "lines": [
     "Heap allocation followed by a clear."
@@ -477,13 +1042,19 @@
   {
    "addr": "0x2dd70e",
    "lines": [
-    "Starts a short vibration when a setting at 0x111506 allows it. Inferred from the checks and the timer it starts; called on hits and explosions."
+    "Starts a short vibration: timer 0x39 at 0x3e = 62 units, when Shakes (0x111506), vibra_present_11fcbd, vibra_profile_2e944e == 1 and charger_state_2d7f82 == 0 allow it. Called on ship hits and boss explosions; each call restarts the timer. Runtime: about 0.5 s of vibration in MAME."
    ]
   },
   {
    "addr": "0x2dd748",
    "lines": [
     "(id, descriptor): copies a 12-byte sprite descriptor into the sprite and marks it dirty."
+   ]
+  },
+  {
+   "addr": "0x2dd77e",
+   "lines": [
+    "Sets game_rand_seed from 0x2cc440 (clock) unless it returns the unset value."
    ]
   },
   {
@@ -517,9 +1088,27 @@
    ]
   },
   {
+   "addr": "0x2dd8f6",
+   "lines": [
+    "(n): allocates a private pool of n sprites for a title, saving the game's engine header."
+   ]
+  },
+  {
    "addr": "0x2dd936",
    "lines": [
     "Allocates n sprites of 0x1c bytes; reseeds game_rand16 from the clock if it is set. Returns 1 on success."
+   ]
+  },
+  {
+   "addr": "0x2dd97c",
+   "lines": [
+    "(flag) Writes 0x111af9 in the sprite engine block. Inferred: requests a full redraw; Bantumi calls it with 1 while the hand moves and on thinking frames."
+   ]
+  },
+  {
+   "addr": "0x2dd9aa",
+   "lines": [
+    "Frees a title's pool and restores the saved engine header."
    ]
   },
   {
@@ -577,6 +1166,60 @@
    ]
   },
   {
+   "addr": "0x2e93de",
+   "lines": [
+    "Starts the vibrator: cancels timer 0xf, derives a level from 0x2d8094's result clipped to 2..0x1c, writes PUP vibrator mode 0x60 with it through 0x2f13e8, and starts timer 0xf at 11 units."
+   ]
+  },
+  {
+   "addr": "0x2e944e",
+   "lines": [
+    "Returns 1 unless the profile byte at 0x111a79 is 0x40 or 0x41, then 2, and writes the result to NV key 0x7501. The game vibrates only on 1."
+   ]
+  },
+  {
+   "addr": "0x2e9df4",
+   "lines": [
+    "Start of the column list: the first card (index 0)."
+   ]
+  },
+  {
+   "addr": "0x2e9e2a",
+   "lines": [
+    "(card): first card with the same x and a greater y, else 0xffff."
+   ]
+  },
+  {
+   "addr": "0x2e9e6a",
+   "lines": [
+    "(card): card with the smallest x greater than the card's (lowest index among equals), else 0xffff."
+   ]
+  },
+  {
+   "addr": "0x2e9eb2",
+   "lines": [
+    "Builds the column list at 0x1096b4: down each column, then the top of the next."
+   ]
+  },
+  {
+   "addr": "0x2e9eea",
+   "lines": [
+    "When state+0xa == 2: both cards face down again, enlarged pictures freed, cursor mode 2."
+   ]
+  },
+  {
+   "addr": "0x2e9f4a",
+   "lines": [
+    "(0 up, 1 down): steps through the column list with wrap, skipping face-up cards. Runtime: up from card 2 of a 12x5 grid to 49, down from 50 to 3."
+   ]
+  },
+  {
+   "addr": "0x2e9fca",
+   "lines": [
+    "(2 left, 3 right): index -1/+1 with wrap, skipping face-up cards."
+   ]
+  },
+  {
    "addr": "0x2ec82c",
    "lines": [
     "Sets the tone classes' switches from the profile block. Class 0 is on when the block's byte 6 is 4; inferred to be Warning and game tones."
@@ -616,6 +1259,18 @@
    "addr": "0x2f3108",
    "lines": [
     "Initialised-data image of si_type_frames_10a210 (37 pointers, type 0x16 is null)."
+   ]
+  },
+  {
+   "addr": "0x2f4224",
+   "lines": [
+    "Entry of a RAM-init table: address 0x10c9b0, value 0x80 (the collection mask starts as 0x8000 at boot)."
+   ]
+  },
+  {
+   "addr": "0x2f9e50",
+   "lines": [
+    "Three pictures of the Done note's tick, 22x32 in the LCD's strip layout (22 bytes per 8 rows), 88 bytes each: the empty box, the half tick and the tick. Runtime: shown at 0, 0.70 and 0.92 s of the note's 1.47 s."
    ]
   },
   {
@@ -679,9 +1334,261 @@
    ]
   },
   {
+   "addr": "0x317ca8",
+   "lines": [
+    "Snake II title bitmaps; descriptors at 0x318318."
+   ]
+  },
+  {
+   "addr": "0x318318",
+   "lines": [
+    "Snake II title pictures: 12-byte descriptors, an 84x48 picture then five overlays of about 48x33."
+   ]
+  },
+  {
+   "addr": "0x318360",
+   "lines": [
+    "Bantumi title bitmaps; descriptors at 0x3185c4."
+   ]
+  },
+  {
+   "addr": "0x3185c4",
+   "lines": [
+    "Bantumi title: seven 12-byte descriptors, the 84x48 picture then six overlays (11x7, 7x10, 11x14, 8x12, 13x10, 11x8)."
+   ]
+  },
+  {
+   "addr": "0x318618",
+   "lines": [
+    "Space Impact title bitmaps; descriptors at 0x31889c, star 0x3188e4."
+   ]
+  },
+  {
+   "addr": "0x3188f0",
+   "lines": [
+    "Pairs II title bitmaps; descriptors at 0x318f20..0x318f8b."
+   ]
+  },
+  {
+   "addr": "0x319fc4",
+   "lines": [
+    "Pairs II bitmaps 0x319fc4..0x31ad23: Puzzle picture, saloon, card back, cursor, 34 card pictures 8x11, removal frames, dynamite, flames, door, explosions, wipe strips."
+   ]
+  },
+  {
+   "addr": "0x31ad24",
+   "lines": [
+    "Descriptors: wipe strips 0x31ad24/0x31ad30, explosions 0x31ad3c/48/54."
+   ]
+  },
+  {
+   "addr": "0x31ad60",
+   "lines": [
+    "8 descriptors 7x9; frames 0..6 used by the Puzzle removal animation."
+   ]
+  },
+  {
+   "addr": "0x31adc0",
+   "lines": [
+    "Card picture descriptors, 8x11, indexed by picture; 0..33 set, 0x22/0x23 empty."
+   ]
+  },
+  {
+   "addr": "0x31af70",
+   "lines": [
+    "Descriptors: dynamite 9x18, flames 0x31af7c/88/94 9x5, door 0x31afa0 19x23, saloon 0x31afac, Puzzle picture 0x31afb8, card back 0x31afc4, cursor 0x31afd0."
+   ]
+  },
+  {
+   "addr": "0x31d0c0",
+   "lines": [
+    "Four 12-byte descriptors of 84x48 board pictures: 0 open board, 1 and 2 opening frames, 3 closed box (intro slide)."
+   ]
+  },
+  {
+   "addr": "0x31d0f0",
+   "lines": [
+    "Open hand image, bottom row, 18x16 (two bands of 18 bytes); drawn in mode 1."
+   ]
+  },
+  {
+   "addr": "0x31d108",
+   "lines": [
+    "Open hand image, top row, 18x16; mode 1."
+   ]
+  },
+  {
+   "addr": "0x31d120",
+   "lines": [
+    "Open hand mask, bottom row, 18x16; mode 0 (inferred role)."
+   ]
+  },
+  {
+   "addr": "0x31d138",
+   "lines": [
+    "Open hand mask, top row, 18x16; mode 0 (inferred role)."
+   ]
+  },
+  {
+   "addr": "0x31d150",
+   "lines": [
+    "Closed hand image, bottom row, 11 wide, 13 rows used; mode 1."
+   ]
+  },
+  {
+   "addr": "0x31d168",
+   "lines": [
+    "Closed hand image, top row; mode 1."
+   ]
+  },
+  {
+   "addr": "0x31d180",
+   "lines": [
+    "Closed hand mask, top row; mode 0 (inferred role)."
+   ]
+  },
+  {
+   "addr": "0x31d198",
+   "lines": [
+    "Closed hand mask, bottom row; mode 0 (inferred role)."
+   ]
+  },
+  {
+   "addr": "0x31d1ec",
+   "lines": [
+    "Pit box positions: 14 x then 14 y bytes. x 4,17,30,44,57,70,68,70,57,44,30,17,4,3; y 36 x6, 16, 3 x6, 16."
+   ]
+  },
+  {
+   "addr": "0x31d22c",
+   "lines": [
+    "Eight 12-byte descriptors of the 16x16 thinking animation, shown at (34,16) while a search runs."
+   ]
+  },
+  {
    "addr": "0x321e6c",
    "lines": [
     "0x3d 8-byte records by sound id: tone script pointer, tone class at +4, flags at +5."
+   ]
+  },
+  {
+   "addr": "0x327d4c",
+   "lines": [
+    "Snake II bitmaps (LCD band layout), 0x327d4c..0x327dff: food, six small creatures, large creature frames and icons, 4x4 segment pictures."
+   ]
+  },
+  {
+   "addr": "0x327e10",
+   "lines": [
+    "Food descriptor, 3x3 diamond."
+   ]
+  },
+  {
+   "addr": "0x327e1c",
+   "lines": [
+    "Six 8x4 small creature descriptors, indexed by kind 0..5; also the HUD icon."
+   ]
+  },
+  {
+   "addr": "0x327e64",
+   "lines": [
+    "Four corner segment descriptors (up->right/left->down, up->left/right->down, left->up/down->right, right->up/down->left)."
+   ]
+  },
+  {
+   "addr": "0x327e94",
+   "lines": [
+    "Large creature, two 8x8 frames."
+   ]
+  },
+  {
+   "addr": "0x327eac",
+   "lines": [
+    "Large creature HUD icon, two 8x4 frames."
+   ]
+  },
+  {
+   "addr": "0x327ec4",
+   "lines": [
+    "Head descriptors, mouth closed, by direction 0 left, 1 up, 2 right, 3 down."
+   ]
+  },
+  {
+   "addr": "0x327ef4",
+   "lines": [
+    "Tail descriptors by direction toward the next segment."
+   ]
+  },
+  {
+   "addr": "0x327f24",
+   "lines": [
+    "Straight body descriptors by direction."
+   ]
+  },
+  {
+   "addr": "0x327f3c",
+   "lines": [
+    "Four 4x4 descriptors; the first is used to create a new segment sprite before its real image is set."
+   ]
+  },
+  {
+   "addr": "0x327f54",
+   "lines": [
+    "Fat straight body descriptors (swallowed food), by direction."
+   ]
+  },
+  {
+   "addr": "0x327f84",
+   "lines": [
+    "Head descriptors with the mouth open, by direction."
+   ]
+  },
+  {
+   "addr": "0x327fb4",
+   "lines": [
+    "Fat corner descriptors, same order as 0x327e64."
+   ]
+  },
+  {
+   "addr": "0x327fe4",
+   "lines": [
+    "Maze wall segments, 8 bytes each ({x1,y1,0,0},{x2,y2,0,0}), 0x327fe4..0x3280fb, 35 segments for the six records."
+   ]
+  },
+  {
+   "addr": "0x3280fc",
+   "lines": [
+    "Nine bytes: tick period / 10 ms for levels 1..9 (660, 480, 380, 300, 230, 180, 140, 110, 90 ms). Runtime: levels 1, 3, 5, 9 tick at 82, 47, 28, 11 timer units."
+   ]
+  },
+  {
+   "addr": "0x328108",
+   "lines": [
+    "Six 16-byte maze records (No maze, Maze 1..5): +0 segment count, +4 segment pointer, +8/+9 start cell, +12/+13 unused by the game. Runtime: Maze 1 and 3 drawn as decoded."
+   ]
+  },
+  {
+   "addr": "0x328168",
+   "lines": [
+    "Four bytes ff ff 00 00: the 'no cell' value food placement starts from."
+   ]
+  },
+  {
+   "addr": "0x32fe74",
+   "lines": [
+    "9 Time trial boards x 10 column bytes, bit r = card in row r."
+   ]
+  },
+  {
+   "addr": "0x32fed0",
+   "lines": [
+    "9 u16 board times in ticks (50 for board 0, runtime)."
+   ]
+  },
+  {
+   "addr": "0x32fee4",
+   "lines": [
+    "9 card counts (4 for board 0, runtime)."
    ]
   },
   {
