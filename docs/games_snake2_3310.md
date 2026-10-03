@@ -477,6 +477,13 @@ is called for every food or creature eaten, on the second blocked tick, on
 the game-over tick and when events `0x13`..`0x1a` end a game. Runtime: one
 call per meal, one at the death and one at game over.
 
+Runtime, from the PUP's own log (MAME `-verbose`) with the vibra byte
+forced on: a meal's or the crash's call turns the vibrator on for about
+0.47 s, until timer `0x39` runs out. The game-over call passes all four
+checks and turns it on too, but it is turned off again 0.28 ms later
+(21.123194 to 21.123469 s in one run), before the games application
+leaves the game, so no pulse is felt. What turns it off was not traced.
+
 ## Top score and game over
 
 - Death (static and runtime): blocked tick, 100 ms wait, second blocked
