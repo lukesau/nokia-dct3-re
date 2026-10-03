@@ -460,6 +460,53 @@ descriptors share `0x317ca8`..`0x318f8b`: Snake II's bitmaps from
 (`0x3185c4`), Space Impact's from `0x318618` (`0x31889c`), Pairs II's from
 `0x3188f0` (`0x318f20`).
 
+## Autopilot and longer runs
+
+`mame_nokia_3310_pairs2_bot.lua` plays the game in MAME: it reads the cards
+(state + `0x24`, 20 bytes each: picture +0, state +2) and the column list
+(state + `0x524`), steers the cursor the shortest way to the other card of
+the open one's pair with all four keys, and opens it with 5. Its switches,
+from the environment: `P2_LEVEL` (written to both modes' records),
+`P2_MISS_EVERY` (open a wrong card every so many pairs), `P2_STOP_BOARD`
+(stop playing on that Time trial board, so the time runs out),
+`P2_PAUSE_AT` (pause into the menu and Continue once). It logs the
+events, returns and sounds as the probe does, and each tick as `TICK` with
+its time. It presses a key only once the LCD has shown the last tick's
+change and at least 130 ms before the next tick, so that MAME's LCD shows
+the tick's change and the key's apart (level 7's 100 ms leaves no such
+time); the input exerciser counts the LCD's changes for it in
+`nokia_dct3_lcd_dumps`.
+
+Runtime, 968 ticks of a level-1 Time trial game: the LCD showed a tick's
+change 0 to 167 ms after the tick, spread evenly, and a key's 30 to 100 ms
+after it was pressed (held three frames). A key pressed a fixed time after
+the tick could therefore land before the tick's picture and be drawn with
+it, which is how the first recordings lost a picture.
+
+Runtime, replayed through the 3310 port's core (`make golden-pairs` there),
+every port picture found in order among MAME's:
+
+- Time trial level 1, all nine boards: the deal of every shape, the time
+  bonus after boards 0..7 and the game over straight after board 8;
+- Time trial level 3, the time run out on board 1: the explosion;
+- Time trial level 5, paused in phase 1 after board 1 and continued:
+  `0x35` dealt board 2 at once (phase 2, time 500), as the resume code
+  reads;
+- Puzzle level 5 (32 cards), paused and continued, to the last pair.
+
+After Continue the phone sends the game nothing until a key, which it
+then hands the game as well; the autopilot presses one, outside play a
+cursor key the game ignores.
+
+Runtime, with the phone in English: the mode list is Time trial (8-4-1)
+and Puzzle (8-4-2) and opens on Time trial after the title; Back from a
+mode's menu returns to the list with that mode selected, Back from the
+list to the Games list on Pairs II. The Level page is Snake II's with seven
+bars (4 pixels wide on an 8-pixel pitch, each 2 pixels taller than the
+last, with a shadow), its title "Level:" and OK; the menus' items are
+8-4-m-1..4 (8-4-m-1..5 with Continue). Top score showed the PMM dump's
+1706 for Time trial.
+
 ## Not done
 
 - The menus (mode list, Level page, Top score, Instructions, pause menu)
@@ -467,8 +514,8 @@ descriptors share `0x317ca8`..`0x318f8b`: Snake II's bitmaps from
   that writes the Level byte and the top score after a game was not traced.
 - What return codes 2 and 5 do in the framework, and when `0x24` rather
   than `0x2b` starts a game.
-- No run reached a Time trial board beyond 1, a Puzzle level above 1 to the
-  end, or a resume between boards; those paths are static only.
+- No run played Puzzle above level 5 or Time trial at level 7, or resumed
+  in phases 9 and 3; those paths are static only.
 - `0x2dd97c` (sets a byte of the sprite engine after the deal step) was not
   identified.
 - Which code uses strings 530..532 and 555.
