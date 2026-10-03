@@ -35,16 +35,18 @@ make run-keys GAMES_PRODUCT=3310 RUN_DIR=$PWD/run_snake2 SECONDS=40 \
 ```
 
 The game starts at 16.62 s on that timeline. The game menu (`8-1-1` ..
-`8-1-5`, a scrolling list with Select) was read in the phone's default
-Russian; the English strings are the language-pack indexes:
+`8-1-5`, a scrolling list with Select) is below, with the language-pack
+indexes of its English strings; runtime, in English (switched first with
+`enter, enter, 6, 2, 1, up, enter` and five `c` back to idle, after which
+one `enter` opens the main menu):
 
 | Item | String | What it does |
 |---|---|---|
 | New game | 560 | starts a game (event `0x2b`) |
-| Level | 556 | page "Level:" (538) with nine bars of rising height, filled up to the level; up/down change it by one, clamped at 1 and 9; OK stores it and returns to the menu |
-| Mazes | 533 | list No maze (544), Maze 1 .. Maze 5 (539..543), the stored one selected, wrapping; OK stores it |
-| Top score | 553 | the record's +2 |
-| Instructions | 554 | three pages of help text with More, wrapping |
+| Level | 556 | page "Level:" (538, small bold at x = 5) with nine bars: bar i (0..8) at x = 5 + 8i, rows 29 - 2i .. 34, 4 wide, filled up to the level, each with a 1-pixel shadow at x + 5 from the row below its top to row 35 and along row 36 from x + 1 to x + 5; OK soft key; up/down change the level by one, clamped at 1 and 9; OK stores it and returns to the menu with no note |
+| Mazes | 533 | list No maze (544), Maze 1 .. Maze 5 (539..543) with a scrollbar, path `8-1-3-n`, the stored one selected, wrapping; OK stores it and shows "%U selected" (546) as the maze's name on one line and "selected" on the next in the large font, with the Settings Done note's tick and timing, then the menu |
+| Top score | 553 | the record's +2, the same page and animation as Space Impact's |
+| Instructions | 554 | help text 1331 over four pages with More, wrapping |
 
 During a game `enter` suspends it into the same menu with Continue (552)
 first. These pages are the shared games menu code around `0x298xxx`, not
@@ -261,8 +263,10 @@ leaving through the handler's exit); runtime: the first frame.
 
 1. Board 20 x 9, offsets 0; period = `snake2_level_speeds_3280fc`[level - 1]
    x 10 ms into ctx+0xc and state+0x29c; ctx+0xe = 0; score ctx+0x10 = 0.
-2. Maze record from ctx+0x17; head = tail = start cell; direction right in
-   +0x10 and +0x11; swallow flag and crash state 0.
+2. Maze record from ctx+0x17; head and tail cell = start cell, and the
+   head and tail ring indices both = the start cell's x (4, or 0 for Maze
+   2 and Maze 3), which decides when the ring goes round; direction right
+   in +0x10 and +0x11; swallow flag and crash state 0.
 3. Occupancy bitmap allocated zeroed; sprite engine with w * h + 29
    sprites. For `0x2b` only: mode 1, ring modulus 299, all 300 ring slots
    zeroed, the maze filled in and drawn.
@@ -272,6 +276,10 @@ leaving through the handler's exit); runtime: the first frame.
    removal, which drops the off-screen sprite: the visible snake is seven
    segments, cells start + 1 .. start + 7, head on the right. Runtime:
    with No maze it covers cells 5..11 of row 4, the head at pixel x 46.
+   Static: these calls pass four of the head step's seven arguments, so
+   its food and creature checks read whatever the registers and stack
+   hold; a re-implementation that checks against no food and no creature
+   draws the phone's first frame (runtime, in the port).
 6. Pending direction = right; food eaten flag 0.
 7. Food sprite created and placed at random (Food); creature cells
    cleared; creature sprite created off screen; counter 0; no creature out.
@@ -352,6 +360,11 @@ Static (`snake2_creature_spawn_2744a8`); runtime for the small creature.
   (`snake2_creatures_327e1c`) for the board sprite and the HUD icon, also
   when no place was found; in that case the sprite goes to (-1, -1) and the
   spawn fails.
+- Static: a failed spawn (small or large) leaves the cells of its last try
+  in place. The counter goes back to 0, but the next spawn needs cell 0 to
+  be -1, so no creature comes again in that game, food keeps out of those
+  rows and columns, and a head that enters one of those cells finds a
+  creature to eat while none is shown.
 - Large: 2 x 2 cells, x = rand mod (width - 1), y = rand mod (height - 1),
   all four free and clear of the food's row and column; two 8x8 frames
   (`snake2_big_creature_327e94`) and two 8x4 icon frames
@@ -372,6 +385,17 @@ Static (`snake2_creature_spawn_2744a8`); runtime for the small creature.
   snake.
 - Runtime: at level 9 a creature eaten with 13 ticks left scored 76
   (45 + 5 + 26).
+
+## Tail removal
+
+Static, `snake2_tail_remove_274844`. The direction the tail moves, and the
+picture the new tail gets, are worked out from the segments' sprite
+positions in pixels, not from cells: a difference of more than 4 pixels
+is taken as the way round the edge. The first segment of a game sits at
+(-1, -1), which is 255, 255 as a byte position, and so counts as left of
+everything: the first tail move, from it to start + 1, reads as to the
+right, which is where start + 1 is. A re-implementation that uses cells
+must make the same exception.
 
 ## Scoring
 
@@ -509,7 +533,26 @@ frame, and can steer the snake to the food by writing the pending direction;
 the level, maze and top score can be planted in the record (environment
 variables at the top of the script). Pass it to `make run-keys` as
 `RUN_EXTRA_ARGS="-autoboot_script $PWD/mame_nokia_3310_snake2_probe.lua -debug -debugger none"`.
-The runs used for this document were made with it.
+The runs used for this document were made with it. Each write of the
+pending direction is logged as `S2KEY d`, which a replay turns into the
+key for that direction; `S2_IGNORE_CREATURE=1` leaves creatures to run
+out and `S2_SAVE_ONCE=1` turns the snake free the first time it is
+blocked.
+
+## Check against a re-implementation
+
+Runtime. The C port in `nokia-3310-games` replays the events the
+firmware's handler received in three probe-steered games (the `S2KEY`
+writes as keys) and every picture it draws appears, in order, among the
+frames MAME captured: level 5 with no maze, 30 meals and a death after
+the ring had gone round (tail index 272, head 8), so that the dead snake
+did not blink; level 9 on Maze 2, 14 meals; and level 2 with a creature
+left to run out and a blocked snake turned free in its 100 ms tick. That
+confirms the tick, the keys, food and creature placement with the random
+generator, the countdown, scoring, the pictures and their order, the
+walls, the death and the blink as described here. The menus' Level,
+Mazes, maze note, Instructions and Game over pages equal the port's to
+the pixel in English.
 
 ## Not done
 
@@ -522,10 +565,9 @@ The runs used for this document were made with it.
   `0x111507`'s meaning is a guess.
 - Events `0x13`, `0x15`, `0x17`, `0x18`, `0x1a` and `0x1c`: who sends them is
   not known. Event `0x24` (new game without reset) was never seen.
-- The English menus were not captured; the language switch did not take in
-  these runs, so the screens were read in Russian.
-- Level 2, 4, 6, 7 and 8 periods are static only; Mazes 4 and 5 were not
+- Level 4, 6, 7 and 8 periods are static only; Mazes 4 and 5 were not
   run.
+- The large creature and a failed spawn were not reached in any run.
 - The title animation is summarised, not specified frame by frame.
 - `0x20`'s `0x05`/`0x06` commands are read as a repeat from what the buzzer
   did, not from the tone task's code.

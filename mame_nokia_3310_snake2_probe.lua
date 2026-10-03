@@ -2,9 +2,12 @@
 -- counts (SNK/SRET), sounds (GSND), vibration calls (GVIB), and, per frame,
 -- changes of head cell / score / food / creature (S2 t=...). Optional
 -- autopilot steers to the food (and creature) by writing the pending
--- direction (state+0x2a3) between ticks.
+-- direction (state+0x2a3) between ticks, logging each write as "S2KEY d".
 -- env: S2_LEVEL (1..9), S2_MAZE (0..5), S2_TOP (top score to plant),
---      S2_AUTO=1, S2_AUTO_FROM (s), S2_DIE_AFTER (foods), S2_BONUS16=1
+--      S2_AUTO=1, S2_AUTO_FROM (s), S2_DIE_AFTER (foods), S2_BONUS16=1,
+--      S2_IGNORE_CREATURE=1 (leave creatures to run out),
+--      S2_SAVE_ONCE=1 (the first time the snake is blocked, turn it free in
+--      its one short tick instead of letting it die)
 local script_dir = (debug.getinfo(1, "S").source:match("^@(.*)/[^/]*$")) or "."
 dofile(script_dir .. "/mame_nokia_dct3_input_exerciser.lua")
 local machine = manager.machine
@@ -36,6 +39,9 @@ local auto = os.getenv("S2_AUTO") == "1"
 local auto_from = tonumber(os.getenv("S2_AUTO_FROM") or "17") or 17
 local die_after = tonumber(os.getenv("S2_DIE_AFTER") or "")
 local foods = 0
+local ignore_creature = os.getenv("S2_IGNORE_CREATURE") == "1"
+local save_once = os.getenv("S2_SAVE_ONCE") == "1"
+local saved = false
 local lastfood = nil
 local dx = {[0] = -1, 0, 1, 0}
 local dy = {[0] = 0, -1, 0, 1}
@@ -95,8 +101,24 @@ emu.register_frame_done(function()
 	if not auto or t < auto_from then return end
 	if lastfood and (fx ~= lastfood[1] or fy ~= lastfood[2]) then foods = foods + 1 end
 	lastfood = {fx, fy}
-	if hx < 0 or rb(ST + 0x2a2) ~= 0 then return end
+	if hx < 0 then return end
 	local want
+	if rb(ST + 0x2a2) == 1 and save_once and not saved then
+		for d = 0, 3 do
+			if d ~= (cur + 2) % 4 then
+				local nx, ny = (hx + dx[d]) % 20, (hy + dy[d]) % 9
+				if not occ(nx, ny) then want = d end
+			end
+		end
+		if want ~= nil then
+			saved = true
+			foods = 0
+			space:write_u8(ST + 0x2a3, want)
+			machine:logerror(string.format("S2KEY %d\n", want))
+		end
+		return
+	end
+	if rb(ST + 0x2a2) ~= 0 then return end
 	if die_after and foods >= die_after then
 		-- turn into the body if possible
 		for d = 0, 3 do
@@ -107,7 +129,7 @@ emu.register_frame_done(function()
 		end
 		if want == nil then want = (cur + 1) % 4 end
 	else
-		if rb(ST + 0x2a1) == 1 and bx >= 0 then want = bfs(hx, hy, cur, bx, by) end
+		if rb(ST + 0x2a1) == 1 and bx >= 0 and not ignore_creature then want = bfs(hx, hy, cur, bx, by) end
 		if want == nil and fx >= 0 then want = bfs(hx, hy, cur, fx, fy) end
 		if want == nil then
 			for d = 0, 3 do
@@ -120,5 +142,9 @@ emu.register_frame_done(function()
 	end
 	if want ~= nil and rb(ST + 0x2a3) ~= want then
 		space:write_u8(ST + 0x2a3, want)
+		-- What a key would have done: a replay hands the game the key
+		-- for this direction here (never the way back, which a key
+		-- could not do either).
+		machine:logerror(string.format("S2KEY %d\n", want))
 	end
 end)
