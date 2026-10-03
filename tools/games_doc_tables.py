@@ -24,6 +24,7 @@ GROUPS_3310 = [
     ("Bantumi (games_bantumi_3310.md)", ("bantumi_",)),
     ("Pairs II (games_pairs2_3310.md)", ("pairs2_",)),
     ("Games framework", ("game_", "games_", "title_", "done_tick_")),
+    ("Main menu", ("menu_",)),
     ("Sprite and tilemap engine", ("sprite_", "tilemap_")),
     ("Runtime services used by the games", ("rand_", "rt_", "memcpy", "memset", "timer_", "heap_", "sound_", "vibra", "charger_")),
 ]

@@ -211,7 +211,9 @@
 0x002f30d4,label,si_level_table_init_2f30d4
 0x002f3108,label,si_type_frames_init_2f3108
 0x002f4224,label,snake2_globals_init_2f4224
+0x002f6c68,label,menu_games_icon_2f6c68
 0x002f9e50,label,done_tick_pictures_2f9e50
+0x00300844,label,menu_images_300844
 0x00311740,label,si_tilemaps_311740
 0x00311820,label,si_spawn_lists_311820
 0x00312084,label,si_level_headers_312084

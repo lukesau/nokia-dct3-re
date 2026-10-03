@@ -97,6 +97,18 @@ All game graphics live in `0x2d9484..0x2d9a80` and are drawn through
 Snake itself has no sprite for the body: segments are 3x3, 4x3 or 3x4 filled
 rectangles on a 4-pixel cell pitch.
 
+## Main menu Games icon
+
+Runtime, from MAME frames with the main menu resting on Games (the icon
+area matched against the dump). As on the 3310, the main menu's icons are
+runs of 12-byte image records in `menu_images_2c9ef0`. The Games entry's
+are records 103..115, `menu_games_icon_2c50d4`, thirteen 64x14 pictures
+128 bytes apart. When the entry is shown, its first picture stays 1.08 s
+(140 timer units), then the other twelve follow every 0.19 s (24 units)
+and the first comes back and stays. Showing the entry again starts it
+over; Phone book's four pictures (records 54..57) cycle the same way.
+The code that steps the icons was not found.
+
 ## Settings records
 
 NV descriptor `0x074c` maps EEPROM `0x0d9c` to five 4-byte records: big-endian
@@ -313,6 +325,8 @@ hypotheses in `docs/data/games_function_notes.json` keep neutral prefixes
 | `0x2634b6` | function | `menu_teardown_if_open_2634b6` | Tears the menu down (menu_render_2629d0(0xff, 1)) when the context's open flag (0x10b2de[ctx*4]) is set. |
 | `0x2634d4` | function | `menu_depth_pop_2634d4` | Pops one menu nesting level: clears the current level slot, marks it state 7, restores the previous level's slot and adjusts the depth counter (max 6). |
 | `0x296f4e` | function | `menu_layout_by_language_296f4e` | Looks the current language byte (ui_language_11fcb1) up in the 4-byte table 0x2d6548 (terminated by '*'), stores entry[2] into menu_visible_rows_11fd18 and entry[3] into 0x11fd17, returns entry[1]; default rows = 3. Explains why the menu window size is language-dependent. |
+| `0x2c50d4` | label | `menu_games_icon_2c50d4` | The main menu's Games icon: thirteen 64x14 pictures, 128 bytes apart (records 103..115 of menu_images_2c9ef0). Runtime: the first stays about 1.08 s (140 timer units), then the other twelve follow every 0.19 s (24 units) and the first comes back and stays; showing the entry again starts it over. The |
+| `0x2c9ef0` | label | `menu_images_2c9ef0` | Main menu image table: 275 12-byte records {0x2b66a4, u8 width, u8 height, u16 0, bitmap address}, as the 3310's. The Phone book entry's icon is records 54..57 and the Games entry's 103..115. Runtime: seen by matching the icon shown in MAME frames. |
 
 ### Runtime services used by the games
 

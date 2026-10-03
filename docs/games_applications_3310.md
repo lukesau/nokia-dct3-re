@@ -517,6 +517,21 @@ layout, 88 bytes each) drawn empty, half ticked after 0.70 s and ticked
 after 0.92 s. The port in `nokia-3310-games` draws these pages to the
 pixel.
 
+## Main menu Games icon
+
+Runtime, from MAME frames with the main menu resting on Games (the icon
+area matched against the dump). The main menu's icons are pictures in
+`menu_images_300844`, a table of 12-byte image records; each entry owns a
+run of them. The Games entry's are records 147..150,
+`menu_games_icon_2f6c68`, four 64x14 pictures 128 bytes apart. When the
+entry is shown, its first picture stays 0.833..0.850 s (108 timer units),
+then the four follow one another every 0.154 s (20 units, mean of 31
+steps), three times round, and the icon stops on the first picture.
+Showing the entry again starts it over. Other entries animate the same
+way with their own runs (Phone book, Calculator, Reminders, Clock). The
+code that steps the icons was not found: the image records are read past
+MAME's watchpoints, and the games' timer start is not used for it.
+
 ## Random numbers
 
 - `game_rand16_2dd7d0`: `seed = (seed * 0x625f + 0x3623) mod 0xfff1`, seed
@@ -838,6 +853,13 @@ the notes file by `make games-doc GAMES_PRODUCT=3310`.
 | `0x2dd9aa` | function | `title_sprites_free_2dd9aa` | Frees a title's pool and restores the saved engine header. |
 | `0x2f9e50` | label | `done_tick_pictures_2f9e50` | Three pictures of the Done note's tick, 22x32 in the LCD's strip layout (22 bytes per 8 rows), 88 bytes each: the empty box, the half tick and the tick. Runtime: shown at 0, 0.70 and 0.92 s of the note's 1.47 s. |
 | `0x33016c` | label | `games_table_33016c` | Game table, 16-byte records: four parameter bytes, Thumb handler pointer (games_app_handler for all five), text pointer, u16 flags. Five records. |
+
+### Main menu
+
+| Address | Kind | Name | Evidence |
+|---|---|---|---|
+| `0x2f6c68` | label | `menu_games_icon_2f6c68` | The main menu's Games icon: four 64x14 pictures, 128 bytes apart (records 147..150 of menu_images_300844). Runtime: the first stays about 0.84 s (108 timer units), then the four follow one another every 0.155 s (20 units) three times round and it stops on the first; showing the entry again starts it |
+| `0x300844` | label | `menu_images_300844` | Main menu image table, reached through the pointer at 0x2f1d00: a word, then 377 12-byte records {0x2f1d04, u8 width, u8 height, u16 0, bitmap address}. Each main-menu entry has a run of records for its icon's pictures; the Games entry has 147..150. Runtime: seen by matching the icon shown in MAME f |
 
 ### Sprite and tilemap engine
 

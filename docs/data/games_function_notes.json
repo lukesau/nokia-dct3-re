@@ -791,6 +791,18 @@
    "lines": [
     "Logic's parameters: rows (10), code length (5). The level takes one off the length below level 4 and sets the kinds to ((level & 3) + 2) * 2."
    ]
+  },
+  {
+   "addr": "0x2c9ef0",
+   "lines": [
+    "Main menu image table: 275 12-byte records {0x2b66a4, u8 width, u8 height, u16 0, bitmap address}, as the 3310's. The Phone book entry's icon is records 54..57 and the Games entry's 103..115. Runtime: seen by matching the icon shown in MAME frames."
+   ]
+  },
+  {
+   "addr": "0x2c50d4",
+   "lines": [
+    "The main menu's Games icon: thirteen 64x14 pictures, 128 bytes apart (records 103..115 of menu_images_2c9ef0). Runtime: the first stays about 1.08 s (140 timer units), then the other twelve follow every 0.19 s (24 units) and the first comes back and stays; showing the entry again starts it over. The code that steps it was not found."
+   ]
   }
  ]
 }

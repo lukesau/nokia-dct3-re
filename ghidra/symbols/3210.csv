@@ -1066,3 +1066,5 @@ address,kind,name
 0x002d96cc,data,game_tile_cursor_2d96cc
 0x002d995c,data,game3_sprites_2d995c
 0x002d9764,data,game3_backgrounds_2d9764
+0x002c9ef0,label,menu_images_2c9ef0
+0x002c50d4,label,menu_games_icon_2c50d4

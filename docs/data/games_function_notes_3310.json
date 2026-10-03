@@ -1268,9 +1268,21 @@
    ]
   },
   {
+   "addr": "0x2f6c68",
+   "lines": [
+    "The main menu's Games icon: four 64x14 pictures, 128 bytes apart (records 147..150 of menu_images_300844). Runtime: the first stays about 0.84 s (108 timer units), then the four follow one another every 0.155 s (20 units) three times round and it stops on the first; showing the entry again starts it over. The code that steps it was not found."
+   ]
+  },
+  {
    "addr": "0x2f9e50",
    "lines": [
     "Three pictures of the Done note's tick, 22x32 in the LCD's strip layout (22 bytes per 8 rows), 88 bytes each: the empty box, the half tick and the tick. Runtime: shown at 0, 0.70 and 0.92 s of the note's 1.47 s."
+   ]
+  },
+  {
+   "addr": "0x300844",
+   "lines": [
+    "Main menu image table, reached through the pointer at 0x2f1d00: a word, then 377 12-byte records {0x2f1d04, u8 width, u8 height, u16 0, bitmap address}. Each main-menu entry has a run of records for its icon's pictures; the Games entry has 147..150. Runtime: seen by matching the icon shown in MAME frames."
    ]
   },
   {
