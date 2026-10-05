@@ -13,7 +13,7 @@ public class SetNokiaThumb extends GhidraScript {
 	@Override
 	protected void run() throws Exception {
 		Register tmode = currentProgram.getProgramContext().getRegister("TMode");
-		currentProgram.getProgramContext().setValue(tmode, toAddr(0x00200000), toAddr(0x003fffff), BigInteger.ONE);
+		currentProgram.getProgramContext().setValue(tmode, toAddr(0x00200000), currentProgram.getMaxAddress(), BigInteger.ONE);
 		DisassembleCommand command = new DisassembleCommand(
 				new AddressSet(toAddr(0x00200040), toAddr(0x00200040)), null, true);
 		command.setInitialContext(new RegisterValue(tmode, BigInteger.ONE));

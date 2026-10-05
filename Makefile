@@ -723,9 +723,21 @@ swap16:
 # Built-in games (Rotation, Snake, Memory) static and runtime mapping helpers.
 # Generated artifacts live under the ignored $(GAMES_RUN_DIR); names live in
 # $(GAMES_SYMBOLS) and reviewed notes in docs/data/games_function_notes*.json.
-# GAMES_PRODUCT picks the firmware: 3210 (v6.00, the default) or 3310 (v6.39).
+# GAMES_PRODUCT picks the firmware: 3210 (v6.00, the default), 3310 (v6.39)
+# or 3410 (v5.46).
 GAMES_PRODUCT ?= 3210
-ifeq ($(GAMES_PRODUCT),3310)
+ifeq ($(GAMES_PRODUCT),3410)
+GAMES_RUN_DIR ?= run_games_3410
+GAMES_SWAP ?= roms/3410f546e_swap16.bin
+GAMES_INNER ?= 0x24b000-0x250000,0x258000-0x25d000,0x2d5000-0x2d7000,0x2e8000-0x2ea000,0x32a000-0x32b000
+GAMES_SYMBOLS ?= ghidra/symbols/3410.csv
+GHIDRA_PROJECT ?= nokia3410
+GHIDRA_PROGRAM ?= 3410f546e_swap16.bin
+KEY_DELAY_MS ?= 16000
+KEY_DURATION_MS ?= 200
+KEY_GAP_MS ?= 200
+KEY_CAPTURE_MS ?= 1200
+else ifeq ($(GAMES_PRODUCT),3310)
 GAMES_RUN_DIR ?= run_games_3310
 GAMES_SWAP ?= roms/3310f639e_swap16.bin
 GAMES_INNER ?= 0x2576a0-0x25a584
@@ -795,8 +807,16 @@ games-next:
 # them from 6 s, but the first key only wakes the UI: start KEYS with a
 # throwaway "enter".
 KEYS_RUN_ENV = NOKIA_DCT3_POST_READY_KEYS=$(KEYS) NOKIA_DCT3_POST_READY_KEY_DELAY_MS=$(KEY_DELAY_MS) NOKIA_DCT3_POST_READY_KEY_DURATION_MS=$(KEY_DURATION_MS) NOKIA_DCT3_POST_READY_KEY_GAP_MS=$(KEY_GAP_MS) NOKIA_DCT3_POST_READY_CAPTURE_DELAY_MS=$(KEY_CAPTURE_MS) $(RUN_ENV)
+# The 3410 (GAMES_PRODUCT=3410, BIOS 546e) runs with the radio disabled, as
+# its menu gate does, from a copy of that config so MAME's rewrite of it stays
+# in the run directory. Its first key opens the main menu at Messages.
 run-keys:
-ifeq ($(GAMES_PRODUCT),3310)
+ifeq ($(GAMES_PRODUCT),3410)
+	@mkdir -p $(RUN_DIR)/cfg && cp fixtures/radio_disabled/*.cfg $(RUN_DIR)/cfg/
+	@mkdir -p mame/roms/noki3410 && cp -a roms/noki3410/. mame/roms/noki3410/
+	@$(MAKE) --no-print-directory run-prebuilt PHONE=noki3410 BIOS=546e RUN_DIR=$(RUN_DIR) SECONDS=$(SECONDS) \
+		RUN_ENV='$(KEYS_RUN_ENV)' RUN_EXTRA_ARGS='-window -cfg_directory $(abspath $(RUN_DIR))/cfg $(RUN_EXTRA_ARGS)'
+else ifeq ($(GAMES_PRODUCT),3310)
 	@$(MAKE) --no-print-directory run-prebuilt PHONE=noki3310 BIOS=639 RUN_DIR=$(RUN_DIR) SECONDS=$(SECONDS) \
 		RUN_ENV='$(KEYS_RUN_ENV)' RUN_EXTRA_ARGS='-window $(RUN_EXTRA_ARGS)'
 else

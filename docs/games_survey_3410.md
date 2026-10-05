@@ -54,12 +54,13 @@ of a **23 x 13** board, the size the 3310's `snake2_board_dims_274296` gives
 for 96 x 65: (96 - 6) / 4 = 22, plus one; (65 - 14) / 4 = 12, plus one.
 
 The five mazes are the 3310's five, redrawn for that board rather than scaled
-(inferred, reading the walls in the 3310's order, whose descriptors give 1,
-4, 10, 4, 8 and 8 walls; the 3410's descriptors were not decoded). Maze 2
+(static: the 3410's descriptors at `0x497458` give 1, 4, 10, 4, 12 and 9
+walls, where the 3310's give 1, 4, 10, 4, 8 and 8). Maze 2
 keeps its eight corner stubs on the new corners, and its two bars,
 (8, 3)-(12, 3) and (8, 5)-(12, 5) on the 3310, become (7, 4)-(15, 4) and
 (7, 8)-(15, 8). Maze 3 is still four walls. Maze 4 has 12 walls where the
-3310 has 8. 77% of `snake2_bitmaps_327d4c` is found unchanged.
+3310 has 8, and Maze 5 has 9 where it has 8. 77% of
+`snake2_bitmaps_327d4c` is found unchanged.
 
 ### Bantumi
 

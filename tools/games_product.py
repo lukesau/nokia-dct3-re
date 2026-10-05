@@ -24,6 +24,14 @@ PRODUCTS = {
         "doc": "docs/games_applications_3310.md",
         "inner": "0x2576a0-0x25a584",
     },
+    "3410": {
+        "image": "roms/3410f546e_swap16.bin",
+        "run_dir": "run_games_3410",
+        "symbols": "ghidra/symbols/3410.csv",
+        "notes": "docs/data/games_function_notes_3410.json",
+        "doc": "docs/games_applications_3410.md",
+        "inner": "0x24b000-0x250000,0x258000-0x25d000,0x2d5000-0x2d7000,0x2e8000-0x2ea000,0x32a000-0x32b000",
+    },
 }
 
 def name():
