@@ -190,11 +190,37 @@ sprite mode `0x14`, `0x12` otherwise): runtime, the slots show empty
 first, the digits 0.50 s later, then every 0.48 s, and the menu comes
 3.28 s after the game ended.
 
+## High scores
+
+Static, runtime (every picture of two runs equal to MAME's: no game played
+yet, and after a game on the same maze). The menu's High scores sends
+event `0x0b`; `0x24d204` sets up the page and a 200 ms timer, and each
+timer event steps it (`0x24f63c`, mode `0x0a`). Nothing of it is the game:
+
+- `0x3b268a(5, 1, score, 0)` draws the chosen maze's top score in a box at
+  the top: its ends are the game-over box's (`0x4b4918`, `0x4b4930`, drawn
+  as they are, at x = (96 - 50) / 2 and 67, y 1), lines on rows 1, 11 and
+  12 between them, the five digits from x 29, y 2, 8 apart, leading zeros
+  shown, and the 11x11 medal (`0x4b4ad8`, bitmap `0x4b4ab0`) at (1, 1) and
+  (84, 1). When the last game was played on this maze (the record
+  `0x24b4ec` keeps), a second box at y 46 without medals shows its score,
+  and the snake runs on row 26 instead of 32.
+- A snake of seven sprites, head (`0x4b302c`), five body (`0x4b30ec`) and
+  tail (`0x4b308c`), from x -4 leftwards 4 apart, and a creature
+  (`0x4b2f0c` + 24 x `rand()` mod 6) at x 48 on the same row.
+- Each step every segment moves 4 right. Until the head reaches x 44 the
+  creature bobs, a row down and back up in turn; then the mouth opens
+  (`0x4b31ac`) for a step, the creature goes, and over the next six steps
+  the fat body (`0x4b314c`) moves from the first body segment to the
+  tail. The snake carries on off the screen and the page stands, the timer
+  still running, until a key.
+
 ## Not done
 
 - Which tones `0xfa0`.. are was not traced; the 3410 holds the 3310's eat,
   death and full-ring scripts at ids `0x1f`, `0x20`, `0x22` of `0x4a9078`.
-- The High scores page (its demos, modes 2 and 4).
+- Game modes 2 and 4 (S+0x51b), not seen; the High scores page is not
+  one of them.
 - A game over that is not a new top score, whose digits are inferred not
   to blink.
 - The main menu's Games icon: not found as a plain strip bitmap.
