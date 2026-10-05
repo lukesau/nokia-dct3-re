@@ -26,7 +26,7 @@ phone's to the pixel. That confirms what follows.
 ## Reaching the game and its menus
 
 Runtime. Games (main menu entry 7), Select game, Snake II; the title
-animation ends by itself after about 5 s into the game's menu: New game,
+animation (below) ends by itself into the game's menu: New game,
 High scores, Options, Instructions, and Continue first while a game is
 paused. Options opens Game options: Mazes (No maze, Box, Tunnel, Spiral,
 Blockade, Twisted) and Level (nine bars). Fresh NVRAM starts at level 1
@@ -145,19 +145,57 @@ Static, runtime.
   left cell, going right its right cell.
 - A creature eaten makes the snake grow, as food does.
 - Ring full: score + 100, then the snake dies as below.
-- Death: blocked, a 100 ms tick; blocked again, crash state 2 and the
-  vibrator (`0x3b2510(0xfa1)`); the next tick sets 500 ms; each tick then
-  turns every segment on or off, the ring gone round or not; the eighth
-  ends the game before the LCD shows it. The phone then shows the title
-  with the score for about 3 s (runtime) and goes back to the menu.
-- Meals call `0x3b2510(0xfa0)`, the vibrator, when the games' setting
-  allows (`0x3f7ebe`).
+- Death: blocked, a 100 ms tick; blocked again, crash state 2, the death
+  sound (`0x3b2510(0xfa1)`) and the vibrator on (`0x3b25d4(1)`); the next
+  tick sets 500 ms and turns the vibrator on again; each tick then turns
+  every segment on or off, the ring gone round or not, and the second
+  turns the vibrator off; the eighth ends the game (`0x24b77e`) before the
+  LCD shows it.
+- Sounds and the vibrator (static, inferred from where they are called):
+  `0x3b2510(id)` plays a tone when the games' sounds are on (`0x3f7ebe`):
+  `0xfa0` a meal, `0xfa1` the death, `0xfa2` game over, `0xfa4` a new top
+  score. `0x3b25d4(on)` switches the vibrator, which a meal does not run.
+
+## Title
+
+Static, runtime (every picture equal to MAME's frames). Event `0x0e`
+(`0x24b484`) shows the picture of descriptor `0x4986a0` (96x65, bitmap
+`0x4974a0`) and sets a 200 ms timer. Each timer event (`0x24eb2c`) counts a
+step: steps 1 to 5 show the pictures of the five descriptors from
+`0x4986b8`, bitmaps `0x4977a0` + `0x300` n, over it (each is whole, so it
+replaces it), steps 6 to 8 nothing, step 9 the game's menu. The bitmaps are
+`0x300` bytes apart, eight bands, so a picture's ninth band, its 65th row,
+is the first of the next (of the last, the start of the descriptors); the
+phone shows that row. The Navi key ends the title into the menu, C leaves
+Snake II.
+
+## Game over
+
+Static, runtime (both states of three games' pictures equal to MAME's
+frames, scores 22, 168, 255). `0x24b77e` shows the title's first picture,
+compares the score with the record's (`0x24b4ec`; one top score for each
+of the six mazes, and a `rand()` drawn), plays `0xfa4` for a new top score
+or `0xfa2`, draws the score box (`0x24b5c8`) and sets a 100 ms timer with a
+count of 30 at S+0x525 (`0x24eae2` counts it down; the Navi key ends it
+early).
+
+The box: x 51..95, y 50..61, set; its two 6x12 ends (descriptors
+`0x4b4918`, `0x4b4930`, bitmaps `0x4b47d4`, `0x4b47e0`) drawn inverted at
+x 51 and 88; between them rows 50, 60 and 61 clear; then the score's
+digits, 6x8 (descriptors from `0x4b4948`, bitmaps from `0x4b47ec`, light
+with a dark figure), from the right at x 81, 73, 65 .., y 51, without
+leading zeros, at most four. A plus or minus sign (`0x4bef4c`, `0x4bef34`)
+is not drawn for Snake II. With a new top score the digits blink (the
+sprite mode `0x14`, `0x12` otherwise): runtime, the slots show empty
+first, the digits 0.50 s later, then every 0.48 s, and the menu comes
+3.28 s after the game ended.
 
 ## Not done
 
-- Sounds were not traced; the 3410 holds the 3310's eat, death and
-  full-ring scripts at ids `0x1f`, `0x20`, `0x22` of `0x4a9078`.
-- The title animation, the High scores page (its demos, modes 2 and 4) and
-  the game-over picture.
+- Which tones `0xfa0`.. are was not traced; the 3410 holds the 3310's eat,
+  death and full-ring scripts at ids `0x1f`, `0x20`, `0x22` of `0x4a9078`.
+- The High scores page (its demos, modes 2 and 4).
+- A game over that is not a new top score, whose digits are inferred not
+  to blink.
 - The main menu's Games icon: not found as a plain strip bitmap.
 - The highlight's slide in the lists.
