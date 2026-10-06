@@ -3,6 +3,60 @@
   "kind": "state_predicates",
   "entries": [
     {
+      "id": "nsm3d_original_record_acceptance", "owner": "dsp_staged_research", "status": "unresolved",
+      "predicate": "8250 v5.02 runtime peer processes acquired product-local records using an evidenced identity and transformation accepted by the own-ROM consumer",
+      "current": "Fresh isolated runtime comparison rejects the candidate family-83 decode before format selection. Startup deliberately sets validation-selector bit 7 at 13fdd9; the MCU sends the acquired 24-byte record directly. Forward and inverse operations under the declared nominal identity both fail the ordinary structural branch. The PMM initial record spans 32768 bytes, outside the existing single-sector journal replay contract. Public family tables and independently documented v6.02 HLE/provisioning success do not recover this PMM's original chip identity or missing ROM6 record processing. No fabricated verdict, donor PMM or unlocked record is supplied. Graphical boot and downstream phone capabilities remain unverified pending matched identity/transformation evidence, a physical exchange or resident ROM6 code.",
+      "evidence": ["docs/8xxx_bringup.md", "tools/noki8250_record_context_observe.lua", "tools/nsm3d_runtime_hle_check.py", "tools/test_nsm3d_record_query.py"]
+    },
+    {
+      "id": "nsm2_research_outgoing_sms", "owner": "product_profile", "status": "satisfied",
+      "predicate": "8850 research composition physically submits A to 5551234 and closes CP/RP and RR before returning to paging",
+      "current": "Physical Write messages/Options/Send produces exact 27-byte SMS-SUBMIT with GSM-7 A, destination 5551234 and SMSC 1234567890. The declared laboratory network accepts one submission, returns CP-ACK and RP-ACK, and receives handset CP-ACK. Acknowledged RR release precedes paging return. The final frame is the editor; no success-banner, external-carrier delivery or speech-media claim is made.",
+      "evidence": ["docs/8xxx_bringup.md", "tools/noki8850_outgoing_sms_input.lua", "tools/noki8850_outgoing_sms_check.py", "tools/test_noki8850_outgoing_sms_check.py"]
+    },
+    {
+      "id": "nsm2_research_incoming_sms", "owner": "product_profile", "status": "satisfied",
+      "predicate": "8850 research composition receives hello in EF_SMS, physically reads it and presents the same message after a preserved-storage cold restart",
+      "current": "Own no-cipher packet 14:0080ffffffffffffffff0000 precedes SAPI-3 segmented CP-DATA. Firmware persists exact SMS-DELIVER bytes for hello from 5551234, emits CP/RP acknowledgements and closes RR before paging resumes. Physical Messages/Inbox/Read displays reviewed hello pixels and updates EF_SMS from unread 03 to read 01. A cold run with network delivery disabled preserves the same record, reads it and displays identical body pixels without redelivery or UPDATE RECORD. The initial delivery occurs during startup; no post-startup notification banner or outgoing SMS is claimed.",
+      "evidence": ["docs/8xxx_bringup.md", "fixtures/noki8850_incoming_sms/nsm2hle.cfg", "tools/noki8850_incoming_sms_input.lua", "tools/noki8850_sms_check.py", "tools/test_noki8850_sms_check.py", "tools/radio_incoming_sms_trace_check.py"]
+    },
+    {
+      "id": "nsm2_research_incoming_call", "owner": "product_profile", "status": "satisfied",
+      "predicate": "8850 research composition receives an IMSI-paged call, physically answers and ends it, then returns to idle paging",
+      "current": "The declared laboratory network config queues one incoming call. Firmware completes Paging Response, cipher/MM exchange, SETUP and its own 11-byte Call Confirmed, Alerting and traffic assignment. Physical Send 0e emits Connect and receives acknowledgement; End 0f emits Disconnect and completes CC/RR release with the own parameter-14 transaction and zero confirmation. Reviewed frames show caller 5551234, connected presentation and DCT3 LAB after release. Media and SMS are separate capabilities.",
+      "evidence": ["docs/8xxx_bringup.md", "fixtures/noki8850_incoming_call/nsm2hle.cfg", "tools/noki8850_incoming_call_input.lua", "tools/noki8850_incoming_call_check.py", "tools/test_noki8850_incoming_call_check.py"]
+    },
+    {
+      "id": "nsm2_research_outgoing_call", "owner": "product_profile", "status": "satisfied",
+      "predicate": "8850 research composition physically dials 5551234, completes outgoing CC/RR signaling and returns to registered operator presentation",
+      "current": "Own matrix column-0 bits 2/3 decode as Send 0e and End 0f; the prior 11/10 labels were incorrect. Physical Send triggers CM Service and exact-number SETUP, traffic assignment, Alerting, Connect and handset acknowledgement. End triggers Disconnect, Release Complete and RR release. Its organic release packet establishes parameter 14; the request-correlated peer confirmation returns firmware to paging. Operator pixel crops verify numeric PLMN before dialing and DCT3 LAB after release. No 8850 speech-media configuration or incoming/SMS acceptance is implied.",
+      "evidence": ["docs/8xxx_bringup.md", "driver/nokia_dct3.cpp", "tools/noki8850_outgoing_call_input.lua", "tools/noki8850_outgoing_call_check.py", "tools/test_noki8850_outgoing_call_check.py"]
+    },
+    {
+      "id": "nsm2_research_registration", "owner": "product_profile", "status": "satisfied",
+      "predicate": "8850 research composition completes organic laboratory Location Updating, SIM location persistence and return to steady camp",
+      "current": "Own-ROM ring dispatcher 307346 and its thirteen-entry table independently route 80/8b/89 to recovered consumers. After 55:03050000 accepts RSSI, firmware publishes its own 56/160 candidate window; the explicit product contract permits this completed-scan continuation. The coherent 60-second physical-input run completes Location Updating, both LAPDm acknowledgements, EF_LOCI LAI/status writes and steady paging/BCCH. Assigned 89 body bit 0 matches the recovered pending-context predicate. Incoming/outgoing call signaling, operator pixels and SMS have separate acceptance predicates. Normal-machine native DSP completion remains unverified.",
+      "evidence": ["docs/8xxx_bringup.md", "driver/nokia_dct3.cpp", "driver/nokia_radio_peer.cpp", "tools/noki8850_radio_observe.lua", "tools/radio_registration_trace_check.py", "tools/test_radio_registration_trace_check.py"]
+    },
+    {
+      "id": "nsm2_research_phonebook_and_calculator", "owner": "product_profile", "status": "satisfied",
+      "predicate": "8850 research profile physically saves A/123, presents it after a preserved-storage cold restart and computes 12+3=15",
+      "current": "Own-ROM physical inputs issue absolute UPDATE RECORD for ADN record 1 and receive success. Exact storage validation proves A/123 and 49 erased records. A separate cold execution preserves the SIM/flash files, reads ADN, and physically opens Search/Detail with reviewed name/number pixels and no UPDATE RECORD. A separate fresh fixture navigates the own menu to Calculator, selects Options/Add then Equals and displays 15 with correlated decoded inputs. This is research-composition software acceptance, not normal-machine promotion or radio/call/SMS completion.",
+      "evidence": ["docs/8xxx_bringup.md", "tools/noki8850_phonebook_input.lua", "tools/noki8850_phonebook_read.lua", "tools/noki8850_phonebook_check.py", "tools/noki8850_calculator_input.lua", "tools/noki8850_staged_trace_check.py"]
+    },
+    {
+      "id": "nsm2_research_physical_navigation", "owner": "product_profile", "status": "satisfied",
+      "predicate": "8850 v5.31 product-local PMM and declared native-upload/runtime-HLE composition reaches physical security input and Messages/Inbox/Names menus",
+      "current": "The research nsm2hle machine uses own row pins 1..4, optional pending-column register 2b and key table 33f504. Physical digits 1..5 decode exactly and OK dismisses Security code, followed by Nokia startup and Menu/Names idle. Ordered physical navigation and stable title/list pixel crops verify Messages, Inbox and Names after organic ICCID/SST/IMSI and 50 ADN reads. Normal noki8850 remains fail-closed; this predicate does not establish durable phonebook, applications, registration or call/SMS lifecycles.",
+      "evidence": ["docs/8xxx_bringup.md", "tools/noki8850_security_input.lua", "tools/noki8850_staged_trace_check.py", "tools/test_noki8850_staged_trace_check.py"]
+    },
+    {
+      "id": "nsm3d_uploaded_verifier_publication", "owner": "dsp_staged_research", "status": "modeled",
+      "predicate": "Native MCU-uploaded 8250 verifier publishes results and firmware retains them after 58 ordered buffer pairs",
+      "current": "The separate nsm3dr6 research composition executes the stock 223-word verifier with the authentic product-flash bootstrap fragment and nominal COBBA inputs. Native code publishes 0000/0006/0006/0006; MCU 0x2cb328 retains 0000/0006 after 58 ordered pairs. The next 638-word upload matches pinned flash. Its native loader reads the 104-word fragment at ff80..ffe7, posts selector 14 then 133 selector-1 requests through MAD2 IRQ4, and receives the product's 613-word second loader at 0a00. All second-loader words are verified before execution. Native execution stops at CALL 2c75 from 0a40, outside acquired code; no helper body or return value is guessed. Diagnostic suspension retains ownership while the MCU continues: it issues command 32 with argument 3fff and pending word 100e0 remains 1 through eight seconds. HLE must not clear that word or produce queued responses under native ownership. The fragment is firmware-contained evidence, not a fitted-mask dump or graphical boot. Normal noki8250 remains fail-closed.",
+      "evidence": ["docs/8xxx_bringup.md", "tools/nsm3d_verifier_observe.lua", "tools/nsm3d_live_verifier_check.py"]
+    },
+    {
       "id": "nsm5_5210_standby", "owner": "product_profile", "status": "satisfied",
       "predicate": "Nokia 5210 v5.40 completes board bring-up, GSM registration and interactive application entry through product-owned device contracts",
       "current": "The forcing-free NSM-5 profile completes organic DSP bootstrap and compact service control, external-service discovery and application registration, SIMI initialization, BLB-2 pack recognition, candidate-window acquisition and ordinary Location Updating. Firmware updates EF_LOCI, releases SDCCH, returns to camp and renders DCT3 LAB. A separate network fixture proves SIM-backed MM authentication before the same promotion. Exact-frame gates reproduce registered standby, open the firmware-owned Messages menu item, enter Write messages, return through two physical Back operations, and preserve registered state across save/load before further physical navigation. IMSI paging completes through random access and clean release. An ordinary MT SMS crosses SAPI 3 and segmented CP-DATA, persists unread in EF_SMS, produces the receipt UI, then physical softkeys display hello and update the SIM record to read. Incoming-call paging additionally reaches caller presentation, physical Send/Connect, traffic assignment, NSM-5 wire 0x860b speech selection, physical End and complete CC/RR release; wire 0x840a clears speech control before exact return to registered idle. PCM/media remains unproved.",
@@ -155,6 +209,18 @@
       "predicate": "A bounded donor-derived product-state fixture reaches an interactive Nokia 2100 v5.84 MMI through organic device and firmware paths",
       "current": "The original full-donor result executed v5.21 and is retired. With v5.84 executable preservation, a freshly seeded donor PMM, isolated snapshots and physical 12345 plus Navi, firmware invokes its cipher a second time, rejects the identity-derived mismatch and paints Wrong code. The gate deletes prior snapshots before each run. This proves bounded interactive rejection only; accepted product state, idle and registration remain unproved.",
       "evidence": ["docs/2100_bringup.md", "Makefile"]
+    },
+    {
+      "id": "nsb6_pcs1900_registration", "owner": "nsb6_radio", "status": "satisfied",
+      "predicate": "Own Nokia 8890 v12.20 PMM reaches laboratory PCS1900 registration through firmware-owned band scans and ARFCN-600 selection in the explicit runtime research HLE composition",
+      "current": "A fresh strict two-cell 600/601 topology rejects the initial GSM900 candidate. Own type-55 modes 1 and 4 consume band-specific type-8b measurements; mode 4 accepts two class-3 entries and firmware constructs its 0258/0259 candidate window. Firmware selects 600, emits PCS configuration prefix 0412, consumes SI1 band indication 6b and posts Location Updating with power-class byte 20. Correlated accept, EF_LOCI writes, release and paging pass. The checker rejects GSM-only candidate selection, DCS indication, reversed scans and incorrect power class. This is research HLE acceptance, not native DSP or PCS speech/call/SMS proof.",
+      "evidence": ["docs/8xxx_bringup.md", "fixtures/noki8890_pcs1900/nsb6hle.cfg", "tools/noki8890_registration_check.py", "tools/test_noki8890_registration_check.py"]
+    },
+    {
+      "id": "nsb6_pcs1900_user_services", "owner": "nsb6_radio", "status": "satisfied",
+      "predicate": "Fresh own Nokia 8890 v12.20 research-HLE runs complete physical incoming/outgoing call signaling and durable incoming/outgoing SMS on strict PCS1900 topology",
+      "current": "Each checker requires independently verified carrier-600 registration first. Physical outgoing 1234567 and incoming Answer/End complete CC/RR assignment, connect and release using PCS configuration prefix 0412 and ARFCN 0258. Physical outgoing A/5551234 emits the exact SMS-SUBMIT and closes CP/RP; incoming hello closes transport, is physically read, persists with read status and matches the reviewed body pixels. No new runtime response or firmware-state injection is needed. Speech/media and native DSP remain unproved.",
+      "evidence": ["docs/8xxx_bringup.md", "tools/noki8890_outgoing_call_check.py", "tools/noki8890_incoming_call_check.py", "tools/noki8890_outgoing_sms_check.py", "tools/noki8890_incoming_sms_check.py"]
     },
     {
       "id": "nam1_display_frontier", "owner": "nam1_firmware", "status": "satisfied",

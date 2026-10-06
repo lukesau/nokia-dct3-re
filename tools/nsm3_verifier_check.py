@@ -17,7 +17,7 @@ def check(output, trace, returncode, count=116):
         raise ValueError("missing fail-closed NSM-3 peripheral-read frontier")
     blocks = [int(value) for value in re.findall(r"nsm3_verifier: block=(\d+) flag=", trace)]
     if blocks != list(range(count)):
-        raise ValueError("staged verifier did not consume all 116 ordered blocks")
+        raise ValueError(f"staged verifier did not consume all {count} ordered blocks")
     writes = re.findall(r"port_write=([0-9a-f]+) data=([0-9a-f]+) blocks=(\d+)", trace)
     if writes != [("000e", "1387", str(count)), ("0000", "000d", str(count)),
                   ("000c", "0010", str(count))]:
@@ -51,16 +51,21 @@ def main():
     parser.add_argument("binary", type=Path)
     parser.add_argument("flash", type=Path)
     parser.add_argument("run_dir", type=Path)
-    parser.add_argument("--product", choices=("8210", "6210"), default="8210")
+    parser.add_argument("--product", choices=("8210", "6210", "8250", "6250"), default="8210")
     args = parser.parse_args()
     try:
         binary, flash, run = args.binary.resolve(), args.flash.resolve(), args.run_dir.resolve()
-        system = "npe3verify" if args.product == "6210" else "nsm3verify"
-        count = 232 if args.product == "6210" else 116
+        system = {"8210": "nsm3verify", "6210": "npe3verify",
+                  "8250": "nsm3dverify", "6250": "nhm3verify"}[args.product]
+        count = 232 if args.product in ("6210", "6250") else 116
+        flash_name = {"8210": "8210_5.31ppm_c.fls", "6210": "6210_556c.fls",
+                      "8250": "8250-502mcuppmk.fls", "6250": "6250-503mcuppmc.fls"}[args.product]
+        fingerprint = {"8210": "c2e06006", "6210": "f65a0d46",
+                       "8250": "f3a3625c", "6250": "c62d430c"}[args.product]
         rom_dir = run / system
         rom_dir.mkdir(parents=True, exist_ok=True)
         (rom_dir / "nsm3_verifier.bin").write_bytes(extract(flash.read_bytes(), args.product))
-        shutil.copyfile(flash, rom_dir / ("6210_556c.fls" if count == 232 else "8210_5.31ppm_c.fls"))
+        shutil.copyfile(flash, rom_dir / flash_name)
         log = run / "error.log"
         log.unlink(missing_ok=True)
         result = subprocess.run([
@@ -84,7 +89,7 @@ def main():
             output = result.stdout + result.stderr
             (comparison / "verifier_output.log").write_text(output)
             check_cobba(output, comparison_log.read_text(), result.returncode, expected,
-                        version, count, "f65a0d46" if count == 232 else "c2e06006")
+                        version, count, fingerprint)
     except (OSError, ValueError, subprocess.TimeoutExpired) as error:
         parser.exit(1, f"NSM-3 verifier gate failed: {error}\n")
     print(f"{args.product} verifier PASS: {count} blocks; fixture completion follows supplied PROM and COBBA inputs, not a measured handset verdict")
