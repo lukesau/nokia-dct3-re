@@ -19,8 +19,8 @@
 --                     lives 3", for a replay to do the same at the same
 --                     point: a run then reaches the later chapters
 --
--- The autopilot steers the ship toward the row of the nearest enemy ahead
--- of it by holding 8 (up) or 0 (down) and fires with 1; the keys are held
+-- The autopilot steers the ship toward the middle of a boss when there is
+-- one, else toward the row of the nearest enemy ahead of it by holding 8 (up) or 0 (down) and fires with 1; the keys are held
 -- for whole frames and let go between presses, so each press reaches the
 -- game as a key event and as the held state it polls.
 local script_dir = (debug.getinfo(1, "S").source:match("^@(.*)/[^/]*$")) or "."
@@ -160,15 +160,24 @@ emu.register_frame_done(function()
 	-- The nearest enemy to the right of the ship.
 	local sx, sy = pos(space:read_u32(STATE + 0x56c))
 	if not sx then return end
-	local best, by = nil, nil
+	local best, by, boss = nil, nil, nil
 	for n = 0, 59 do
 		local rec = STATE + 0x90 + n * 20
 		local ty = rb(rec + 2)
 		if ty ~= 0x7f and ty >= 20 and rb(rec + 0xf) ~= 0x0a then
-			local x, y = pos(space:read_u32(rec + 8))
-			if x and x > sx and (not best or x < best) then best, by = x, y end
+			local pic = space:read_u32(rec + 8)
+			local x, y = pos(pic)
+			if x and rb(rec + 0x10) ~= 0 then
+				-- A boss: its middle row, where the last one can be hurt,
+				-- less the shot's 3 below the ship.
+				local h = space:read_u16(space:read_u32(pic + 0x10) + 2)
+				boss = y + h // 2 - 3
+			elseif x and x > sx and (not best or x < best) then
+				best, by = x, y
+			end
 		end
 	end
+	if boss then by = boss end
 	if not by then up("8"); up("0"); return end
 	if by < sy - 1 then up("0"); down("8")
 	elseif by > sy + 1 then up("8"); down("0")

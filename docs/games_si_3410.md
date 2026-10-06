@@ -5,7 +5,7 @@ result against the firmware in MAME. It is the 3310's game
 (`games_applications_3310.md`) rebuilt: the same eight levels, now
 "chapters", the same movement patterns and objects, on the 3410's graphics
 library and a 96 x 65 screen, with its levels kept in a chapter file of the
-format the phone can also download. This map is in progress.
+format the phone can also download. The game is mapped; its re-implementation is checked against MAME.
 
 Addresses apply to one image only: NHM-2 v5.46 with PPM E and the virgin
 PMM (`make normalize-3410`). Each conclusion is marked **static** (read from
@@ -38,14 +38,18 @@ for the events all five games share):
 | `0x01`, `0x02` | key down, key up; a = the key's code: 1..9 for the digits |
 | `0x03` | pause (Enter during play) |
 | `0x07` | boot broadcast |
-| `0x0a` (a = 1), `0x14`, `0x0c` | New game |
+| `0x09` | a demo, a = 1 to 3 |
+| `0x0a` (a = 1) | New game; `0x14` and `0x0c` follow and do nothing |
+| `0x0b` | the High scores page, b = the record |
+| `0x0d` | Continue: a = 0x5a8, b = the state saved at the pause; it follows a `0x0a` |
 | `0x0e` | chosen in Select game: the title |
+| `0x11`, `0x12` | a chapter file received, or chosen in the Chapters menu |
 
 Runtime: each digit press arrived as four down/up pairs in a run with the
 input exerciser.
 
-Static: events below 3 go to `si_tick_25c274` unless the end sequence
-(`0x11ddc6` = 1, `si_ending_259aec`), the demo (`0x11ddca`,
+Static: events below 3 go to `si_tick_25c274` unless the High scores page
+(`0x11ddc6` = 1, `0x259aec`), the demo (`0x11ddca`,
 `si_demo_25c6d4`) or another mode (`0x11dded`) is running.
 
 ## State
@@ -77,7 +81,7 @@ whole (`0x3b2922(0x5a8, state)`) when the game is paused.
 | +0x565 | u8 | special key held |
 | +0x566 | s8 | lives, start 3 |
 | +0x567 | u8 | shot type (4) |
-| +0x568 | u8 | special weapon: 6 missile, 7 wall, 8 beam |
+| +0x568 | u8 | special weapon: 6 wall, 7 missile, 8 beam; 3 walls at New game and after a continue |
 | +0x569 | s8 | special count, start 3 |
 | +0x56c | u32 | the ship's picture |
 | +0x570 | u8 | the shield's object, `0xff` when none |
@@ -167,10 +171,9 @@ the special weapon's icon: missile `0x490134`, wall `0x49014c`, beam
 `0x490164`.
 
 y paths (static): `si_tables_11d7a0` +0x1c..+0x2c and +0x44 point at
-tables chosen by the screen's width: on 96 columns `0x4ad094`,
-`0x4ad268`, `0x4ad214`, `0x4ad0f4`, `0x4ad154` and the relative wave
-`0x4ad1b4`; on 84 columns `0x4ad31c` and `0x4ad2bc` replace the second
-and third.
+tables chosen by the screen's width: `0x4ad094`, `0x4ad268`, `0x4ad214`, `0x4ad0f4`, `0x4ad154` and the relative wave
+`0x4ad1b4`; the second and third are the 84-column rise and fall, which on
+96 columns `0x4ad31c` (rise) and `0x4ad2bc` (fall) replace.
 
 ## Draw modes
 
@@ -289,15 +292,46 @@ The game is deterministic in MAME: two runs of the same recording gave
 the same events, generator states and LCD frames, all 1051 of them. The
 generator is 0x87991a45 at New game after the title and menus.
 
-`make golden-si` in nokia-gb-games/3410 records three games into its ignored
+`make golden-si` in nokia-gb-games/3410 records four games into its ignored
 `golden/si-*` and turns each log into `events.txt` (`tools/si_events.py`):
-a, two minutes on through the continues (2188 events); b, the special
-weapon three times and a pause (1482); c, the ship left where it starts
-without firing, through the continue screen's countdown to the game-over
-picture (the title with the score in a box) and the game's menu (357).
+a, two minutes on through the continues; b, the special weapon three times
+and a pause; c, the ship left where it starts without firing, through the
+continue screen's countdown to the game-over picture; d, 22 minutes with
+`SI_IMMORTAL=1`, which sets the lives back to 3 at the handler's second
+instruction whenever one is lost (logged as `SIPOKE`, made again by the
+replay before the same event), so that it plays through all eight
+chapters and beats the final boss, at whose middle the autopilot aims.
+
+## Re-implementation
+
+`nokia-gb-games/3410/core/si.c` re-implements the game function by function
+(every function of `0x2589d0`..`0x25c974` paired with its 3310 counterpart
+in `games_si_3410_functions.md`, with collisions, bosses, the continue
+screen, the chapter settings, sounds, timing and the generator's draws),
+and `core/si_pic.c` the part of the graphics library it draws with. Its
+`make check-golden` replays the recorded games: four, the longest 22 minutes
+through all eight chapters, the final boss, the flight off and the game-over
+picture, match MAME's frames, every one in order. What the replays showed
+that reading the code had not:
+
+- the game polls the held keys in play (`0x3b29d0`, a byte per key code
+  from `0x12d298`), which the keyboard interrupt can change after the
+  handler was entered: the autopilot logs them as polled (`SIKEYS`);
+- the shield of the chapters drawn with `0x20` is drawn, in mode `0x30`;
+- a picture starting in the screen's last column or row is not drawn, one
+  partly off the left or right edge otherwise is;
+- leaving a chapter, the ship is judged off the screen (x > 116) by where it
+  was before its step;
+- part of an object left of the screen reads the terrain's bitmap from
+  before its row, and from before the bitmap the heap's own bytes, which a
+  big-endian block size of 0xc8 (192 bytes and an 8-byte header) fits
+  (inferred: a bullet at x -1 beside the terrain is taken on bit 3 of the
+  byte before the bitmap, a projectile there is not on bits 0 and 1);
+- the game-over picture's score box is Snake II's pieces (two 6x12 ends,
+  6x8 digits 8 apart, inverted) in a 51 x 12 box at (23, 26).
 
 ## Not done
 
-Everything else: collisions, bosses, the continue screen, the chapter settings'
-meaning, the end sequence, the demo, sounds, the high scores and the
-Chapters menu.
+The demos, the High scores page, the Chapters menu and the title, sounds and
+the vibrator in the re-implementation; the sounds' scripts behind `0xfa0`..
+`0xfa8`.
