@@ -1,7 +1,7 @@
 -- Space Impact autopilot (NHM-2 v5.46). Plays the game with the phone's keys
 -- and logs what a replay needs:
---   "SIEV <event> <a> <b> c=<cycles> seed=<rand state>" every call of the
---     handler si_handler_25c974;
+--   "SIEV <event> <a> <b> c=<cycles> seed=<rand state> keys=<key bytes>"
+--     every call of the handler si_handler_25c974;
 --   "SIPER <ms>", "SISND <id>", "SIVIB <on>" the tick period, sounds and
 --     vibrator the game asks the framework for;
 --   "SIBOT <key> down|up t=<s>" each key the autopilot presses and lets go.
@@ -13,6 +13,10 @@
 --      SI_PAUSE_AT    seconds of play: pause (Menu) and Continue once
 --      SI_CONTINUE    1: on the continue screen, press 1 to go on
 --      SI_IDLE        1: never move, only fire
+--      SI_IMMORTAL    1: whenever a life is lost in play, write the lives back
+--                     to 3 and log "SIPOKE lives 3", for a replay to do the
+--                     same at the same point: a run then reaches the later
+--                     chapters
 --
 -- The autopilot steers the ship toward the row of the nearest enemy ahead
 -- of it by holding 8 (up) or 0 (down) and fires with 1; the keys are held
@@ -25,8 +29,10 @@ local cpu = machine.devices[":maincpu"]
 local dbg = cpu.debug
 local space = cpu.spaces["program"]
 
--- The ANSI C generator's state is at 0x12ebac.
-dbg:bpset(0x25c974, "1", 'logerror "SIEV %x %x %x c=%d seed=%x\\n",r0,r1,r2,totalcycles,maincpu.pd@12ebac; g')
+-- The ANSI C generator's state is at 0x12ebac. The game also reads the
+-- keys it holds every tick (0x3b29d0, a byte per key code from 0x12d298):
+-- "keys=" is those of codes 0..11, four to a word.
+dbg:bpset(0x25c974, "1", 'logerror "SIEV %x %x %x c=%d seed=%x keys=%08x%08x%08x\\n",r0,r1,r2,totalcycles,maincpu.pd@12ebac,maincpu.pd@12d298,maincpu.pd@12d29c,maincpu.pd@12d2a0; g')
 dbg:bpset(0x3b2546, "1", 'logerror "SIPER %d c=%d\\n",r0,totalcycles; g')
 dbg:bpset(0x3b2510, "1", 'logerror "SISND %x c=%d\\n",r0,totalcycles; g')
 dbg:bpset(0x3b25d4, "1", 'logerror "SIVIB %x c=%d\\n",r0,totalcycles; g')
@@ -58,6 +64,7 @@ for s in (os.getenv("SI_SPECIAL_AT") or ""):gmatch("[^,]+") do specials[#special
 local pause_at = tonumber(os.getenv("SI_PAUSE_AT") or "")
 local go_on = os.getenv("SI_CONTINUE") == "1"
 local idle = os.getenv("SI_IDLE") == "1"
+local immortal = os.getenv("SI_IMMORTAL") == "1"
 
 local held = {}
 local function down(k)
@@ -87,6 +94,10 @@ emu.register_frame_done(function()
 		if n <= 1 then up(k); taps[k] = nil else taps[k] = n - 1 end
 	end
 	local phase = rb(STATE + 0x558)
+	if immortal and (phase == 10 or phase == 0x1e) and rb(STATE + 0x566) < 3 and rb(STATE + 0x566) > 0 then
+		space:write_u8(STATE + 0x566, 3)
+		machine:logerror("SIPOKE lives 3\n")
+	end
 	if phase ~= 10 and phase ~= 0x14 and phase ~= 0x1e then
 		start = nil
 		return
