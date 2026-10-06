@@ -14,7 +14,7 @@ conclusion is marked **static**, **runtime** or **inferred**. Names live in
 
 ## Check against a re-implementation
 
-Runtime. The C port in `nokia-3410-games` replays the events the handler
+Runtime. The C port in `nokia-gb-games/3410` replays the events the handler
 received in three probe-steered games (`mame_nokia_3410_snake2_probe.lua`,
 its `S3KEY` writes as keys) and every picture it draws appears, in order,
 among the frames MAME captured: level 5 with no maze and 20 meals; level 9

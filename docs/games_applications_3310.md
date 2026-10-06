@@ -514,7 +514,7 @@ and `8-6-N-2`, OK key) with the current value selected; OK shows the Done
 note for 1.47 s: "Done" in the large font with a box at the top right
 (`done_tick_pictures_2f9e50`, three 22x32 pictures in the LCD's strip
 layout, 88 bytes each) drawn empty, half ticked after 0.70 s and ticked
-after 0.92 s. The port in `nokia-3310-games` draws these pages to the
+after 0.92 s. The port in `nokia-gb-games/3310` draws these pages to the
 pixel.
 
 ## Main menu Games icon
@@ -569,7 +569,7 @@ MAME's watchpoints, and the games' timer start is not used for it.
 
 ## Check against a re-implementation
 
-Runtime. The C port in `nokia-3310-games` replays the event sequence the
+Runtime. The C port in `nokia-gb-games/3310` replays the event sequence the
 firmware's handler received during the golden run below (logged with a
 breakpoint on `games_dispatch_2dbd2a`) and draws 231 distinct pictures;
 all of them appear, in order, among the frames MAME captured. That

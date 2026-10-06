@@ -466,7 +466,7 @@ give the same replies at a given level.
 - The message `0x5134` handler was not traced; what it shows is known
   from runs (see Game over and top score, and the fireworks in
   `games_snake2_3310.md`).
-- A C port exists (nokia-3310-games, `core/bantumi.c`) and replays four
+- A C port exists (nokia-gb-games/3310, `core/bantumi.c`) and replays four
   games the firmware played in MAME frame for frame: levels 1 (with
   hints), 2, 3 (paused) and 5, two of them to the end. The games were
   played by `mame_nokia_3310_bantumi_bot.lua`, which presses 4, 6, 5 and

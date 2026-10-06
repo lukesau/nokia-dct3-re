@@ -554,7 +554,7 @@ blocked.
 
 ## Check against a re-implementation
 
-Runtime. The C port in `nokia-3310-games` replays the events the
+Runtime. The C port in `nokia-gb-games/3310` replays the events the
 firmware's handler received in three probe-steered games (the `S2KEY`
 writes as keys) and every picture it draws appears, in order, among the
 frames MAME captured: level 5 with no maze, 30 meals and a death after

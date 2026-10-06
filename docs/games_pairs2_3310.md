@@ -446,7 +446,7 @@ them, cover the stars under them. Space Impact's step returns `0x21`
 Snake II's fifth step sets mode 4 on the sprite id stored past its five
 frames (state +0x22), which is none of its own: nothing new appears.
 
-Runtime, in the port (`nokia-3310-games`, `core/title.c`): drawing each
+Runtime, in the port (`nokia-gb-games/3310`, `core/title.c`): drawing each
 title's sprites in this order and stepping them on these periods, every
 distinct picture of all four titles appears in order among the frames of
 MAME runs that opened the four games from boot, Space Impact's stars
