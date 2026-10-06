@@ -498,10 +498,16 @@ leaves the game, so no pulse is felt. What turns it off was not traced.
   299 does not blink (static). A tenth blink would set ctx+0xe = 0,
   restore the level period unless ctx+0x18 is set, and return `0x16`; a
   death never gets there.
-- After `0x18` the framework takes over (runtime). With a new top score the
-  screen inverts and shows a fireworks animation for about 2.95 s, then
-  "Game over! TOP SCORE:" and the score (string 576) for about 2.95 s, then
-  the game menu with New game selected. Otherwise "Game over! Your score:"
+- After `0x18` the framework takes over (runtime). With a new top score it
+  plays sound `0x23` and shows the games' fireworks: six full-screen 84 x 48
+  pictures in the LCD's layout, 504 bytes each from `0x2fe6a8` (the sixth
+  all black), in order twice over, 233 ms (30 timer units) each, the first
+  about 0.1 s after the return; then sound `0x23` again and "Game over!
+  TOP SCORE:" and the score (string 576) for about 2.95 s, then the game
+  menu with New game selected. The same pictures and timing follow a new
+  top score in Pairs II and a won Bantumi (with sound `0x22`); the code
+  that draws them was not traced (the pictures were found by searching
+  the image for the captured frames). Otherwise "Game over! Your score:"
   and the score (578) is written over the game screen for about 2.95 s,
   then the menu. Which code compares and stores the top score was not
   traced.
@@ -566,7 +572,7 @@ the pixel in English.
 - The menu pages (Level bars, Mazes list, Top score, Instructions) belong to
   the shared games menu code and are described from screenshots only.
 - The code that compares the score with the top score and stores it, and
-  the fireworks animation, were not traced; neither was what writes the
+  the code that draws the fireworks, were not traced; neither was what writes the
   collection mask back to record +0x2a.
 - The large creature, the collection mask and `0x111507` are static only;
   `0x111507`'s meaning is a guess.

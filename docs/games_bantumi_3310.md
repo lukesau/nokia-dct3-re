@@ -440,10 +440,11 @@ over or a capture.
 - Runtime: for each sign of the result the framework (message `0x5134`,
   not traced) shows a different end; each text stays about 3 s and then
   the game menu opens:
-  - result > 0: a full-screen fireworks animation of about 2.5 s, then
-    'Game over!' 'YOU WON!';
-  - result = 0: 'Game over!' only;
-  - result < 0: 'Game over!' 'You lost, sorry!'.
+  - result > 0: the games' fireworks (the pictures and timing in
+    `games_snake2_3310.md`, Game over), with sound `0x22` as they start
+    and again with the text, then 'Game over!' 'YOU WON!' (579);
+  - result = 0: 'Game over!' (536) only, no sound;
+  - result < 0: 'Game over!' 'You lost, sorry!' (577), no sound.
 
   Seen in English runs that set the board on the first intro tick to one
   move from the end (one seed in pit 5 and in pit 7): returns `0x1e` with
@@ -462,9 +463,9 @@ give the same replies at a given level.
 
 ## Not done
 
-- The message `0x5134` handler (the end texts, the fireworks, which text
-  id each result uses) was not traced; the draw text was seen only as
-  'Game over!'.
+- The message `0x5134` handler was not traced; what it shows is known
+  from runs (see Game over and top score, and the fireworks in
+  `games_snake2_3310.md`).
 - A C port exists (nokia-3310-games, `core/bantumi.c`) and replays four
   games the firmware played in MAME frame for frame: levels 1 (with
   hints), 2, 3 (paused) and 5, two of them to the end. The games were
