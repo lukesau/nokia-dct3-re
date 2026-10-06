@@ -320,6 +320,34 @@ regions, verifies their pinned hashes, and prepares the `noki3410` ROM set.
 The v5.46 set is the default 3410 BIOS; the older local v5.06 MCU/PPM image is
 retained as a separate, unprovisioned comparison BIOS.
 
+### Nokia 3510 NHM-8 v5.02 (DCT4, static RE only)
+
+Source:
+`https://firmware.center/firmware/Nokia/3510%20(NHM-8)/Flash%20Files/NHM-08%20v.05.02%203510.rar`.
+Place `nhm8nxp5.020` (MCU, 5,474,096 bytes,
+`0597606c21b21c7c6d1be37a7138f21aaca4ab8bb579c9a496826f989ea5e7be`) and
+`nhm8nxp5.02e` (PPM E, 1,169,746 bytes,
+`ec1240559bc30b44c9dedef1dfc6728759b9ad3a9f0ca4d475efb6d4886f65be`) in
+`roms/3510-nhm8-v502/`.
+
+The 3510 is DCT4 (UPP), not DCT3: no MAME machine runs it. Its flash files use
+the `0xA2` container with a `DCT4 ALGORITHM` header and encrypted data, which
+`tools/dct4_decrypt.py` turns into flat flash images:
+
+```
+python3 tools/dct4_decrypt.py roms/3510-nhm8-v502/nhm8nxp5.020 roms/3510-nhm8-v502/mcu.bin
+python3 tools/dct4_decrypt.py roms/3510-nhm8-v502/nhm8nxp5.02e roms/3510-nhm8-v502/ppm.bin
+```
+
+| image | flash range | base code | SHA-256 |
+|---|---|---|---|
+| `mcu.bin` | `0x01000000..0x01537984` | `0x37b4` | `27d97443f2b077a21704dbb440bc477cdb5fdb5cfcfc3c1020675ea8bef609ad` |
+| `ppm.bin` | `0x015a0000..0x016bd5b8` | `0x37b4` | `d3cd1570d60264ce125472ad50d6c722086cba6c7de8cc16b0a9aa22aeb3abcf` |
+
+Both files auto-detect the same base code independently. The MCU carries
+`Nokia 3510` and the game engine's assertion strings; the PPM opens with
+`V 5.02` / `26-05-03`.
+
 ### Nokia 5210 NSM-5 v5.40
 
 Firmware.center's `NSM-5 v.05.40 5210.rar` contains Wintesla members
