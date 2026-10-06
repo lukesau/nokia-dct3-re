@@ -159,7 +159,8 @@ Static, runtime.
 - Sounds and the vibrator (static, inferred from where they are called):
   `0x3b2510(id)` plays a tone when the games' sounds are on (`0x3f7ebe`):
   `0xfa0` a meal, `0xfa1` the death, `0xfa2` game over, `0xfa4` a new top
-  score. `0x3b25d4(on)` switches the vibrator, which a meal does not run.
+  score; records `0x1f`, `0x20`, `0x21` and `0x23` of the sound table at
+  `0x4a9078` (`games_si_3410.md`, "Sounds and the vibrator"). `0x3b25d4(on)` switches the vibrator, which a meal does not run.
 
 ## Title
 
@@ -222,8 +223,6 @@ timer event steps it (`0x24f63c`, mode `0x0a`). Nothing of it is the game:
 
 ## Not done
 
-- Which tones `0xfa0`.. are was not traced; the 3410 holds the 3310's eat,
-  death and full-ring scripts at ids `0x1f`, `0x20`, `0x22` of `0x4a9078`.
 - Game modes 2 and 4 (S+0x51b), not seen; the High scores page is not
   one of them.
 - A game over that is not a new top score, whose digits are inferred not

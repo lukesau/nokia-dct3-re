@@ -275,6 +275,38 @@ from a listing). r4 is the object, r6 its speed (+5).
 
 Patterns 8 and 19..22 do nothing, as on the 3310.
 
+## Sounds and the vibrator
+
+Static, runtime. The game asks for a sound with `0x3b2510(id)`, which
+plays it when the games' sounds are on (`0x3f7ebe`). `0x3f7d0e` looks the
+id up in the halfwords at `0x4c3538` and posts the value to the tone task
+(`0x2aacdc`, message `0xf1`), which indexes the sound table from
+`0x4a9060` (`0x3e57d0`): three records before `0x4a9078`, so the value
+less 3 is the record. The ids come out as the 3310's sounds renumbered
+(the 3310's `0x17`..`0x1a` are the 3410's `0x13`..`0x16`; from `0x1e` on
+the tables agree):
+
+| Id | Value | Record | When |
+|---|---|---|---|
+| `0xfa0` | `0x22` | `0x1f` | a bonus picked up (`0x25b418`); Snake II's meal |
+| `0xfa1` | `0x23` | `0x20` | Snake II's death |
+| `0xfa2` | `0x24` | `0x21` | the game-over picture (`0x25c484`) |
+| `0xfa4` | `0x26` | `0x23` | the same, the score not below the top score (`0x25c48c`) |
+| `0xfa5` | `0x17` | `0x14` | a shot (`0x25a2be`) |
+| `0xfa6` | `0x18` | `0x15` | a wall or a missile (`0x25a3c6`) |
+| `0xfa7` | `0x16` | `0x13` | the ship lost, to the terrain or a hit (`0x25bd7e`, `0x25be1c`) |
+| `0xfa8` | `0x19` | `0x16` | the beam (`0x25a3c6`) |
+
+In the demo (`0x11ddca` set) the handler fires from a key going down
+instead (`0x259d30`), with the same three sounds; in play only the held
+keys' poll (`0x25a110`) fires.
+
+`0x3b25d4(1)` turns the vibrator on when the ship is lost, a shield is
+hit and a boss is destroyed, if the byte at `0x11ddc5` is 0, and sets it
+to 3; each tick counts it down and
+turns the vibrator off at 0 (`0x25c3a2`). The continue screen turns it off
+too (`0x258c58`).
+
 ## Recording games
 
 Runtime. `mame_nokia_3410_si_bot.lua` plays the game with the phone's
@@ -293,7 +325,8 @@ the same events, generator states and LCD frames, all 1051 of them. The
 generator is 0x87991a45 at New game after the title and menus.
 
 `make golden-si` in nokia-gb-games/3410 records four games into its ignored
-`golden/si-*` and turns each log into `events.txt` (`tools/si_events.py`):
+`golden/si-*` and turns each log into `events.txt` and `sounds.txt`, the
+sound and vibrator calls by event (`tools/si_events.py`):
 a, two minutes on through the continues; b, the special weapon three times
 and a pause; c, the ship left where it starts without firing, through the
 continue screen's countdown to the game-over picture; d, 22 minutes with
@@ -330,8 +363,11 @@ that reading the code had not:
 - the game-over picture's score box is Snake II's pieces (two 6x12 ends,
   6x8 digits 8 apart, inverted) in a 51 x 12 box at (23, 26).
 
+The replays' sound and vibrator calls equal the phone's in every recorded
+game, the last call of each event, and so do they in a 150 s game with the
+special weapon's key held 13 times, long enough for the poll to see it
+(three walls or missiles and a beam fired before the specials ran out).
+
 ## Not done
 
-The demos, the High scores page, the Chapters menu and the title, sounds and
-the vibrator in the re-implementation; the sounds' scripts behind `0xfa0`..
-`0xfa8`.
+The demos in the re-implementation.
