@@ -145,7 +145,7 @@ Drawing block `bantumi_ui_10e178` (static):
 | `0x10e182` | u16: board sprite id |
 | `0x10e186` | u16: thinking sprite id |
 | `0x10e188` | u32: hand closed (carrying seeds) |
-| `0x10e18c`, `0x10e198` | RAM image descriptors of the open hand's mask and image (bitmaps at `0x10e274` and `0x10e220`, 18 x 2 bands each) |
+| `0x10e18c`, `0x10e198` | RAM image descriptors of the open hand's mask and image (bitmaps at `0x10e274` and `0x10e220`, 12 x 2 bands each; 36 bytes are copied) |
 | `0x10e1a4`, `0x10e1b0` | RAM descriptors of the closed hand's mask and image (bitmaps at `0x10e1c8` and `0x10e1e0`, 11 x 2 bands) |
 | `0x10e1bc` | u32: hand animation state, 0 idle, 1 wait, 2 move, 3 arrive, 4 act |
 | `0x10e1c0` | u8: hand animation counter |
@@ -324,7 +324,9 @@ opposite pit has seeds, 3 if not; turn 1 or 2; hand animation onto the pit
 itself); else the turn passes. If seeds remain: next pit (skipping the
 opponent's store, wrapping at 14) and a hand animation to it. Sub-state 2:
 the capturing seed goes to the store, the hand moves to the opposite pit
-and takes its seeds (sub-state 3). Sub-state 3: the seeds in hand go to
+and takes its seeds (sub-state 3); it is drawn open there with
+`draw_hand(0)` (the branch at `0x2b20d4` goes to `0x2b200a`, past the
+`movs r0, #1` before it), which frees the closed hand at the store. Sub-state 3: the seeds in hand go to
 the store, the turn passes.
 
 With no animation running:
@@ -370,13 +372,19 @@ use the shared engine (45 sprites per game).
   at (x + 2), units at (x + 6). `bantumi_set_pit_2b1764(pit, n)` updates
   the digits and stores n.
 - Hand: two sprites at the same position, a mask in mode 0 and the image in
-  mode 1, layer 3. Open hand 18 x 16: mask `0x31d120`, image `0x31d0f0`
+  mode 1, layer 3. Open hand 12 x 16: mask `0x31d120`, image `0x31d0f0`
   in the bottom row (state+0x10 <= 6), mask `0x31d138`, image `0x31d108`
   in the top row. Closed hand 11 x 13: mask `0x31d198`, image `0x31d150`
   bottom, mask `0x31d180`, image `0x31d168` top. The bitmaps are copied to
   RAM and shifted up when the hand's y is negative, so the hand is clipped
-  at the top edge; the mask/image assignment is inferred from the draw
-  modes. `bantumi_draw_hand_2b1520`.
+  at the top edge (a shift of more than 8 rows loses the picture
+  altogether: ARM shifts by the register's low byte). There is one RAM
+  copy and one descriptor per picture, so every hand sprite made from it
+  shows what was copied last, at the height set last. `draw_hand(0)`
+  frees the old pair first; `draw_hand(1)` does not, and the old pair
+  stays in the list. Runtime (the port's replay): the widths, 12 and 11,
+  and the mask/image roles agree with every frame of four MAME games.
+  `bantumi_draw_hand_2b1520`.
 - Hand positions (`bantumi_hand_path_2b1a04(from, to)`), with (X, Y) the
   pit table: start (X[from] - 1, Y[from] - 14) and target (X[to] - 1,
   Y[to] - 4) when picking up (turn 1, 2) or Y[to] - 11 when sowing, for a
@@ -457,13 +465,14 @@ give the same replies at a given level.
 - The message `0x5134` handler (the end texts, the fireworks, which text
   id each result uses) was not traced; the draw text was seen only as
   'Game over!'.
-- The hand animation is specified from code and checked against the
-  seed timing (8 ticks a seed) and a few frame sheets, not frame by frame;
-  the mask/image roles of the hand bitmaps are inferred from the draw
-  modes, and the RAM descriptors' bitmap pointers and widths (set outside
-  the game code) were not read.
-- No C port exists yet; the frame-by-frame check against MAME that Space
-  Impact has is still to do. The breakpoint scripts used here are
+- A C port exists (nokia-3310-games, `core/bantumi.c`) and replays four
+  games the firmware played in MAME frame for frame: levels 1 (with
+  hints), 2, 3 (paused) and 5, two of them to the end. The games were
+  played by `mame_nokia_3310_bantumi_bot.lua`, which presses 4, 6, 5 and
+  `*` and logs every event the game is handed (`GEV 2 <event>`).
+- The RAM descriptors' bitmap pointers and widths (set outside the game
+  code) were not read; the port's frames fix the widths at 12 and 11.
+- The breakpoint scripts used here are
   `mame_nokia_3310_bantumi_probe.lua` (logs events, pits, pick-ups, turn
   ends, search nodes and returns; sets the level; auto-plays the lowest
   pit) and `mame_nokia_3310_bantumi_board.lua` (sets a board on the first
@@ -486,7 +495,7 @@ Names are in `run_games_3310/symbols_bantumi.csv`, evidence in
 | `0x10e2e0` | label | `bantumi_digit_sprites_10e2e0` | 14 x {u16 units digit sprite, u16 tens digit sprite}, one per pit, digits from game_digit_sprites_10db68 in draw mode 2. |
 | `0x10f404` | label | `bantumi_ai_10f404` | Bantumi search block: +0 u8 chosen pit, +1 u8 depth remaining, +4 root node, +8 current node. Nodes are 0x20-byte heap records: +0 side (3 player, 4 computer), +4 alpha, +6 beta, +8 best (s16), +0xa pits[14], +0x18 first move (0xe none), +0x19 counter, +0x1c parent. |
 | `0x110d60` | label | `games_title_state_110d60` | Bantumi title state: +0 second-pass flag, +1 step, +0x14/+0x16 saved ctx+0xc/+0xe, +0x24.. sprite ids of the picture and six overlays. |
-| `0x2b1520` | function | `bantumi_draw_hand_2b1520` | (arg) Draws the hand: arg 0 frees the old pair first. Open hand (0x10e188 == 0) 18x16 from 0x31d120/0x31d0f0 (bottom row, state+0x10 <= 6) or 0x31d138/0x31d108 (top); closed hand 11x13 from 0x31d198/0x31d150 or 0x31d180/0x31d168. Bitmaps are copied to RAM, shifted up and shortened when y < 0; mask sprite mode 0 then image mode 1, layer 3, at (0x10e1c1, 0x10e1c2). |
+| `0x2b1520` | function | `bantumi_draw_hand_2b1520` | (arg) Draws the hand: arg 0 frees the old pair first. Open hand (0x10e188 == 0) 12x16 from 0x31d120/0x31d0f0 (bottom row, state+0x10 <= 6) or 0x31d138/0x31d108 (top); closed hand 11x13 from 0x31d198/0x31d150 or 0x31d180/0x31d168. Bitmaps are copied to RAM, shifted up and shortened when y < 0; mask sprite mode 0 then image mode 1, layer 3, at (0x10e1c1, 0x10e1c2). |
 | `0x2b1732` | function | `bantumi_side_empty_2b1732` | Returns 1 when pits 0..5 or pits 7..12 are all empty. |
 | `0x2b1764` | function | `bantumi_set_pit_2b1764` | (pit, n): sets the pit's count and updates its digit sprites. One digit at (x+4, y+2) for pits, (x+5, y+5) for stores; with two digits the tens sprite is created at (x+1 / x+2) and the units moved 4 px right; going back below 10 frees the tens sprite. |
 | `0x2b1898` | function | `bantumi_turn_end_2b1898` | (arg) End of a move: hand idle, hand sprites freed; arg 1 passes the turn (3 <-> 4), arg 0 keeps it (last seed in the store). If a row is empty, sweeps each row into its owner's store, sets the won flag or blinks the computer's store (mode 5) and turn 5. Else: player's turn draws the open hand at the cursor; computer's turn starts the search (0x2dd3bc) and the thinking sprite at (34,16). Runtime: logged at every move end. |
@@ -512,10 +521,10 @@ Names are in `run_games_3310/symbols_bantumi.csv`, evidence in
 | `0x2dd97c` | function | `sprite_full_redraw_2dd97c` | (flag) Writes 0x111af9 in the sprite engine block. Inferred: requests a full redraw; Bantumi calls it with 1 while the hand moves and on thinking frames. |
 | `0x3185c4` | label | `bantumi_title_descs_3185c4` | Bantumi title: seven 12-byte descriptors, the 84x48 picture then six overlays (11x7, 7x10, 11x14, 8x12, 13x10, 11x8). |
 | `0x31d0c0` | label | `bantumi_board_descs_31d0c0` | Four 12-byte descriptors of 84x48 board pictures: 0 open board, 1 and 2 opening frames, 3 closed box (intro slide). |
-| `0x31d0f0` | label | `bantumi_hand_open_bottom_31d0f0` | Open hand image, bottom row, 18x16 (two bands of 18 bytes); drawn in mode 1. |
-| `0x31d108` | label | `bantumi_hand_open_top_31d108` | Open hand image, top row, 18x16; mode 1. |
-| `0x31d120` | label | `bantumi_hand_open_bottom_mask_31d120` | Open hand mask, bottom row, 18x16; mode 0 (inferred role). |
-| `0x31d138` | label | `bantumi_hand_open_top_mask_31d138` | Open hand mask, top row, 18x16; mode 0 (inferred role). |
+| `0x31d0f0` | label | `bantumi_hand_open_bottom_31d0f0` | Open hand image, bottom row, 12x16 (two bands of 12 bytes); drawn in mode 1. |
+| `0x31d108` | label | `bantumi_hand_open_top_31d108` | Open hand image, top row, 12x16; mode 1. |
+| `0x31d120` | label | `bantumi_hand_open_bottom_mask_31d120` | Open hand mask, bottom row, 12x16; mode 0. |
+| `0x31d138` | label | `bantumi_hand_open_top_mask_31d138` | Open hand mask, top row, 12x16; mode 0. |
 | `0x31d150` | label | `bantumi_hand_closed_bottom_31d150` | Closed hand image, bottom row, 11 wide, 13 rows used; mode 1. |
 | `0x31d168` | label | `bantumi_hand_closed_top_31d168` | Closed hand image, top row; mode 1. |
 | `0x31d180` | label | `bantumi_hand_closed_top_mask_31d180` | Closed hand mask, top row; mode 0 (inferred role). |

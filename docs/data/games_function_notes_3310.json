@@ -663,7 +663,7 @@
   {
    "addr": "0x2b1520",
    "lines": [
-    "(arg) Draws the hand: arg 0 frees the old pair first. Open hand (0x10e188 == 0) 18x16 from 0x31d120/0x31d0f0 (bottom row, state+0x10 <= 6) or 0x31d138/0x31d108 (top); closed hand 11x13 from 0x31d198/0x31d150 or 0x31d180/0x31d168. Bitmaps are copied to RAM, shifted up and shortened when y < 0; mask sprite mode 0 then image mode 1, layer 3, at (0x10e1c1, 0x10e1c2)."
+    "(arg) Draws the hand: arg 0 frees the old pair first. Open hand (0x10e188 == 0) 12x16 from 0x31d120/0x31d0f0 (bottom row, state+0x10 <= 6) or 0x31d138/0x31d108 (top); closed hand 11x13 from 0x31d198/0x31d150 or 0x31d180/0x31d168. Bitmaps are copied to RAM, shifted up and shortened when y < 0; mask sprite mode 0 then image mode 1, layer 3, at (0x10e1c1, 0x10e1c2)."
    ]
   },
   {
@@ -1420,25 +1420,25 @@
   {
    "addr": "0x31d0f0",
    "lines": [
-    "Open hand image, bottom row, 18x16 (two bands of 18 bytes); drawn in mode 1."
+    "Open hand image, bottom row, 12x16 (two bands of 12 bytes); drawn in mode 1."
    ]
   },
   {
    "addr": "0x31d108",
    "lines": [
-    "Open hand image, top row, 18x16; mode 1."
+    "Open hand image, top row, 12x16; mode 1."
    ]
   },
   {
    "addr": "0x31d120",
    "lines": [
-    "Open hand mask, bottom row, 18x16; mode 0 (inferred role)."
+    "Open hand mask, bottom row, 12x16; mode 0."
    ]
   },
   {
    "addr": "0x31d138",
    "lines": [
-    "Open hand mask, top row, 18x16; mode 0 (inferred role)."
+    "Open hand mask, top row, 12x16; mode 0."
    ]
   },
   {

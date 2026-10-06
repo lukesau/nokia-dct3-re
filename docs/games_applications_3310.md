@@ -741,7 +741,7 @@ the notes file by `make games-doc GAMES_PRODUCT=3310`.
 | `0x10e1f8` | label | `bantumi_state_10e1f8` | Bantumi game state, 0x28 bytes (the block saved on suspend, events 0x33/0x34): pits[14] (0..5 player, 6 player store, 7..12 computer, 13 computer store), +0xe cursor, +0xf computer's chosen pit, +0x10 hand pit (0xff while thinking), +0x14 u32 turn (0 intro, 1/2 hand to pit, 3 player, 4 computer, 5 g |
 | `0x10e2e0` | label | `bantumi_digit_sprites_10e2e0` | 14 x {u16 units digit sprite, u16 tens digit sprite}, one per pit, digits from game_digit_sprites_10db68 in draw mode 2. |
 | `0x10f404` | label | `bantumi_ai_10f404` | Bantumi search block: +0 u8 chosen pit, +1 u8 depth remaining, +4 root node, +8 current node. Nodes are 0x20-byte heap records: +0 side (3 player, 4 computer), +4 alpha, +6 beta, +8 best (s16), +0xa pits[14], +0x18 first move (0xe none), +0x19 counter, +0x1c parent. |
-| `0x2b1520` | function | `bantumi_draw_hand_2b1520` | (arg) Draws the hand: arg 0 frees the old pair first. Open hand (0x10e188 == 0) 18x16 from 0x31d120/0x31d0f0 (bottom row, state+0x10 <= 6) or 0x31d138/0x31d108 (top); closed hand 11x13 from 0x31d198/0x31d150 or 0x31d180/0x31d168. Bitmaps are copied to RAM, shifted up and shortened when y < 0; mask s |
+| `0x2b1520` | function | `bantumi_draw_hand_2b1520` | (arg) Draws the hand: arg 0 frees the old pair first. Open hand (0x10e188 == 0) 12x16 from 0x31d120/0x31d0f0 (bottom row, state+0x10 <= 6) or 0x31d138/0x31d108 (top); closed hand 11x13 from 0x31d198/0x31d150 or 0x31d180/0x31d168. Bitmaps are copied to RAM, shifted up and shortened when y < 0; mask s |
 | `0x2b1732` | function | `bantumi_side_empty_2b1732` | Returns 1 when pits 0..5 or pits 7..12 are all empty. |
 | `0x2b1764` | function | `bantumi_set_pit_2b1764` | (pit, n): sets the pit's count and updates its digit sprites. One digit at (x+4, y+2) for pits, (x+5, y+5) for stores; with two digits the tens sprite is created at (x+1 / x+2) and the units moved 4 px right; going back below 10 frees the tens sprite. |
 | `0x2b1898` | function | `bantumi_turn_end_2b1898` | (arg) End of a move: hand idle, hand sprites freed; arg 1 passes the turn (3 <-> 4), arg 0 keeps it (last seed in the store). If a row is empty, sweeps each row into its owner's store, sets the won flag or blinks the computer's store (mode 5) and turn 5. Else: player's turn draws the open hand at th |
@@ -767,10 +767,10 @@ the notes file by `make games-doc GAMES_PRODUCT=3310`.
 | `0x318360` | label | `bantumi_title_pictures_318360` | Bantumi title bitmaps; descriptors at 0x3185c4. |
 | `0x3185c4` | label | `bantumi_title_descs_3185c4` | Bantumi title: seven 12-byte descriptors, the 84x48 picture then six overlays (11x7, 7x10, 11x14, 8x12, 13x10, 11x8). |
 | `0x31d0c0` | label | `bantumi_board_descs_31d0c0` | Four 12-byte descriptors of 84x48 board pictures: 0 open board, 1 and 2 opening frames, 3 closed box (intro slide). |
-| `0x31d0f0` | label | `bantumi_hand_open_bottom_31d0f0` | Open hand image, bottom row, 18x16 (two bands of 18 bytes); drawn in mode 1. |
-| `0x31d108` | label | `bantumi_hand_open_top_31d108` | Open hand image, top row, 18x16; mode 1. |
-| `0x31d120` | label | `bantumi_hand_open_bottom_mask_31d120` | Open hand mask, bottom row, 18x16; mode 0 (inferred role). |
-| `0x31d138` | label | `bantumi_hand_open_top_mask_31d138` | Open hand mask, top row, 18x16; mode 0 (inferred role). |
+| `0x31d0f0` | label | `bantumi_hand_open_bottom_31d0f0` | Open hand image, bottom row, 12x16 (two bands of 12 bytes); drawn in mode 1. |
+| `0x31d108` | label | `bantumi_hand_open_top_31d108` | Open hand image, top row, 12x16; mode 1. |
+| `0x31d120` | label | `bantumi_hand_open_bottom_mask_31d120` | Open hand mask, bottom row, 12x16; mode 0. |
+| `0x31d138` | label | `bantumi_hand_open_top_mask_31d138` | Open hand mask, top row, 12x16; mode 0. |
 | `0x31d150` | label | `bantumi_hand_closed_bottom_31d150` | Closed hand image, bottom row, 11 wide, 13 rows used; mode 1. |
 | `0x31d168` | label | `bantumi_hand_closed_top_31d168` | Closed hand image, top row; mode 1. |
 | `0x31d180` | label | `bantumi_hand_closed_top_mask_31d180` | Closed hand mask, top row; mode 0 (inferred role). |

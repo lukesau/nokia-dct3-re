@@ -126,6 +126,11 @@ number of walls (+10). Walls are 4 bytes {x1, y1, x2, y2} from `0x4973b8`.
 Counts 0, 4, 10, 4, 12, 9 for No maze, Box, Tunnel, Spiral, Blockade,
 Twisted. Maze numbers 6 and up are files (downloaded mazes, `0x24b904`).
 
+Runtime: the edges wrap as on the 3310. With No maze a snake left to run
+right at level 1 leaves the board at x 22 and comes back at x 0; with Box,
+whose walls are the board's border, it crashes into the right wall and the
+game ends.
+
 ## New game
 
 Static, runtime: speeds as the 3310's (`0x4bef64`, level 1..9); the first
