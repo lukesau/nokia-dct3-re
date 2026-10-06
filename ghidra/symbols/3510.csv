@@ -1,0 +1,11 @@
+0x01000100,function,flash_entry_1000100
+0x011de8d8,function,game_sound_11de8d8
+0x014047f0,function,kart_handler_14047f0
+0x0140e758,function,si_handler_140e758
+0x01418c58,function,bumper_handler_1418c58
+0x0142144c,function,link5_handler_142144c
+0x01422a70,function,d2m_handler_1422a70
+0x0142d174,function,game_tune_id_142d174
+0x0142df7a,function,game_vibrator_142df7a
+0x01511ebc,label,games_handlers_1511ebc
+0x015a0000,label,ppm_start
