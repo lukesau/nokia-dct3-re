@@ -86,8 +86,10 @@ Three agents mapped the three slices in parallel. Where they overlapped:
 
 ## Porting notes (Game Boy)
 
-- **Timing**: one tick is 50 ms (I: the only period the race sets). All motion is
-  per tick, so the port should run the logic at 20 Hz and keep the arithmetic
+- **Timing**: one tick is 100 ms, the engine's default; the race never sets its
+  own period (S, and seen in the harness, where the race clock gains 1.0 s per 10
+  ticks). All motion is per tick, so the port should run the logic at 10 Hz and
+  keep the arithmetic
   exactly (24.8 positions, s16 speeds, truncating divides).
 - **Keys**: the race reads key ids 0x13 left, 0xf right, 0x14 gas, 0x15 brake
   (only while gas is up), 0x16 weapon and 0x17 turbo, the last two on press (S).

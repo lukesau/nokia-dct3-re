@@ -13,8 +13,11 @@ checked against the disassembly where it matters) or **I** (inferred).
 
 - Tick: one call of `kart_tick_140873c(0, …)` per engine timer message. The only
   `game_set_period` calls in the Kart range are 0x0140d282 (50 ms, in 0x0140d234), 0x0140d7be
-  (300 ms) and 0x0140d826 (1500 ms). The race runs at **50 ms** (I: 0x0140d234 is the
-  game-start routine; the 300/1500 ms ones are the splash). Race times add `game_get_period()`
+  (300 ms) and 0x0140d826 (1500 ms). None of them runs in a race: 0x0140d234 is the
+  best-results screen (`kart_best_show`) and the 300/1500 ms ones are the title. The race
+  runs at the engine's default **100 ms**, set by `engine_session_reset_1425584` (S; seen in
+  the harness, `tools/dct4_game_harness.py`: no period request from kart select to the end of
+  a race, and the race clock gains 1.0 s per 10 ticks). Race times add `game_get_period()`
   each tick, so they are in ms (S).
 - Track: a ring of segments. Segment `s` is 4 bytes at `track->segs + 4*s`:
   `u16 length` (track units), `u8 flags`. `kart_seg_prop` 0x014060c6 (road agent's slice) decodes
@@ -214,7 +217,7 @@ before `engine_app_send` and was not traced. The kart-select keys are the layout
   0 → max −200, drag −38; 1 → max +100, drag −16; 2 → max +0, drag −24. I: 0 uphill, 1
   downhill, 2 flat (the road agent's horizon rows 0x1c / 0xd / 0x17 for the same index).
 - Effective accel per tick = `accel + drag` (e.g. 40 − 24 = 16 on flat). Max speed 0x380 on
-  flat = 3.5 units/tick = 70 units/s at 50 ms.
+  flat = 3.5 units/tick = 35 units/s at 100 ms.
 - Coasting (no gas, no brake) only decays to `maxEff/2`, never below.
 - Braking: `speed −= brake`, floor 0. Brake key requires speed > 0 (player).
 - Turbo (`kart_use_turbo`, needs a held turbo box, not spinning/boosting/recentring):
@@ -368,7 +371,7 @@ Boxes: kart `ax = x − w/2 + 60 (± k*steer while +6/+7, k < 3 for the other ka
 - Countdown (phase 0): counter before increment 0 → `game_sound(0xfb2)`. Lamps drawn after
   the increment: count = 0 (counter 0), 1 (1..6), 2 (7..13), 3 (14..19), 4 (≥ 20). So 1 lamp
   for 6 ticks, 2 for 7, 3 for 6, 4 for 7 (counter 20..26), then GO when the pre-increment
-  counter is 26 (27th tick, 1.35 s at 50 ms). Panel 72×16 (0x01504fa0) at (48 − 36, 0) =
+  counter is 26 (27th tick, 2.7 s at 100 ms). Panel 72×16 (0x01504fa0) at (48 − 36, 0) =
   (12, 0); lamps 8×8 (0x01504fb8) at (20 + 15k, 5). Rebuilt every tick. No physics runs
   during the countdown, but the camera and road do.
 - After GO: `st+0xa = 30` (so the lap-banner timer does not run until the first lap).
