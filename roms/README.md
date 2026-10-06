@@ -332,21 +332,25 @@ Place `nhm8nxp5.020` (MCU, 5,474,096 bytes,
 
 The 3510 is DCT4 (UPP), not DCT3: no MAME machine runs it. Its flash files use
 the `0xA2` container with a `DCT4 ALGORITHM` header and encrypted data, which
-`tools/dct4_decrypt.py` turns into flat flash images:
+`tools/dct4_decrypt.py` turns into one flat flash image (MCU, `0xFF` gap, PPM):
 
 ```
-python3 tools/dct4_decrypt.py roms/3510-nhm8-v502/nhm8nxp5.020 roms/3510-nhm8-v502/mcu.bin
-python3 tools/dct4_decrypt.py roms/3510-nhm8-v502/nhm8nxp5.02e roms/3510-nhm8-v502/ppm.bin
+python3 tools/dct4_decrypt.py roms/3510-nhm8-v502/flash.bin roms/3510-nhm8-v502/nhm8nxp5.020 roms/3510-nhm8-v502/nhm8nxp5.02e
 ```
 
-| image | flash range | base code | SHA-256 |
+| part | flash range | base code | SHA-256 |
 |---|---|---|---|
-| `mcu.bin` | `0x01000000..0x01537984` | `0x37b4` | `27d97443f2b077a21704dbb440bc477cdb5fdb5cfcfc3c1020675ea8bef609ad` |
-| `ppm.bin` | `0x015a0000..0x016bd5b8` | `0x37b4` | `d3cd1570d60264ce125472ad50d6c722086cba6c7de8cc16b0a9aa22aeb3abcf` |
+| MCU | `0x01000000..0x01537984` | `0x37b4` | `27d97443f2b077a21704dbb440bc477cdb5fdb5cfcfc3c1020675ea8bef609ad` |
+| PPM | `0x015a0000..0x016bd5b8` | `0x37b4` | `d3cd1570d60264ce125472ad50d6c722086cba6c7de8cc16b0a9aa22aeb3abcf` |
+| `flash.bin` | `0x01000000..0x016bd5b8` | | `9593bc37f4d893ebf7422249087e79d901953d14fd046e998037d4ad27c7dbc9` |
 
 Both files auto-detect the same base code independently. The MCU carries
 `Nokia 3510` and the game engine's assertion strings; the PPM opens with
 `V 5.02` / `26-05-03`.
+
+The code is big-endian ARM (`ARM:BE:32:v4t`), entered in ARM state at
+`0x01000100`. The Ghidra project `nokia3510` imports `flash.bin` at
+`0x01000000` with `ghidra/scripts/SetDct4Entry.java` as pre-script.
 
 ### Nokia 5210 NSM-5 v5.40
 

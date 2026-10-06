@@ -144,17 +144,26 @@ def decrypt(data, kind=None, base=None):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
-    ap.add_argument('input')
     ap.add_argument('output')
+    ap.add_argument('inputs', nargs='+', help='flash files; several are merged into one image')
     ap.add_argument('--kind', choices=('mcu', 'ppm'))
     ap.add_argument('--base', type=lambda s: int(s, 0), help='16-bit base code (default: auto)')
     a = ap.parse_args()
-    data = open(a.input, 'rb').read()
-    start, img, base, kind, blocks = decrypt(data, a.kind, a.base)
-    open(a.output, 'wb').write(img)
-    print('%s %s: %d blocks, %#010x..%#010x, base code %#06x, sha256 %s'
-          % (kind, a.input, len(blocks), start, start + len(img), base,
-             hashlib.sha256(img).hexdigest()))
+    parts = []
+    for f in a.inputs:
+        start, img, base, kind, blocks = decrypt(open(f, 'rb').read(), a.kind, a.base)
+        print('%s %s: %d blocks, %#010x..%#010x, base code %#06x, sha256 %s'
+              % (kind, f, len(blocks), start, start + len(img), base,
+                 hashlib.sha256(img).hexdigest()))
+        parts.append((start, img))
+    lo = min(s for s, _ in parts)
+    out = bytearray(b'\xff' * (max(s + len(x) for s, x in parts) - lo))
+    for s, x in parts:
+        out[s - lo:s - lo + len(x)] = x
+    open(a.output, 'wb').write(out)
+    if len(parts) > 1:
+        print('merged %s: %#010x..%#010x, sha256 %s'
+              % (a.output, lo, lo + len(out), hashlib.sha256(out).hexdigest()))
     return 0
 
 
