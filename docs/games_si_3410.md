@@ -307,6 +307,25 @@ to 3; each tick counts it down and
 turns the vibrator off at 0 (`0x25c3a2`). The continue screen turns it off
 too (`0x258c58`).
 
+## Instructions
+
+Runtime, around the game: the games framework that shows the pages is not
+traced. Instructions shows four texts (1962..1965) a page of four lines at
+a time. More, or Down, past the last page of each of the first three
+starts its demo (event 9 with a = 1, 2, 3; `games_si_3410_functions.md`,
+"Demos"); the demo runs full screen and the page stays up until its first
+tick, since the start draws nothing. When a demo closes the game, or at any
+key during it (the framework sends event 3, a pause, not a key), the next
+text follows; C goes back to the game's menu with Instructions selected.
+The fourth text ("... to download new chapters.") has Exit and no More:
+Navi does nothing there, Down and Up page. Up and Down page within a text
+too. Up during a demo was once seen to be ignored and a second Up to end
+it; not looked into.
+
+`make golden-si-demos` records the three demos, each to its end, into
+`golden/si-i`; the re-implementation's frames and sounds match all of
+them, and those of demos cut short by Navi, C, 8 and Up.
+
 ## Recording games
 
 Runtime. `mame_nokia_3410_si_bot.lua` plays the game with the phone's
@@ -370,4 +389,4 @@ special weapon's key held 13 times, long enough for the poll to see it
 
 ## Not done
 
-The demos in the re-implementation.
+The framework around the game: the Instructions' pages, measured above.
