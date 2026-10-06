@@ -180,15 +180,6 @@ void nokia_dspif_device::dsp_data_w(u16 address, u16 data)
 				header & 0xff, header >> 8, data, machine().time().as_double());
 	}
 	peer_shared_w(offset, data);
-	// ROM4 loader1 publishes its next code-block selector in DSP word 0x0871
-	// (MCU byte offset 0x0e2). This is DSP-owned service state consumed by the
-	// MCU's IRQ4 handler; unlike HLE completion, the running core must raise
-	// that hardware boundary when it creates a non-zero request itself.
-	if (address == hpi_daram_base + (0x0e2 / 2) && data != 0)
-	{
-		m_service_irq_cb(1);
-		m_service_irq_cb(0);
-	}
 }
 
 u8 nokia_dspif_device::dspif_r(offs_t offset) const

@@ -6,8 +6,8 @@ same capability family. A difference is not automatically a defect: a
 product with its own recovered contract legitimately runs its own
 checker. Entries are for adjudication, not automatic correction.
 
-Families with more than one product: 49
-Differences found: 90
+Families with more than one product: 57
+Differences found: 98
 
 ## ROM normalisation reachability
 
@@ -21,11 +21,18 @@ absent product is a coverage question, not a drifted gate.
 | Family | 2100 | 3210 | 3310 | 3330 | 3410 | 3610 | 5110 | 5210 | 6110 | 6210 | 7110 | 8210 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `bootstrap` | — | — | — | — | — | — | — | — | — | yes | yes | yes |
+| `calculator` | — | — | — | — | — | — | — | — | — | yes | — | yes |
 | `charger-wake` | — | yes | — | — | — | — | — | yes | — | — | — | — |
 | `frontier` | yes | yes | yes | yes | yes | yes | — | yes | — | — | — | — |
+| `incoming-call` | — | — | — | — | — | — | — | — | — | yes | — | yes |
+| `incoming-sms` | — | — | — | — | — | — | — | — | — | yes | — | yes |
+| `keypad-controller` | — | — | — | — | — | — | — | — | — | yes | yes | — |
 | `mbus` | yes | yes | — | — | — | yes | — | — | — | — | — | — |
-| `menu` | — | — | yes | — | yes | — | yes | yes | — | — | — | — |
+| `menu` | — | — | yes | — | yes | — | yes | yes | — | yes | — | — |
 | `navigation` | — | — | yes | yes | yes | — | — | yes | — | — | — | — |
+| `outgoing-call` | — | — | — | — | — | — | — | — | — | yes | — | yes |
+| `outgoing-sms` | — | — | — | — | — | — | — | — | — | yes | — | yes |
+| `phonebook` | — | — | — | — | — | — | — | — | — | yes | — | yes |
 | `power-lifecycle` | — | yes | — | — | — | — | yes | yes | — | — | — | — |
 | `radio-a5-1-handover` | — | yes | yes | yes | yes | — | — | — | — | — | — | — |
 | `radio-a5-1-handover-failure-state` | — | yes | yes | yes | yes | — | — | — | — | — | — | — |
@@ -66,6 +73,7 @@ absent product is a coverage question, not a drifted gate.
 | `radio-smart-message-persistence` | — | yes | yes | yes | yes | — | — | — | — | — | — | — |
 | `radio-sms-inbox` | — | yes | yes | yes | yes | — | — | — | — | — | — | — |
 | `radio-unsuitable-cells` | — | — | — | yes | yes | — | — | — | — | — | — | — |
+| `registration` | — | — | — | — | — | — | — | — | — | yes | — | yes |
 | `save-state` | — | — | — | — | — | — | yes | yes | — | — | — | — |
 | `sim-phonebook` | — | yes | — | — | — | — | — | yes | — | — | — | — |
 | `verifier` | — | — | — | — | — | — | — | — | — | yes | yes | yes |
@@ -78,6 +86,11 @@ absent product is a coverage question, not a drifted gate.
 - **7110**: `tools/nse5_bootstrap_trace_check.py`
 - **8210**: `tools/nsm3_bootstrap_trace_check.py`
 
+### `calculator`
+
+- **6210**: `tools/run_noki6210_acceptance.py`
+- **8210**: `tools/run_noki8210_acceptance.py`
+
 ### `frontier`
 
 - **2100**: `tools/check_lcd_frame.py`, `tools/check_model_frontier_summary.py`
@@ -87,6 +100,21 @@ absent product is a coverage question, not a drifted gate.
 - **3410**: `tools/check_lcd_frame.py`, `tools/check_model_frontier_summary.py`
 - **3610**: `tools/check_lcd_frame.py`, `tools/check_model_frontier_summary.py`
 - **5210**: `tools/check_lcd_frame.py`
+
+### `incoming-call`
+
+- **6210**: `tools/run_noki6210_acceptance.py`
+- **8210**: `tools/run_noki8210_acceptance.py`
+
+### `incoming-sms`
+
+- **6210**: `tools/run_noki6210_acceptance.py`
+- **8210**: `tools/run_noki8210_acceptance.py`
+
+### `keypad-controller`
+
+- **6210**: `tools/npe3_keypad_check.py`
+- **7110**: `tools/nse5_keypad_check.py`
 
 ### `mbus`
 
@@ -100,6 +128,22 @@ absent product is a coverage question, not a drifted gate.
 - **3410**: `tools/check_lcd_frame.py`
 - **5110**: `tools/make_5110_eeprom_profile.py`
 - **5210**: `tools/check_lcd_frame.py`
+- **6210**: `tools/run_noki6210_acceptance.py`
+
+### `outgoing-call`
+
+- **6210**: `tools/run_noki6210_acceptance.py`
+- **8210**: `tools/run_noki8210_acceptance.py`
+
+### `outgoing-sms`
+
+- **6210**: `tools/run_noki6210_acceptance.py`
+- **8210**: `tools/run_noki8210_acceptance.py`
+
+### `phonebook`
+
+- **6210**: `tools/run_noki6210_acceptance.py`
+- **8210**: `tools/run_noki8210_acceptance.py`
 
 ### `power-lifecycle`
 
@@ -291,6 +335,11 @@ absent product is a coverage question, not a drifted gate.
 - **3330**: `tools/radio_3330_unsuitable_cell_trace_check.py`
 - **3410**: `tools/radio_3410_registration_negative_trace_check.py`
 
+### `registration`
+
+- **6210**: `tools/run_noki6210_acceptance.py`
+- **8210**: `tools/run_noki8210_acceptance.py`
+
 ### `save-state`
 
 - **5110**: `tools/make_5110_eeprom_profile.py`
@@ -375,6 +424,7 @@ absent product is a coverage question, not a drifted gate.
 - **3410**: _(none)_
 - **5110**: `build`
 - **5210**: _(none)_
+- **6210**: `build`
 
 ### `power-lifecycle`
 
@@ -557,6 +607,7 @@ absent product is a coverage question, not a drifted gate.
 - **3410**: `structured`
 - **5110**: `shell`
 - **5210**: `structured`
+- **6210**: `structured`
 
 ### `power-lifecycle`
 

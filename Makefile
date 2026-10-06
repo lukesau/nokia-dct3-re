@@ -18,6 +18,11 @@ MAME_PATCHES := patches/mame-nokia-dct3-driver-name.patch \
 	patches/mame-tms320c54x-test.patch \
 	patches/mame-sed1565-test.patch \
 	patches/mame-nse5-rom4-compat.patch \
+	patches/mame-nsm3d-runtime-hle.patch \
+	patches/mame-nsm2-staged.patch \
+	patches/mame-nsb6-staged.patch \
+	patches/mame-nsm3-staged.patch \
+	patches/mame-npe3-staged.patch \
 	patches/mame-libgsm-build.patch
 LIB_COMPONENTS := lib/util/gsmfr.cpp lib/util/gsmfr.h
 CPU_COMPONENTS := cpu/tms320c54x/tms320c54x.cpp \
@@ -28,6 +33,8 @@ DRIVER_COMPONENTS := driver/nokia_ccont.cpp driver/nokia_ccont.h \
 	driver/nokia_dsp_backend.h \
 	driver/nokia_dsp_c54x.cpp driver/nokia_dsp_c54x.h \
 	driver/nokia_dsp_hle.cpp driver/nokia_dsp_hle.h \
+	driver/nokia_record_codec.h \
+	driver/nokia_dsp_staged.cpp driver/nokia_dsp_staged.h \
 	driver/nokia_dspif.cpp driver/nokia_dspif.h \
 	driver/nokia_external_service.cpp driver/nokia_external_service.h \
 	driver/nokia_gsm_call_adapter.cpp driver/nokia_gsm_call_adapter.h \
@@ -714,7 +721,7 @@ rom4-dsp-inputs:
 		roms/noki5110/nse1_rom4_dsp_data.bin
 
 build: overlay roms
-	$(MAKE) -C $(MAME_DIR) REGENIE=1 SOURCES=src/mame/nokia/nokia_dct3.cpp,src/mame/nokia/tms320c54x_test.cpp,src/mame/nokia/sed1565_test.cpp,src/mame/nokia/nokia_b3_flash.cpp,src/mame/nokia/nokia_ccont.cpp,src/mame/nokia/nokia_cobba.cpp,src/mame/nokia/nokia_dsp_c54x.cpp,src/mame/nokia/nokia_dsp_hle.cpp,src/mame/nokia/nokia_dspif.cpp,src/mame/nokia/nokia_external_service.cpp,src/mame/nokia/nokia_gensio.cpp,src/mame/nokia/gsm_a3a8.cpp,src/mame/nokia/gsm_a5.cpp,src/mame/nokia/gsm_cell_broadcast.cpp,src/mame/nokia/gsm_ems.cpp,src/mame/nokia/gsm_mm_authentication.cpp,src/mame/nokia/gsm_tch_f_l1.cpp,src/mame/nokia/gsm_xcch_l1.cpp,src/mame/nokia/nokia_gsm_network.cpp,src/mame/nokia/nokia_gsm_session.cpp,src/mame/nokia/nokia_gsm_voice_peer.cpp,src/mame/nokia/nokia_lapdm_link.cpp,src/mame/nokia/nokia_kbgpio.cpp,src/mame/nokia/nokia_mad2.cpp,src/mame/nokia/nokia_mad2_pcm.cpp,src/mame/nokia/nokia_mbus.cpp,src/mame/nokia/nokia_mbus_terminal.cpp,src/mame/nokia/nokia_pup.cpp,src/mame/nokia/nokia_radio_peer.cpp,src/mame/nokia/nokia_simi.cpp,src/mame/nokia/nokia_sim_card.cpp,src/mame/nokia/nokia_uif.cpp USE_QTDEBUG=0 -j$(JOBS)
+	$(MAKE) -C $(MAME_DIR) REGENIE=1 SOURCES=src/mame/nokia/nokia_dct3.cpp,src/mame/nokia/tms320c54x_test.cpp,src/mame/nokia/sed1565_test.cpp,src/mame/nokia/nokia_b3_flash.cpp,src/mame/nokia/nokia_ccont.cpp,src/mame/nokia/nokia_cobba.cpp,src/mame/nokia/nokia_dsp_c54x.cpp,src/mame/nokia/nokia_dsp_hle.cpp,src/mame/nokia/nokia_dsp_staged.cpp,src/mame/nokia/nokia_dspif.cpp,src/mame/nokia/nokia_external_service.cpp,src/mame/nokia/nokia_gensio.cpp,src/mame/nokia/gsm_a3a8.cpp,src/mame/nokia/gsm_a5.cpp,src/mame/nokia/gsm_cell_broadcast.cpp,src/mame/nokia/gsm_ems.cpp,src/mame/nokia/gsm_mm_authentication.cpp,src/mame/nokia/gsm_tch_f_l1.cpp,src/mame/nokia/gsm_xcch_l1.cpp,src/mame/nokia/nokia_gsm_network.cpp,src/mame/nokia/nokia_gsm_session.cpp,src/mame/nokia/nokia_gsm_voice_peer.cpp,src/mame/nokia/nokia_lapdm_link.cpp,src/mame/nokia/nokia_kbgpio.cpp,src/mame/nokia/nokia_mad2.cpp,src/mame/nokia/nokia_mad2_pcm.cpp,src/mame/nokia/nokia_mbus.cpp,src/mame/nokia/nokia_mbus_terminal.cpp,src/mame/nokia/nokia_pup.cpp,src/mame/nokia/nokia_radio_peer.cpp,src/mame/nokia/nokia_simi.cpp,src/mame/nokia/nokia_sim_card.cpp,src/mame/nokia/nokia_uif.cpp USE_QTDEBUG=0 -j$(JOBS)
 
 swap16:
 	@test -f $(ROM) || { echo "Missing $(ROM) — see roms/README.md"; exit 1; }
@@ -1080,6 +1087,42 @@ check-c54x-rom4-cold-execute: build prepare-c54x-rom4-fixture
 	@grep -q "TMS320C54x ROM4 cold frontier complete" \
 		/tmp/tms320c54x-rom4-cold-check.log
 
+.PHONY: check-c54x-rom4-counter-observe
+check-c54x-rom4-counter-observe: build
+	@set -eu; tmp="$$(mktemp -d /tmp/noki5110-counter.XXXXXX)"; \
+		trap 'rm -rf "$$tmp"' EXIT; \
+		mkdir -p "$$tmp/nvram/noki5110"; \
+		$(PYTHON) $(abspath tools/make_5110_eeprom_profile.py) \
+			--eeprom $(abspath roms/noki5110/nse-1.bin) \
+			--flash $(abspath roms/noki5110/5110f530.fls) \
+			--output "$$tmp/nvram/noki5110/eeprom"; \
+		cd "$$tmp"; \
+		$(abspath $(MAME_DIR))/mame noki5110 -rompath $(abspath $(MAME_DIR))/roms \
+			-nvram_directory "$$tmp/nvram" -video none -sound none -log \
+			-skip_gameinfo -nothrottle -seconds_to_run 4 \
+			-autoboot_script $(abspath tools/c54x_rom4_counter_observe.lua) >output.log 2>&1; \
+		cat output.log; \
+		grep -q '^ROM4 observed counter clock: PASS ' output.log; \
+		$(PYTHON) $(abspath tools/c54x_rom4_timer_trace_check.py) error.log
+
+.PHONY: check-c54x-rom4-compare
+check-c54x-rom4-compare: build
+	@set -eu; tmp="$$(mktemp -d /tmp/noki5110-compare.XXXXXX)"; \
+		trap 'rm -rf "$$tmp"' EXIT; \
+		mkdir -p "$$tmp/nvram/noki5110"; \
+		$(PYTHON) $(abspath tools/make_5110_eeprom_profile.py) \
+			--eeprom $(abspath roms/noki5110/nse-1.bin) \
+			--flash $(abspath roms/noki5110/5110f530.fls) \
+			--output "$$tmp/nvram/noki5110/eeprom"; \
+		cd "$$tmp"; \
+		$(abspath $(MAME_DIR))/mame noki5110 -rompath $(abspath $(MAME_DIR))/roms \
+			-nvram_directory "$$tmp/nvram" -video none -sound none -log \
+			-skip_gameinfo -nothrottle -seconds_to_run 1 \
+			-state_directory "$$tmp/state" \
+			-autoboot_script $(abspath tools/c54x_rom4_compare_fixture.lua) >output.log 2>&1; \
+		cat output.log; \
+		grep -q '^ROM4 compare model conformance: PASS ' output.log
+
 check-c54x-rom4-coherent: build
 	@set -eu; tmp="$$(mktemp -d /tmp/noki5110-c54x-coherent.XXXXXX)"; \
 		trap 'rm -rf "$$tmp"' EXIT; \
@@ -1099,7 +1142,7 @@ check-c54x-rom4-coherent: build
 		grep -q "rom4_port_write: port=2c" error.log; \
 		grep -q "cobba: parallel .* address=c data=008" error.log; \
 		grep -q "cobba: parallel .* address=c data=0c8" error.log; \
-		grep -Eq "rom4_interface_summary: .* rf_reads=[1-9][0-9]* rf_port32_writes=0" error.log; \
+		$(PYTHON) $(abspath tools/c54x_rom4_rf_boundary_check.py) error.log --minimum-frames 800; \
 		! grep -q "rom4_reset_request: reason=00000004" error.log
 	@grep -q "ROM4 DSP coherent execution: PASS completion=1074" \
 		/tmp/tms320c54x-rom4-coherent-check.log

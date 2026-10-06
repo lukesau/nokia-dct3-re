@@ -71,10 +71,9 @@ void nokia_cobba_device::device_reset()
 	m_microphone_overruns = 0;
 	m_microphone_underruns = 0;
 	std::fill(m_control_registers.begin(), m_control_registers.end(), 0);
-	// ROM4's self-test reads COBBA analog measurement registers 5 and 6.
-	// These are input measurements supplied by the codec, not synthesized test
-	// results; the nominal no-signal values keep both readings in their accepted
-	// hardware ranges.
+	// ROM4's self-test reads serial-control registers 5 and 6. These calibrated
+	// inputs are not synthesized test results; their physical meaning and reset
+	// values are unverified. "Serial-control" names the bus, not a chip identity.
 	m_control_registers[0x05] = 0x0160;
 	m_control_registers[0x06] = 0x0010;
 	// Recovered ROM4 multi-register transactions wait for status register D
@@ -133,7 +132,13 @@ void nokia_cobba_device::control_select_w(u16 select)
 	++m_control_transactions;
 	if (!m_control_read)
 	{
-		m_control_registers[m_control_address] = m_control_data_latch;
+		// D's existing nominal ready input is hardware-owned. NSE-5 writes
+		// zero here, then waits for these same bits again; a flat latch erased
+		// the input forever. Retention is provisional, not measured timing.
+		const u16 input_mask = m_control_address == 0x0d ? 0x000c : 0;
+		m_control_registers[m_control_address] =
+				(m_control_registers[m_control_address] & input_mask) |
+				(m_control_data_latch & ~input_mask);
 		++m_control_writes;
 	}
 	else
@@ -247,6 +252,22 @@ u8 nokia_cobba_device::run_control_conformance_checks()
 	if (loopback_enabled && !codec_serial_loopback() &&
 			!codec_serial_receive_ready() && m_codec_serial_loopbacks == 1)
 		result |= 0x10;
+
+	// Firmware configuration writes cannot permanently erase the declared
+	// ready input. Other D bits remain opaque storage, not decoded fields.
+	control_data_w(0);
+	control_select_w(0x0d);
+	control_select_w(0x1d);
+	const bool zero_retains_ready = control_data_r() == 0x000c;
+	control_data_w(0x05a3);
+	control_select_w(0x0d);
+	control_select_w(0x1d);
+	const bool opaque_bits_retained = control_data_r() == 0x05af;
+	control_data_w(0);
+	control_select_w(0x0d);
+	control_select_w(0x1d);
+	if (zero_retains_ready && opaque_bits_retained && control_data_r() == 0x000c)
+		result |= 0x20;
 
 	m_control_registers = saved_registers;
 	m_control_data_latch = saved_latch;

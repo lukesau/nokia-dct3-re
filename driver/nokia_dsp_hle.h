@@ -5,7 +5,9 @@
 #define MAME_NOKIA_NOKIA_DSP_HLE_H
 
 #include "nokia_dsp_backend.h"
+#include "nokia_cobba.h"
 #include "nokia_dspif.h"
+#include "nokia_dsp_staged.h"
 #include "nokia_external_service.h"
 #include "nokia_gsm_fr_codec.h"
 #include "nokia_mad2_pcm.h"
@@ -110,6 +112,9 @@ public:
 	};
 
 	void set_service_enabled(bool enabled) { m_service_enabled = enabled; }
+	void set_opaque_parameter_acceptance(bool enabled) { m_opaque_parameter_acceptance = enabled; }
+	// Research HLE selection, not a claim about the fitted ROM6 mask.
+	void set_record_codec83(bool enabled, u8 revision) { m_record_codec83 = enabled; m_msid_revision = revision; }
 	void set_external_service_enabled(bool enabled) { m_external_service_enabled = enabled; }
 	void set_service_control_contract(service_control_contract contract)
 	{
@@ -132,6 +137,7 @@ public:
 	auto mcu_control_word_cb() { return m_mcu_control_word_cb.bind(); }
 	u16 mcu_control_word() const { return m_mcu_control_word; }
 	u16 mcu_control_wire() const { return m_mcu_control_wire; }
+	u16 applied_parameter(unsigned index) const { return m_applied_parameters.at(index); }
 	u16 data_word(u16 address) const { return m_data_memory[address]; }
 	bool data_word_loaded(u16 address) const { return m_data_memory_loaded[address] != 0; }
 	u64 speech_uplink_frames() const { return m_speech_uplink_frames; }
@@ -143,7 +149,7 @@ public:
 	virtual void tx_commit_w(int state) override;
 	virtual void service_pending_w(int state) override;
 	virtual void doorbell_w(int state) override;
-	virtual void reset_line_w(int released) override { }
+	virtual void reset_line_w(int released) override;
 	virtual void shared_002_write_w(int state) override;
 	virtual void shared_006_write_w(int state) override;
 	virtual void shared_0fe_read_w(int state) override;
@@ -157,6 +163,7 @@ protected:
 	virtual void device_reset() override;
 
 private:
+	bool native_owns_transport() const;
 	TIMER_CALLBACK_MEMBER(service_tick);
 	TIMER_CALLBACK_MEMBER(packet_tick);
 	TIMER_CALLBACK_MEMBER(response_tick);
@@ -174,7 +181,11 @@ private:
 	void prepare_speech_codec_save();
 	void restore_speech_codec_state();
 	bool consume_memory_upload(const nokia_dspif_device::packet &packet);
+	bool answer_identity_query(const nokia_dspif_device::packet &packet);
+	bool answer_record_query(const nokia_dspif_device::packet &packet);
 	required_device<nokia_dspif_device> m_transport;
+	required_device<nokia_cobba_device> m_cobba;
+	optional_device<nokia_dsp_staged_device> m_staged;
 	required_device<nokia_external_service_peer_device> m_external_peer;
 	required_device<nokia_radio_peer_device> m_radio_peer;
 	required_device<nokia_mad2_pcm_device> m_mad2_pcm;
@@ -196,6 +207,10 @@ private:
 	bootstrap_contract m_bootstrap;
 	u16 m_mcu_control_word = 0;
 	u16 m_mcu_control_wire = 0;
+	bool m_opaque_parameter_acceptance = false;
+	bool m_record_codec83 = false;
+	u8 m_msid_revision = 0;
+	std::array<u16, 14> m_applied_parameters{};
 	speech_control_contract m_speech_control;
 	tone_control_contract m_tone_control;
 	u32 m_tone_frequency1 = 0;

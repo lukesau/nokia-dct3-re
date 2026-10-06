@@ -3,6 +3,7 @@
 #include "emu.h"
 #include "emuopts.h"
 #include "nokia_dsp_hle.h"
+#include "nokia_record_codec.h"
 
 #define LOG_DSP_HLE (1U << 0)
 #define VERBOSE (LOG_DSP_HLE)
@@ -15,6 +16,8 @@ nokia_dsp_hle_device::nokia_dsp_hle_device(
 	device_t(mconfig, NOKIA_DSP_HLE, tag, owner, clock),
 	nokia_dsp_backend_interface(mconfig, *this),
 	m_transport(*this, "^dspif"),
+	m_cobba(*this, "^cobba"),
+	m_staged(*this, "^dsp_staged"),
 	m_external_peer(*this, "^external_service_peer"),
 	m_radio_peer(*this, "^radio_peer"),
 	m_mad2_pcm(*this, "^mad2_pcm"),
@@ -39,6 +42,7 @@ void nokia_dsp_hle_device::device_start()
 	save_item(NAME(m_bootstrap_exchange_count));
 	save_item(NAME(m_mcu_control_word));
 	save_item(NAME(m_mcu_control_wire));
+	save_item(NAME(m_applied_parameters));
 	save_item(NAME(m_tone_frequency1));
 	save_item(NAME(m_tone_frequency2));
 	save_item(NAME(m_tone_amplitude));
@@ -97,6 +101,7 @@ void nokia_dsp_hle_device::device_reset()
 	m_bootstrap_exchange_count = 0;
 	m_mcu_control_word = 0;
 	m_mcu_control_wire = 0;
+	m_applied_parameters.fill(0);
 	m_tone_frequency1 = 0;
 	m_tone_frequency2 = 0;
 	m_tone_amplitude = 0;
@@ -118,6 +123,8 @@ void nokia_dsp_hle_device::device_reset()
 
 void nokia_dsp_hle_device::mcu_shared_write(u16 byte_offset)
 {
+	if (native_owns_transport())
+		return;
 	// Product-specific silicon identity can occupy a different shared cell.
 	// Observe the physical write; DSPIF continues to own storage only.
 	handle_bootstrap_parked_write(byte_offset);
@@ -175,6 +182,11 @@ bool nokia_dsp_hle_device::bootstrap_ping_pong() const
 	return m_bootstrap.exchange == bootstrap_exchange_strategy::ping_pong;
 }
 
+bool nokia_dsp_hle_device::native_owns_transport() const
+{
+	return m_staged && m_staged->owns_transport();
+}
+
 void nokia_dsp_hle_device::publish_bootstrap_completion()
 {
 	const unsigned count = std::min<unsigned>(
@@ -200,6 +212,8 @@ void nokia_dsp_hle_device::publish_bootstrap_completion()
 
 void nokia_dsp_hle_device::tx_commit_w(int state)
 {
+	if (native_owns_transport())
+		return;
 	if (state && (m_external_service_enabled || m_radio_peer->enabled() ||
 			m_service_control.enabled()))
 		m_packet_timer->adjust(attotime::from_usec(100));
@@ -207,14 +221,28 @@ void nokia_dsp_hle_device::tx_commit_w(int state)
 
 void nokia_dsp_hle_device::service_pending_w(int state)
 {
+	if (native_owns_transport())
+		return;
 	if (state && m_service_enabled)
 		m_service_timer->adjust(attotime::from_usec(m_service_delay_us));
 }
 
 void nokia_dsp_hle_device::doorbell_w(int state)
 {
+	if (native_owns_transport())
+		return;
 	if (state && m_transport->dspif_r(0) == 0 && m_transport->dspif_r(1) == 4)
 	{
+		if (m_opaque_parameter_acceptance)
+		{
+			// Declared runtime HLE: consume the MCU's parameter bank as opaque
+			// configuration. Units/routing remain unknown, not invented here.
+			for (unsigned index = 0; index < m_applied_parameters.size(); ++index)
+				m_applied_parameters[index] = m_transport->shared_word(0x0a8 / 2 + index);
+			logerror("dsp_hle: parameter_accept coefficient=%04x pending=%04x t=%.6f\n",
+					m_applied_parameters[8], m_transport->shared_word(0x0e0 / 2),
+					machine().time().as_double());
+		}
 		m_mcu_control_wire = m_transport->shared_word(0x0a8 / 2);
 		// The wire is multiplexed: bits 15..12 select one of the command
 		// table's first sixteen entries and bits 11..0 carry its value.
@@ -244,6 +272,8 @@ void nokia_dsp_hle_device::shared_002_write_w(int state)
 void nokia_dsp_hle_device::handle_bootstrap_parked_write(
 		u16 callback_offset)
 {
+	if (native_owns_transport())
+		return;
 	if (!m_bootstrap.parked)
 		return;
 	const bootstrap_parked_contract &parked = *m_bootstrap.parked;
@@ -261,6 +291,8 @@ void nokia_dsp_hle_device::shared_006_write_w(int state)
 void nokia_dsp_hle_device::handle_bootstrap_preupload_write(
 		u16 callback_offset)
 {
+	if (native_owns_transport())
+		return;
 	if (!m_bootstrap.preupload)
 		return;
 	const bootstrap_pair_contract &preupload = *m_bootstrap.preupload;
@@ -308,6 +340,8 @@ void nokia_dsp_hle_device::shared_100_write_w(int state)
 
 void nokia_dsp_hle_device::handle_bootstrap_exchange_read(u16 offset)
 {
+	if (native_owns_transport())
+		return;
 	if (!bootstrap_ping_pong() ||
 			m_transport->shared_word(offset / 2) == 0 ||
 			(offset == 0x100 &&
@@ -318,6 +352,12 @@ void nokia_dsp_hle_device::handle_bootstrap_exchange_read(u16 offset)
 
 void nokia_dsp_hle_device::handle_bootstrap_exchange_write(u16 offset)
 {
+	if (native_owns_transport())
+	{
+		machine().scheduler().perfect_quantum(attotime::from_usec(100));
+		machine().scheduler().abort_timeslice();
+		return;
+	}
 	const u16 token = m_transport->shared_word(offset / 2);
 	if (bootstrap_ping_pong())
 	{
@@ -345,8 +385,16 @@ void nokia_dsp_hle_device::handle_bootstrap_exchange_write(u16 offset)
 	}
 }
 
+void nokia_dsp_hle_device::reset_line_w(int released)
+{
+	if (m_staged)
+		m_staged->reset_line_w(released);
+}
+
 TIMER_CALLBACK_MEMBER(nokia_dsp_hle_device::service_tick)
 {
+	if (native_owns_transport())
+		return;
 	// NHM-2's DSP publishes the initial code-block selector. Firmware consumes
 	// bounded chunks and eventually clears 0x0e2 itself before publishing final
 	// state 4 at 0x0e4. Reasserting selector 1 on every IRQ completion restarts
@@ -368,6 +416,8 @@ TIMER_CALLBACK_MEMBER(nokia_dsp_hle_device::service_tick)
 
 TIMER_CALLBACK_MEMBER(nokia_dsp_hle_device::keepalive_tick)
 {
+	if (native_owns_transport())
+		return;
 	// A running DSP continues to publish an idle group-0x03 indication. The MCU
 	// treats any non-fault MDI packet as DSP activity and otherwise enters its
 	// reason-0x68 terminal watchdog path after roughly 32 seconds. This packet
@@ -379,6 +429,8 @@ TIMER_CALLBACK_MEMBER(nokia_dsp_hle_device::keepalive_tick)
 
 TIMER_CALLBACK_MEMBER(nokia_dsp_hle_device::speech_tick)
 {
+	if (native_owns_transport())
+		return;
 	// Command 0x08 is a bit-field, not an enum. Across both NSE-8 ROMs the
 	// non-speech dedicated-channel state is 0x040a; Answer adds field 0x0201,
 	// and release removes that same field before the TCH is deconfigured.
@@ -536,6 +588,8 @@ void nokia_dsp_hle_device::schedule_response()
 
 TIMER_CALLBACK_MEMBER(nokia_dsp_hle_device::response_tick)
 {
+	if (native_owns_transport())
+		return;
 	drain_responses();
 	nokia_external_service_peer_device::response response;
 	if (m_external_peer->peek_response(response))
@@ -566,8 +620,76 @@ bool nokia_dsp_hle_device::consume_memory_upload(const nokia_dspif_device::packe
 	return true;
 }
 
+bool nokia_dsp_hle_device::answer_identity_query(const nokia_dspif_device::packet &packet)
+{
+	if (!m_record_codec83 || packet.type != 0x70 || packet.length != 6 ||
+			packet.payload[0] != 0x13 || packet.payload[1] != 4)
+		return false;
+	using namespace nokia_dct3_record_codec;
+	record plain{};
+	std::copy_n(packet.payload.begin() + 2, 4, plain.begin());
+	// ROM4's observed register packing; explicitly a ROM6 HLE hypothesis.
+	const u32 chip = ((m_cobba->control_register(5) & 0xfff) << 12) |
+			(m_cobba->control_register(6) & 0xfff);
+	for (unsigned i = 0; i < 4; ++i)
+		plain[4 + i] = chip >> (24 - 8 * i);
+	plain[8] = 0xac;
+	plain[9] = 0xad;
+	plain[10] = 0xab;
+	plain[11] = m_msid_revision;
+	static constexpr record table = {0x50, 0xf3, 0x65, 0x25, 0xd2, 0xb1, 0xc1, 0xb6, 0x09, 0xae, 0xff, 0x4c};
+	static constexpr record schedule = {0xd0, 0x16, 0x2c, 0x58, 0xb0, 0x71, 0xe2, 0xd5, 0x5a, 0x67, 0xce, 0x8d};
+	const record encoded = inverse(plain, table, schedule);
+	std::array<u8, 16> response = {0x34, 0x0e, 0x00, 0x83};
+	std::copy(encoded.begin(), encoded.end(), response.begin() + 4);
+	if (!m_transport->enqueue_rx_packet(0x74, response.data(), response.size()))
+		return false;
+	m_transport->notify_rx();
+	LOGMASKED(LOG_DSP_HLE, "dsp_hle: identity_query family=83 chip=%08x revision=%02x verdict=not_evaluated t=%.6f\n",
+			chip, m_msid_revision, machine().time().as_double());
+	return true;
+}
+
+bool nokia_dsp_hle_device::answer_record_query(const nokia_dspif_device::packet &packet)
+{
+	if (!m_record_codec83 || packet.type != 0x70 || packet.length != 26 ||
+			packet.payload[0] != 0x16 || packet.payload[1] != 24)
+		return false;
+	using namespace nokia_dct3_record_codec;
+	const u32 chip = ((m_cobba->control_register(5) & 0xfff) << 12) |
+			(m_cobba->control_register(6) & 0xfff);
+	record table = {0x7b, 0xb4, 0xd0, 0xef, 0x9e, 0xb2, 0x0a, 0xbe, 0x73, 0xda, 0xd3, 0x35};
+	for (unsigned i = 0; i < 4; ++i)
+		table[i] ^= chip >> (24 - 8 * i);
+	static constexpr record schedule = {0xb1, 0x73, 0xe6, 0x5a, 0xab, 0x47, 0x8e, 0x0d, 0x1a, 0x34, 0x68, 0x0b};
+	// Short record envelope and format 0, observed in ROM4 and accepted by
+	// this MCU parser. ROM6 format/key selection remains an HLE hypothesis.
+	// Return the actual inverse and original bytes, never an open-lock fixture.
+	std::array<u8, 52> response = {0x35, 0x32, 0x00, 0x00};
+	std::array<u16, 2> markers{};
+	for (unsigned block = 0; block < 2; ++block)
+	{
+		record encoded{};
+		std::copy_n(packet.payload.begin() + 2 + block * 12, 12, encoded.begin());
+		record decoded = inverse(encoded, table, schedule);
+		markers[block] = (decoded[10] << 8) | decoded[11];
+		// ROM4 4b9e/4ba1 removes the private marker from either result.
+		decoded[10] = decoded[11] = 0;
+		std::copy(decoded.begin(), decoded.end(), response.begin() + 4 + block * 12);
+	}
+	std::copy_n(packet.payload.begin() + 2, 24, response.begin() + 28);
+	if (!m_transport->enqueue_rx_packet(0x74, response.data(), response.size()))
+		return false;
+	m_transport->notify_rx();
+	LOGMASKED(LOG_DSP_HLE, "dsp_hle: record_decode family=83 chip=%08x format=00 markers=%04x/%04x verdict=not_evaluated t=%.6f\n",
+			chip, markers[0], markers[1], machine().time().as_double());
+	return true;
+}
+
 TIMER_CALLBACK_MEMBER(nokia_dsp_hle_device::packet_tick)
 {
+	if (native_owns_transport())
+		return;
 	if (m_external_service_enabled || m_radio_peer->enabled() ||
 			m_service_control.enabled())
 	{
@@ -575,6 +697,14 @@ TIMER_CALLBACK_MEMBER(nokia_dsp_hle_device::packet_tick)
 		while (m_transport->peek_tx_packet(packet))
 		{
 			consume_memory_upload(packet);
+			if (m_record_codec83 && packet.type == 0x70 && packet.length == 6 &&
+					packet.payload[0] == 0x13 && packet.payload[1] == 4 &&
+					!answer_identity_query(packet))
+				break; // Preserve the request until RX has room.
+			if (m_record_codec83 && packet.type == 0x70 && packet.length == 26 &&
+					packet.payload[0] == 0x16 && packet.payload[1] == 24 &&
+					!answer_record_query(packet))
+				break;
 			if (m_external_service_enabled && packet.type == 0x05 &&
 					packet.length >= 9 && packet.length <= 75)
 				m_external_peer->receive_frame(packet.payload.data(), packet.length);

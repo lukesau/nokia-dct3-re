@@ -2,6 +2,17 @@
 
 ## Current boundary
 
+The native-core compatibility boundary is parked pending independent evidence,
+not further identity guessing. Public searches for paired NSE-5 PMM/MSID
+captures and COBBA serial-control register specifications have not supplied
+the missing contract. This is a bounded search result, not proof that the data
+does not exist. Gammu's [7110 protocol documentation](https://docs.gammu.org/protocol/n7110.html)
+lists identification reads, but no paired PMM or register-5/6 interpretation;
+service packages and basic-initialization records do not establish a handset's
+original paired identity. Software work may resume on new independent evidence;
+no hardware acquisition or collaborator response is a prerequisite for work
+on other products.
+
 NSE-5 v5.01 PPM C completes 228 alternating sparse-flash buffer handoffs and
 waits at `0x432f96..0x432f9c` for the DSP-owned halfword at MCU `0x10002` to
 change from `0xffff`. Graphical boot, firmware-owned button handling, SIM,
@@ -16,6 +27,18 @@ The former display-controller prerequisite is now covered by SED1565 rather
 than the inherited PCD8544 profile. The normal product selects SED1565
 with a 96-by-65 panel window at segment 18; the DSP completion boundary remains
 unchanged.
+
+The full-transfer trial first exposes the DSP program-memory extent:
+NSE-5 writes executable code above the backend's `0x2800` overlay limit.
+A larger-bank trial removes execution of stale mask words. Preserving
+COBBA's existing nominal ready input across writes then reaches DSP idle,
+but the MCU rejects primitive `0x35` and stops with code 4. The transform and
+stored-input provenance are reproduced independently; compatibility of those
+inputs with the modeled chip identity remains unresolved. Graphical boot is unproved.
+Neither fitted geometry nor physical COBBA status semantics is established. See
+[the upload/read evidence](#diagnostic-publication-and-partial-code-block-transfer)
+before revisiting queue loss or interpreting the resulting bad return as
+a CPU opcode gap.
 
 ### Reproducible compatibility instrument
 
@@ -35,10 +58,10 @@ The runner hashes all four inputs, prepares a private ROM directory, removes
 only this fixture's retained NVRAM, and captures six native panel images
 through eight seconds. Its Lua observer reads MCU state and snapshots the
 screen; it does not write firmware state or synthesize DSP results. The
-compiled run reproduced 235 mailbox writes and 94 DSP completion strobes.
+banked model reproduces 238 mailbox writes and 1710 DSP completion strobes.
 Version 4 is copied to `0x167038` by 0.5 seconds; the current peripheral model
 produces word 0 equal to zero, not a hardcoded acceptance value. The final MCU
-PC is `0x49fffc`, and the final native image is blank. This protects the
+PC is `0x4e9510`, and the final native image is blank. This protects the
 compatibility observation window, not UI startup, SIM or fitted-mask identity.
 The backend retains its independently documented peripheral/timing models;
 executing authentic mask bytes does not validate those models for NSE-5.
@@ -179,6 +202,427 @@ the repeated `32 00 01 11` reports before task 2 can drain them. Do not
 filter these reports, enlarge the firmware queue, change task scheduling,
 inject the self-test reply, cancel the expiry, or promote the candidate
 DSP mask to manufacture successful startup.
+
+### Diagnostic publication and partial code-block transfer
+
+The passive DSP data-space watch at native word `0x08e4` captures the
+publication PC and stack. The early `32 00 01 11` publications use packet
+sender `0x37ce` (producer write at `0x3805`); the captured stack includes
+`0x385f`, the return from the diagnostic builder called at `0x385d`.
+That builder at `0x4aa5` writes packet prefix `0x3200`, length 4 and type
+`0x74`. Its caller checks DSP word `0x0871`, the code-block request cell.
+This ties the repeated reports to loader activity, not an idle heartbeat.
+The meaning of the diagnostic reason remains unvalidated.
+
+The MCU receives IRQ4 for both request `0x12` and request `1`. Handler
+`0x433574` reads the latter at `0x4335da`; this is not a lost interrupt
+edge. The former completes, clears request offset `0x0e2` and writes
+status 4 at offset `0x0e4`. The latter performs a partial transfer:
+at branch target `0x4336a6`, approximately 0.523229 seconds, the loader
+has `0x028f` words remaining, chunk field `0x044c`, source `0x229224`
+and destination `0x10260`. It writes status 2, which the DSP clears at
+approximately 0.523258 seconds, while leaving request 1 outstanding.
+Thus an uncleared request does not mean the MCU ignored its selector.
+
+Reproduce with `tools/nse5_rom4_compat_check.py --verbose`; the observer
+emits `nse5_compat_code_block` and `nse5_compat_dsp_publication` records.
+The continuation signal is now identified: DSP routine `0x31f9` clears
+status `0x0872`, then pulses data address `0x0029` bit 3 at PCs
+`0x3200`/`0x3203`. The same bit is pulsed for the initial selector `0x12`
+and selector 1. The passive observer records all three with the outstanding
+request and status. TI's [SPRU038A, sections 3.5.3 and 3.5.4](https://www.ti.com/jp/lit/ug/spru038a/spru038a.pdf)
+documents this address/bit as BSCR.HINT, a DSP-to-ARM interrupt output.
+This is corroboration from related TI silicon, not proof of fitted MAD2
+identity or every BSCR bit's semantics.
+
+Replacing the request-word notification with this output completes selectors
+1 and 2 and advances to 8 and 3 in the NSE-5 trial. It does **not** establish
+boot: execution later reaches opcode `0x0363` in data-like words at `0x06f5`
+and produces invalid RX-ring indices. The same change exposes the legitimate
+`RCD ANEQ` opcode `0xfe44` at `0x90eb` on NSE-1. That instruction is now
+implemented with executable true/false tests against TI SPRU172C's delayed
+conditional-return contract. With the legacy relative slot timer, the HINT
+trial produces a rapid loop involving port `0x0f` writes of 0 and `0x3a98`.
+That does not justify suppressing zero or tuning the clock.
+
+The backend now delivers service IRQ through BSCR.HINT transitions instead
+of the request-write approximation. The complete-transfer execution and
+counter/compare contracts below have focused acceptance and preserve NSE-1
+boot/menu behavior. Do not clear requests, synthesize completions, suppress
+diagnostics or alter timer values to obtain boot.
+
+The expanded loader trial exposes two independently testable CPU omissions:
+PSHM/POPM use seven-bit MMR addresses, and `BCD ALT` (`0xfa43`) tests signed
+40-bit A before its delay slots. Executable fixtures cover high-MMR stack
+round trips, balanced SP, true/false branches and cycle counts.
+
+ROM readers `0x44dc` and scheduler writers `0x25f7`/`0x366c` support a
+free-running port-`0x0d` counter and absolute port-`0x0f` compare hypothesis.
+An experiment removes the rapid zero-compare loop. `BCD BLEQ` (`0xfa4f`)
+at `0x0ad6` is implemented with negative/zero/positive signed-B fixtures,
+delay-slot condition capture and cycle counts. With these instructions,
+NSE-1 passes runtime coherence and its exact physical Menu frame. The RF
+acceptance now pins the measured fresh-profile output sequence, rather than
+the superseded zero-write boundary (see below). Counter equality ordering,
+clock/control behavior and physical CTSI correspondence remain unvalidated
+on silicon; the implemented model has controller conformance coverage.
+
+On NSE-5, `--dsp-tail` captures the first entry below program `0x0800`:
+`RETE` at `0x3620` returns to `0x2470`, branches to `0x2754`, then `RET`
+at `0x2763` with SP `0x0854` pops zero and enters `0x0000`. The later
+`0x0363` failure is execution of data, not evidence for a new opcode.
+The return-stack trace and upload/read comparison identify an earlier cause:
+the uploaded trampoline at `0x2470` branches to `0x2754`, which redirects
+caller `0x45c4` to uploaded code at `0x282d`. The backend discards program
+writes at or above `0x2800`, so this entry instead executes mask-ROM words.
+It repeatedly calls `0x45c2`, shrinking SP from `0x1ec6` into shared HPI
+storage. The final zero return is a consequence, not the original defect.
+
+The DSP's `MVDP` at `0x31d6` writes `0x4a08` to `0x282d`; subsequent reads
+return `0x2833` under the old geometry. An explicitly experimental `0x3000`
+overlay extent makes all ten captured comparisons at `0x282d..0x2836`
+match, removes this recursion and completes a nine-second observation run
+without an unsupported opcode. The exact fitted RAM extent remains unproven.
+TI [SPRU131G, chapter 3](https://www.ti.com/lit/ug/spru131g/spru131g.pdf)
+documents model-dependent C54x memory maps; the `0x27ff` limit is not a
+CPU-family-wide architectural limit.
+
+The mask routine `0x4641..0x464a` waits for COBBA register D bits `0x000c`.
+The device already supplies these as calibrated nominal inputs at reset;
+NSE-5 reads `0x000c`, writes zero at 0.523968 s, then polls zero forever.
+Thus the observed failure is erasure of an existing input by a configuration
+write, not absence of a new DSP completion. A provisional input-retention
+trial preserves those two bits while leaving other D bits as opaque storage.
+This does not establish their physical ownership or ready latency. The
+COBBA conformance fixture checks zero writes and preservation of other bits.
+
+With retention plus the experimental loader/overlay changes, the DSP reaches
+idle `0x408d`, emits regular completion strobes and encounters no unsupported
+opcode during nine seconds. The MCU instead rejects primitive `0x35`:
+`0x3af4d0` receives length `0x32`, which skips the length-`0x34` checksum path.
+At `0x3af540`, flags byte `0x17fe15` is `0xcc` (bit 6 set). Payload byte
+`+0x15` is `0x76`, selecting `0x3af5a2`; byte `+0x21` is `0xd0`, outside
+the required `0x78..0x7f`, so `0x3af64e` marks it invalid. This reaches
+system-stop code 4 at `0x4e94d6`, called from `0x3af6b0`, and loops at
+`0x4e9510`. Both observed initializations return the same payload.
+
+The concrete unresolved question is the compatibility of the stored data
+with the modeled COBBA inputs and recovered mask. The staging and transform
+audits below establish the observed arithmetic, not correct provisioning.
+Identity-like field checks do not justify repairing the reply bytes.
+
+The complete consumer spans `0x3af4d0..0x3af88c`; its first rejection is
+not its whole contract. After structural validation it selects a result
+from the reply selector and context, compares two short fields through
+byte-comparison routine `0x4ee9b4`, and can compare the retained 24-byte
+record read from logical storage address `0x20`. Later branches copy the
+decoded blocks into context storage or write a transformed retained record
+through `0x3af44c`, then publish a result through `0x3ae594`. None of these
+later acceptance/storage branches is reached by the captured invalid reply.
+This establishes a stored-data lifecycle, not a generic DSP-ready message;
+the precise identity/lock semantics still require independent evidence.
+The first structural check also accepts some nondecimal nibbles, so it
+must not be labeled a strict decimal IMEI validator on that check alone.
+
+Transport observation confirms the DSP publishes the bytes without a later
+MCU mutation: the `0x74` packet has 52 payload bytes and returns through
+mask caller `0x4bac`. At the first shared payload write, DSP PC `0x37fc`
+has source AR1 `0x120c`, destination AR2 `0x088c` and base AR3 `0x1202`.
+A bounded source-write tail records the transformation in
+`0x7f7a..0x8012`; `0x8012` writes `0x2ad0` to D:`0x120c` before publication.
+Consequently the invalid field predates transport and consumer decoding.
+The original-input and CPU arithmetic audits below separate these layers
+before assigning fault to PMM contents or incompatible mask data.
+The input is a MCU-originated type-`0x70` packet containing
+`16 18` followed by the 24-byte block beginning `81 84 b1 91`.
+At 0.670170 s, MCU `0x432cd8` writes its first word to HPI `0x1004a`
+from the packet buffer around `0x104384`; DSP `0x4b85` stages it into
+D:`0x120e` at 0.672109 s. Transform entry `0x7f2d` then sees duplicate
+blocks at `0x1202` and `0x120e`, and a second entry operates on `0x1208`.
+AR1 `0xb0bc` at staging names a mask dispatch table, not an established
+cryptographic key. The existing 5110 transform fixture validates one input
+and loop path, not this 7110 input. Neither acquired file contains this
+24-byte block verbatim because it is MCU-prepared, not a raw PMM slice.
+The constructor `0x3aefcc` sets type `0x70`, primitive `0x16` and length
+`0x18`. Copy routine `0x4ef178` first reads 24 bytes from RAM `0x157444`,
+matching acquired PMM `0x46..0x5d`. Routine `0x3ae364` reads 12 bytes from
+storage base `0x157424` through `0x4ebfbc`/`0x3fb854`, matching PMM
+`0x26..0x31`. It duplicates them, multiplies adjacent byte pairs into
+little-endian 16-bit products, reverses byte order, complements bit-reversed
+bytes and XORs that mask into the block at `0x3ae400`.
+
+`tools/nse5_pmm_stage.py` independently reproduces all 24 transmitted bytes
+from those two acquired slices; its observed-packet unit fixture protects
+the calculation. This is a read-only staging model, not an identity decoder
+or provisioning generator. It rules out MCU preparation and transport
+corruption for this block, but does not prove the stored block is valid for
+the recovered DSP mask or that the DSP transform is correctly executed.
+The DSP transform audit below closes the observed operation contract;
+repairing these bytes or bypassing consumer validation remains inadmissible.
+At transform entry the serial words at D:`0x1f0c..0x1f0d` are
+`0x0016,0x0010`, the existing nominal COBBA inputs. Table preparation
+produces `d1b4 5ffb 4ff0 2d7b 0f4c e1c3` at D:`0x13dc`; these are the
+resident `0xb6df` words with the first two words XORed by those inputs.
+This proves what the model used, not what the acquired handset used.
+
+A bounded data-space write watch confirms the acquisition chain in both
+initializations. The loader clears D:`0x1f0c..0x1f0d`; the builder briefly
+writes `0053/414e`, then writes `0016/0000` and finally `0010` to the second
+word at instruction tails `0x4af1`, `0x4af4` and `0x4afd`. The transform
+therefore consumes the later COBBA-derived values, not the temporary pair.
+Here “serial registers” means registers accessed over the serial-control
+interface. Their use in the MSID/retained-data calculations does not alone
+prove a unique physical chip serial number, and their earlier designation
+as analog measurements does not establish electrical units. Register
+semantics and the original paired input values remain separate unknowns.
+
+A fresh CPU conformance run passes. The nine-second compatibility trace
+contains 419 exact opcodes: 403 have focused assertions, one (`ec02`) is
+executed-only, and 15 are absent from the fixture. Their first observed PCs
+are outside the resident transform; this is not proof that all transform
+operand/status combinations are correct. The read-only traces retain the
+serial words and prepared table for a subsequent intermediate-state audit.
+The NSE-1 Python profile helper is an encoder; using it with the reverse
+schedule is not an independently verified decoder and must not be used to
+diagnose a CPU error from a differing result.
+
+The resident helper `0x7f7b..0x7f8b` is checked separately against word
+arithmetic: it rotates the 32-bit pair addressed by AR2 right by 10 and
+the pair addressed by AR3 right by 31. The pointers sometimes swap; they
+are not assumed to address consecutive regions. A bounded trace of 128
+calls, including the rejected `0x35` transaction, matches these operations.
+`tools/nse5_transform_trace_check.py TRACE` rejects missing observations,
+malformed operands or a mismatched result. This establishes that stage on
+the observed operands, not the full codec or PMM/COBBA pairing.
+The same check covers 128 calls to mixing helper `0x7fb1..0x7fe7`.
+The trace resolves its three address-table-selected input pairs before
+execution and reads its selected output pair afterward. A straight-line
+integer model of the unextended XORs, 32-bit logical shifts and low-word
+stores agrees on every observed call. Shift and XOR semantics are grounded
+in TI [SPRU172C](https://www.ti.com/lit/ug/spru172c/spru172c.pdf), not in
+the phone's expected identity values. Round sequencing, final reversal and
+compatibility of the acquired provisioning with nominal COBBA inputs remain
+distinct from these stage checks.
+
+The completed arithmetic audit checks 128 rotations, 128 mixing calls,
+110 nonlinear calls, 18 bit reversals and ten complete eleven-round loops.
+For each complete transform, it records six original data words, the six
+prepared table words, all twelve schedule words and six returned words.
+An independent word-level model reproduces all ten transforms, including
+both blocks of the rejected primitive `0x35`. Its prepared table is
+`6521 4cda 4d33 3bc6 3342 2c9e`; using the raw table before its linear-mix
+and reversal preparation is not an equivalent calculation.
+
+This closes the observed transform arithmetic as a source of the rejection;
+it does not prove fitted mask identity, valid provisioning or every CPU path.
+The remaining input contract is whether the acquired PMM was prepared for
+the nominal COBBA serial inputs used here. Establish the stored identity
+record's format/reader and its provenance before deriving or configuring
+any handset-specific serial value. No value inferred merely by making the
+validator accept is admissible.
+The MCU constructor `0x3aef0c` makes the storage mapping explicit:
+command `0x14` reads twelve bytes at logical offset `0x14`; `0x15` reads
+twelve at `0x00` followed by eight at `0x0c`; `0x16` reads twenty-four at
+`0x20`, then applies the staging transform. The acquired record's payload
+base is file offset `0x26`. `nse5_pmm_stage.py` reports all three requests,
+and each matches the observed DSP TX packet. Twelve-byte length alone does
+not identify the first record as an MSID: the live `0x15` path prepares the
+different table `1962 ea23 537c 121a 2247 c2ea`, not the MSID helper's table.
+
+The logical reader `0x3fb854..0x3fb898` bounds the request against `0x898`
+and copies from fixed cache base `0x157424`; it does not search the flash
+journal per request. A bounded write watch and entry observation at
+`0x46cb84` capture the startup cache copy twice: source `0x5fa026`,
+destination `0x157424`, length `0x898`, caller return `0x3faf87`, at
+0.088319 and 0.755891 seconds. The first twelve cached bytes reproduce
+the acquired file, with no intervening content substitution before the
+requests. This excludes a cache-copy/address error, not an incorrect
+upstream record-selection policy or incompatible stored content.
+
+The loader at `0x3faec4` replays a sector-local write journal rather than
+choosing one identity record. `tools/nse5_pmm_journal.py` independently decodes
+the observed write-only path: 96 records terminate at file offset `0x1340`.
+Later writes do not touch the first `0x38` logical bytes used by the three
+requests. At the executed completion branch `0x3fafd8`, both full 2200-byte
+cache snapshots exactly match independent replay (SHA-256
+`7738e93a7cf8fd84e26709f42c05470da5859cc6b3be5f3a38e2af8733af4734`).
+The decoder rejects deletion records rather than guessing their semantics;
+none occurs in this sector. A later wall-clock snapshot is not equivalent:
+live firmware settings writes already change the cache by 0.1 seconds.
+This closes journal replay as a cause of the rejected command inputs, not
+physical chip identity or validity of the stored provisioning.
+
+```sh
+.venv/bin/python tools/nse5_pmm_journal.py \
+  'roms/noki7110/7110 virgin eeprom 005fa000.fls' \
+  --trace run_7110_journal_complete/error.log
+```
+
+Nokia's [NSE-5 repair hints, page 13](https://www.manualslib.com/manual/2806569/Nokia-7110.html?page=13)
+require re-establishing IMEI/SIMLOCK data after replacing COBBA or D301.
+This independently supports a hardware/provisioning pairing requirement;
+it supplies neither this dump's original serial words nor a register map.
+The filename "virgin eeprom" is not evidence of compatibility with the
+model's nominal serial. A paired COBBA observation, a provenance-backed
+stored identity format, or an independently documented factory profile is
+needed before changing that input.
+
+### Manufacturer Release And Storage Layout
+
+The acquired [Nokia NSE-5 v5.01 installer](https://archive.org/download/Nokia_DCT3_firmwares/nse5_mcu_5.01.exe)
+contains independently decompressible gzip members; no installer execution is
+required to inspect them. Its release-note member begins at archive offset
+`0x70b9a9` and expands to 29931 bytes. The notes identify DSP software
+`P30.4.107`, HP2.5-or-newer hardware, 4 MB flash, 512 KB SRAM and PMM release
+14. These describe the release target, not a fitted mask-ROM dump.
+
+Sections 7.2–7.4 distinguish MCU-only `nse5nx05.010` from
+`nse5nx05.01_`, which includes Flash Data Initialization. They warn that the
+EEPROM mover was removed and that older layouts require an intermediate
+release. A successful archive hash therefore does not establish that an
+independently acquired PMM tail has the correct lifecycle/layout for v5.01.
+
+The installer contains record-stream members at `0x834a7` (3214792 expanded
+bytes) and `0x55da10` (3280400 expanded bytes), plus PPM C at `0x2c9814`
+(524864 expanded bytes). `tools/nse5_installer_audit.py` pins the installer
+hash, bounds decompression, validates ordered non-overlapping records and
+compares only supplied ranges; it does not fill gaps or emit replacement ROMs.
+All 392 MCU records and 64 PPM C records exactly match the acquired flash.
+The basic image repeats those MCU bytes and adds eight sparse 8192-byte
+storage records. Its `0x5fa000` and `0x5fc000` records differ from the acquired
+PMM in 4170 and 3 bytes respectively; other initialization ranges fall outside
+the two acquired images. The three command-source slices at PMM `0x26..0x5d`
+are erased in the basic image. It therefore supplies no paired identity for
+the acquired provisioned records. Flash mismatch is excluded for these
+members, but PMM validity/migration is not proved. Do not replace the
+product-local PMM merely because another member advances boot or interpret
+initialized defaults as a paired hardware identity.
+
+```sh
+.venv/bin/python tools/nse5_installer_audit.py \
+  roms/archive-dct3-packages/nse5_mcu_5.01.exe \
+  roms/noki7110/7110f501_ppmc.fls \
+  'roms/noki7110/7110 virgin eeprom 005fa000.fls'
+```
+
+### Generated MSID Versus Stored Data
+
+The complete primitive-`0x34` reply is distinct from rejected `0x35`:
+`0000007400120100340e0082f4af7937041f6f93224c65ab`.
+Its algorithm-`0x82` MSID is `82f4af7937041f6f93224c65ab`. The existing
+decoder recovers three word groups `be4cf224 / 00160010 / a8a9aa46`,
+exactly matching the independently captured DSP encoder input at
+0.671833 seconds. The middle group therefore corroborates the nominal
+serial representation used by this composition; it does not recover the
+original handset's serial or validate the PMM. Both initializations agree.
+`nse5_msid_reply_check.py TRACE` checks complete reply framing, prior matching
+encoder observation and inverse agreement; six negative/positive unit
+fixtures protect missing, malformed, late and disagreeing evidence.
+
+[Gammu's documented 7110 service protocol](https://docs.gammu.org/protocol/n7110.html)
+lists an external MSID response under `0xb5` separately from DSP-version and
+COBBA information requests under `0xc8`. This supports keeping generated
+service identity, stored PMM records and hardware observations distinct.
+It supplies no paired MSID/PMM dump for the acquired handset. A generated
+MSID from this model cannot be used as evidence for new hardware inputs.
+
+### Loader trial regression boundary
+
+`tools/c54x_rom4_timer_trace_check.py LOG` protects the observed NSE-1
+idle cadence under the trial: 16 consecutive slot expiries coincide with
+frame wraps and remain one 5000-quarter-symbol period apart. Both the
+four-second instrumented trace and fresh 30-second trace pass; six unit
+tests reject missing observations, sequence gaps, changed reload, phase
+errors and the old one-tick storm. This is a read-only trace check, not
+physical clock validation or complete counter conformance. It does not
+exercise nonzero compares, equality ordering, reload changes, reset
+retention or save-state restoration; the separate fixture below covers
+those implemented-model cases. The default overlay remains `0x2800`;
+only `nse5r4t` selects the research `0x3000` extent. The source boundary
+test now protects both facts instead of requiring a hardcoded comparator.
+
+`make check-c54x-rom4-counter-observe` runs a fresh isolated NSE-1 boot and
+the cadence check above. Its read-only Lua observer joins short-interval
+port-`0x0d` reads, tolerating one tick of quantization against elapsed
+emulated time at the declared 13 MHz/12 rate. It also samples the
+non-destructive register 128 times at 100-microsecond intervals after
+0.25 seconds: firmware alone provides only five reads in this short boot.
+The observed result is 133 reads, 130 checked pairs, 128 advancing pairs
+and zero errors. Samples cross counter wraps but do not establish compare
+or reset semantics. Long gaps and explicit counter/reload writes break
+the comparison chain; no firmware or controller writes are synthesized.
+
+`make check-c54x-rom4-compare` is separately classified as destructive
+controller model conformance, never a boot fixture. It stops DSP instruction
+execution with debugger state in a disposable process, directly writes
+CTSI ports, and reads the saved expiry count. It verifies ahead/behind
+absolute compares, equality scheduled next cycle, periodic repetition,
+outside-period sentinel cancellation, reload-induced cancellation, and
+counter/compare suspension and retention across the MAD2 DSP reset line.
+An isolation tap rejects unexpected firmware writes to the tested ports.
+The fixture exits without restoring or retaining its modified state.
+It also saves a pending nonzero compare, runs a reference interval, loads
+the state, and replays that interval. Counter position, expiry count and
+emulated timestamp restore exactly; the replay produces the same expiry
+count and counter phase within one tick. Pre-save and post-load notifiers
+anchor the snapshots to completed state operations, not request time.
+These cases pass the trial implementation, but do not establish physical
+equality ordering or real-chip reset retention.
+
+The banked backend uses BSCR.HINT-driven service IRQ and absolute
+port-`0x0f` compare against the free-running port-`0x0d` counter. NSE-5's
+larger overlay geometry remains a research configuration, not identification
+of fitted silicon. Fresh acceptance passes DSP coherence, long RF cadence,
+the exact 5110 menu, normal 7110 fail-closed bootstrap, 3210 baseline and
+frontier, and the 3310/3330/3410 frontiers. All 1211 tool tests pass.
+
+A fresh, isolated 30-second NSE-1 run starts receiver reads on frame 30,
+finishes with 6499 frame expiries and 207040 reads, exactly
+`32 * (6499 - 30 + 1)`. It emits these three port-`0x31/0x32` pairs:
+`2a04/0006` at DSP `0xa240` twice, then `2813/0030` at `0x4028`.
+It remains idle at `0x408d`, IFR zero, IMR `0x035f`, with no port-`0x38/0x39`
+burst reads. A shorter instrumented run additionally emits `0041/0040`
+at `0x3712`; exact command counts are not established as invariant.
+The old assertion (zero port-`0x32` writes, first read on frame 29) is
+superseded deliberately: the fresh-profile RF gate now requires frame 30
+and exactly these three ordered pairs at their observed instruction tails.
+It still rejects parallel burst activity, pending INT0, changed interrupt
+mask and receiver cadence. This is an emulated-boundary oracle, not RF
+electrical validation or network registration evidence.
+
+The bounded, read-only `tools/c54x_rom4_rf_operand_observe.lua` now maps
+these writes to resident firmware operands. Both calls enter `0xa22f`
+with stacked return `0xa1d5` (the call at `0xa1d3`). The `PORTW` instruction
+at `0xa23e` reads through AR5=`0x1921`, whose word is `0x0006`; its port-31
+partner comes from the same table stream. Instruction `0x4025` instead
+uses absolute Smem `0x0009`, the CPU's accumulator-high MMR: accumulator
+`0x00302813` supplies the observed `0x2813/0x0030` pair through MMRs 8/9.
+Reading backend data-array words 8/9 would not recover those CPU MMRs.
+These are executed firmware table/accumulator outputs, not peer-injected
+RF payloads. Their electrical meaning remains unvalidated.
+
+Regenerating the EEPROM profile while retaining the same flash/SIM NVRAM
+reproduces the fresh three-write sequence at 2.095882, 2.114346 and
+2.129435 seconds. Reusing the persisted EEPROM instead reaches four
+writes around 1.515--1.548 seconds, including `0x0041/0x0040` at
+`0x3710` through AR3=`0x1923` (word `0x0040`). Regenerating the EEPROM
+again removes that fourth write. Thus the fresh-versus-persisted profile
+distinction explains this observed variation; it is not evidence that
+adding observation taps changes DSP timing. Do not apply the fresh-profile
+operand count to preserved-NVRAM runs. Cached instruction fetch increments
+PC before its read callback, so these taps match PC=`address+1`, not
+PC=`address`.
+Do not substitute donor provisioning, alter validation or invent a COBBA
+identity. Readiness remains `0x0a`, keypad columns remain masked and the LCD
+is blank; DSP progress is not graphical boot or fitted-mask compatibility.
+
+`--dsp-tail` emits bounded upload/helper/stack observations and
+`program_upload.json`; comparisons are limited to captured writes and later
+reads. The broad fetch tap is removed after the upload window to avoid
+dominating runtime. Its records include extension words, not solely decoded
+instruction boundaries.
+Entry hooks are branch-target observations; an unobserved fallthrough-only
+hook is not absence evidence.
 
 ## Display contract
 
