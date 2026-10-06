@@ -213,7 +213,9 @@ data (app, key), 6 mode data (app, mode, item), 7 app data (app). "Settings" rec
   0, 1, 2, 3, 0xc, 0xd, 0x10, 0x14 and 0x17, with key events setting `0x3d714` first.
   I: 0 is the timer tick (after it all key "changed" bits are cleared and a redraw is
   requested). The game handlers switch on 3, 7, 9, 10, 0xb, 0xd, 0xe, 0x11 and 0x12, so app+4 is
-  probably a wrapper rather than the handler table entry itself; not established.
+  probably a wrapper rather than the handler table entry itself; not established. For Kart
+  Racing, `games_kart_3510_shell.md` reads the engine's dispatch (`0x01427d14`) and menu
+  actions (`0x014261c6`) and gives each handler message's meaning.
 - S: after each message the engine reads 0x3d710: bit 0 → exit, bit 1 → redraw, bit 2 → new
   timer period. A harness can do the same: run the handler, then act on the requests.
 - S: `engine_session_reset_1425584` is the state a game starts from: root count, first and
@@ -226,7 +228,7 @@ data (app, key), 6 mode data (app, mode, item), 7 app data (app). "Settings" rec
 | Group | Address | Use |
 |---|---|---|
 | Heap | 0x012ef746 `alloc(n, file, line)`, 0x012efa34 `free(p, file, line)` | every malloc/free |
-| C runtime | 0x0148af8e memcpy, 0x0148b424 memset, 0x012fb028 / 0x012fb0d8 signed/unsigned divide (remainder in r1) | games and library |
+| C runtime | 0x0148af8e memcpy, 0x0148b424 memset, 0x012fb028 / 0x012fb0d8 signed/unsigned divide: `(r0 dividend, r1 divisor)` returns the **remainder in r0 and the quotient in r1**, truncated toward 0 (run in Unicorn: (100, 7) → r0 2, r1 14; (-100, 7) → -2, -14). Ghidra reads the two results swapped, so decompiled formulas with a divide must be checked in the disassembly | games and library |
 | Strings | 0x010b9f54 wcslen, 0x010b9f9a, 0x010ba17c, 0x010b9f88, 0x012b2340 (`ui_text.c` area) | d814, score send |
 | Time | 0x012fae6e | rand seed |
 | Product profile | 0x0129e3b4(id, 0, &out) (`i_pp_if.c`) | flags 7/8/9: score badge and sending |

@@ -91,21 +91,21 @@ byte-identical at `0x011de8d8` (`tone_play_3410_twin_11de8d8`), but on the
 
 ## How Kart Racing draws
 
-Static, from `kart_road_draw_1406144` and the setup around `0x0140afde`.
-Everything is drawn as retained objects in the library's scene tree (see
-`games_library_3510.md`):
+Summary; the full map is `games_kart_3510.md` and `games_kart_3510_road.md`.
+Static, from `kart_road_draw_1406144` and the race scene built by
+`kart_scene_build_1405534` (an earlier version of this section described the
+instruction demo's scene at `0x0140afde`, whose road is line objects):
 
-- The horizon is a 120 x 20 bitmap at (0, 4), moved sideways with
-  `game_obj_move_142e638`, so it can shift about 12 px either way on the 96 px
-  screen. Inferred: one backdrop per track.
-- The road is 65 rows of two 1-pixel-tall line objects (RAM `0x0003cc74`,
-  `row * 8 + side * 4`). Each frame the renderer walks the rows from `0x40` up
-  to a horizon row (`0x1c`, `0xd` or `0x17` by segment type). It computes the
-  left and right road edges with curvature from a per-row depth table
-  (`kart_row_depth_150912c`), then sets or hides each row's lines. That is a
+- The road is 65 rows of two 1-pixel-tall rectangles (type 7, RAM `0x3cc74`,
+  `row * 8 + side * 4`): black verges either side of a white road. Each tick the
+  renderer walks the rows from 64 up to the horizon row (28, 13 or 23 by the
+  segment's hill class), computes both road edges with curvature from per-row
+  depth and scale tables, and resizes or hides each row's rects. That is a
   pseudo-3D road, Outrun style, drawn one scanline at a time.
-- Karts and roadside objects are sprites picked from four pre-drawn sizes by
-  distance (thresholds 5, 15 and 25). Nothing is scaled at run time.
+- The horizon is two copies of a 120 x 20 backdrop above the horizon row,
+  slid sideways in curves.
+- Karts and roadside objects are masked sprites picked from four pre-drawn sizes
+  by distance. Nothing is scaled at run time.
 
 Inferred, for the port: this suits the Game Boy. The road can be a line-by-line
 scroll effect over a pre-drawn road band, as in F-1 Race, or a road band redrawn
@@ -114,7 +114,6 @@ every sprite is 20 px or smaller.
 
 ## Next
 
-- Kart Racing is the first port target. Map it: the track format, the
-  segment and curvature math, opponent logic, laps and timing.
+- Kart Racing is mapped (`games_kart_3510.md`).
 - Build the Unicorn harness at the library boundary
   (`games_library_3510.md`), so Kart Racing can be run for reference frames.
