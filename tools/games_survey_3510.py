@@ -7,9 +7,10 @@ from tools/dct4_decrypt.py); the 3410 image is MAME-order little-endian at
 two can be compared window by window, with Thumb BL pairs masked in both.
 
 Prints, for each 3410 game's code range, how many 12-byte windows occur in the
-3510 and on which 4 KB pages; then the games handler table and the per-game id
-each handler passes to the shared game library (sorted, these follow the PPM's
-"GameBG" tune order: Bumper, D2M, Link5, SI tune, Car Racing). Nothing is run.
+3510 and on which 4 KB pages; then the games handler table and, for each
+handler, the background tune its game starts: the id passed to game_sound_loop
+goes through the engine's tone-id table to a PPM tone record, whose name is
+printed. Nothing is run.
 """
 
 import argparse
@@ -30,8 +31,9 @@ GAMES_3410 = [
     ("Link5", 0x32a000, 0x32b000),
 ]
 HANDLERS_3510 = 0x01511ebc  # five Thumb pointers
-GAME_ID_CALL = 0x0142d174   # called once per game with its id in r0
-TUNES = ["Bumper", "D2M", "Link5", "SI tune", "Car Racing"]  # PPM order
+GAME_SOUND_LOOP = 0x0142df3a  # game_sound_loop(tone_id), once per game
+TONE_IDS = 0x01511e88         # u16 PPM tone index per tone id, from id 4000
+PPM = (0x015a0000, 0x016bd5b8)
 
 
 def mask_bl(d):
@@ -62,13 +64,35 @@ def bl_target(b, i):
 
 
 def r0_constant(b, i):
-    """The last `movs r0, #imm` in the five half-words before offset i."""
-    imm = None
-    for j in range(i - 10, i, 2):
+    """r0 as set by the last `movs r0, #imm` or `ldr r0, [pc, #imm]` in the
+    six half-words before offset i."""
+    value = None
+    for j in range(i - 12, i, 2):
         h = int.from_bytes(b[j:j + 2], "big")
         if h & 0xFF00 == 0x2000:
-            imm = h & 0xFF
-    return imm
+            value = h & 0xFF
+        elif h & 0xFF00 == 0x4800:
+            lit = ((j + 4) & ~3) + (h & 0xFF) * 4
+            value = int.from_bytes(b[lit:lit + 4], "big")
+    return value
+
+
+def tone_name(img, index):
+    """Name of PPM tone record `index`: u32 index, u32 size, 4CC, u32 0,
+    u16, u16, then a NUL-terminated UTF-16BE name."""
+    lo, hi = PPM[0] - BASE_3510, PPM[1] - BASE_3510
+    head = index.to_bytes(4, "big")
+    p = img.find(head, lo, hi)
+    while p >= 0:
+        cc = img[p + 8:p + 12]
+        if all(0x30 <= c < 0x5b for c in cc) and img[p + 12:p + 16] == bytes(4):
+            q = p + 0x14
+            end = q
+            while img[end:end + 2] != b"\0\0":
+                end += 2
+            return cc.decode(), img[q:end].decode("utf-16-be")
+        p = img.find(head, p + 1, hi)
+    return None, None
 
 
 def main():
@@ -103,21 +127,22 @@ def main():
         top = ", ".join(f"{k:#x} ({v})" for k, v in pages.most_common(4))
         print(f"  {name:13} {found:4}/{total:5} {found / total:6.1%}   {top}")
 
+    img = open(args.b, "rb").read()
     o = HANDLERS_3510 - BASE_3510
     handlers = [int.from_bytes(raw[o + 4 * n:o + 4 * n + 4], "big") & ~1 for n in range(5)]
-    ids = {}
+    print(f"\nGames handler table at {HANDLERS_3510:#x}, with each game's background tune:")
     for i in range(0x3E0000, 0x430000, 2):
-        if bl_target(raw, i) == GAME_ID_CALL:
-            ids[BASE_3510 + i] = r0_constant(raw, i)
-    print(f"\nGames handler table at {HANDLERS_3510:#x}:")
-    rows = []
-    for site, gid in ids.items():
-        # Each game's code follows its handler, so a call belongs to the
+        if bl_target(raw, i) != GAME_SOUND_LOOP:
+            continue
+        site = BASE_3510 + i
+        # Each game's code follows its handler: the call belongs to the
         # nearest handler below it.
         h = max(x for x in handlers if x <= site)
-        rows.append((gid, h, site))
-    for rank, (gid, h, site) in enumerate(sorted(rows)):
-        print(f"  handler {h:#010x}: game id {gid:#04x} (call at {site:#x}) -> GameBG {TUNES[rank]}")
+        tid = r0_constant(raw, i)
+        t = TONE_IDS - BASE_3510 + (tid - 4000) * 2
+        tone = int.from_bytes(raw[t:t + 2], "big")
+        cc, name = tone_name(img, tone)
+        print(f"  handler {h:#010x}: tune id {tid:#x} at {site:#x} -> PPM tone {tone:#x} {cc} \"{name}\"")
     return 0
 
 
