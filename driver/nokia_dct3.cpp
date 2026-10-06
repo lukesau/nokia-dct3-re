@@ -241,6 +241,49 @@ constexpr nokia_radio_peer_device::protocol_contract RADIO_NHM2 = {
 	nokia_radio_peer_device::neighbour_bsic_encoding::none
 };
 
+// NSM-2 v5.31 publishes 55:03050000. Its own ring dispatcher 307346
+// routes 8b to task 12; 2df316 correlates 89 body bit 0 with the pending
+// channel context. Physical End publishes release parameter 14. Keep
+// unobserved neighbour/handover contracts unset.
+constexpr nokia_radio_peer_device::protocol_contract RADIO_NSM2 = {
+	nokia_radio_peer_device::acquisition_strategy::candidate_window,
+	0x14, 0x01, 0, 0, false, 0, false, false,
+	nokia_radio_peer_device::neighbour_arfcn_encoding::direct_octet,
+	nokia_radio_peer_device::neighbour_bsic_encoding::none, true
+};
+
+// NSB-6 v12.20 independently publishes 56/160. Own dispatcher 30168e
+// maps 8b to task 12 and 89 body bit 0 to its pending channel context.
+// Physical End publishes release parameter 14. Neighbour and handover
+// contracts remain unobserved and unset.
+constexpr nokia_radio_peer_device::protocol_contract RADIO_NSB6 = {
+	nokia_radio_peer_device::acquisition_strategy::candidate_window,
+	0x14, 0x01, 0, 0, false, 0, false, false,
+	nokia_radio_peer_device::neighbour_arfcn_encoding::direct_octet,
+	nokia_radio_peer_device::neighbour_bsic_encoding::none, true, true
+};
+
+// NSM-3 v5.31 emits 56/160. Own RX table 306fd4 maps 8b to
+// 2df484 -> task 12; 2df22e checks 89 body bit 0 against its pending
+// context. Physical End publishes traffic release parameter 14.
+// Neighbour and handover contracts remain unobserved.
+constexpr nokia_radio_peer_device::protocol_contract RADIO_NSM3 = {
+	nokia_radio_peer_device::acquisition_strategy::candidate_window,
+	0x14, 0x01, 0, 0, false, 0, false, false,
+	nokia_radio_peer_device::neighbour_arfcn_encoding::direct_octet,
+	nokia_radio_peer_device::neighbour_bsic_encoding::none, true, true
+};
+
+// NPE-3 v5.56 emits 56/160. Own RX table 4f6078 routes 8b to
+// 45835c -> task 14 (not NSM-3's task 12); 458106 correlates 89
+// body bit 0 with pending context byte 2. Physical End emits release 14.
+constexpr nokia_radio_peer_device::protocol_contract RADIO_NPE3 = {
+	nokia_radio_peer_device::acquisition_strategy::candidate_window,
+	0x14, 0x01, 0, 0, false, 0, false, false,
+	nokia_radio_peer_device::neighbour_arfcn_encoding::direct_octet,
+	nokia_radio_peer_device::neighbour_bsic_encoding::none, true
+};
+
 constexpr nokia_dsp_hle_device::service_control_contract
 		DSP_SERVICE_CONTROL_COMPACT = {
 	{ 0x0d, 0x00 }, 2
@@ -313,9 +356,15 @@ constexpr display_geometry_contract DISPLAY_5210 = {
 constexpr display_geometry_contract DISPLAY_6210 = {
 	96, 64, 96, 60
 };
+// NHM-3 independently writes eight 96-byte banks; Nokia's user manual
+// specifies a 96x60 visible display. Controller identification remains open.
+constexpr display_geometry_contract DISPLAY_6250 = {
+	96, 64, 96, 60
+};
 static_assert(display_geometry_contract{}.valid());
 static_assert(DISPLAY_3410.valid());
 static_assert(DISPLAY_6210.valid());
+static_assert(DISPLAY_6250.valid());
 
 constexpr nokia_mad2_device::dsp_reset_wiring_contract
 		DSP_RESET_WIRING_3410 = {
@@ -926,8 +975,41 @@ constexpr nokia_product_config PRODUCT_5210 = make_5210_config();
 constexpr nokia_product_config PRODUCT_2100 = make_2100_config();
 constexpr nokia_product_config PRODUCT_3610 = make_3610_config();
 constexpr nokia_product_config PRODUCT_DEFAULT = make_conservative_config();
-constexpr nokia_product_config PRODUCT_8XXX =
-		make_conservative_config({ 4, 0x10 });
+constexpr nokia_product_config make_8xxx_config()
+{
+	nokia_product_config result = make_conservative_config({ 4, 0x10 });
+	// Independently recovered command/read loops: NSM-3D v5.02 0x2feb1c,
+	// NSM-2 v5.31 0x3030ac and NSB-6 v12.20 0x2fd0d8 select 0x22,
+	// write 0x2c and poll status bit 2 at 0x6d before reading 0x6c.
+	result.gensio_wiring = { 0x2c, 0x2d, 0x2e, 0x6c, 0x6d, 0x6e, 0x03, true };
+	return result;
+}
+constexpr nokia_product_config PRODUCT_8XXX = make_8xxx_config();
+
+constexpr nokia_product_config make_8850_config()
+{
+	nokia_product_config result = make_8xxx_config();
+	// Own scan 3015c0 drives pins 1..4; IRQ0 handler 301714 reads
+	// pending column bits at 2b before posting scan event 41.
+	result.keypad_wiring.row_pin_shift = 1;
+	result.keypad_wiring.column_irq_status = 0x2b;
+	// NSM-2's system-module manual identifies the ordinary BLB-2 pack.
+	// Use the existing BLB-2 nominal board inputs rather than conservative
+	// full-scale placeholders. Raw transfer values remain calibrated, not
+	// measured NSM-2 electrical units; firmware owns all pack decisions.
+	result.ccont_board = ADC_5210;
+	// NSM-2 v5.31 independently accepts silicon identity 5 or 6 at
+	// 0x2cae26, then alternates upload ownership until its final-result poll.
+	// Select ROM6 HLE; acknowledge transfers without inventing that verdict.
+	result.dsp_bootstrap = {
+		nokia_dsp_hle_device::bootstrap_exchange_strategy::ping_pong,
+		0, {}, 0, std::nullopt,
+		nokia_dsp_hle_device::bootstrap_parked_contract { 0x004, 0xffff, 6 },
+		0
+	};
+	return result;
+}
+constexpr nokia_product_config PRODUCT_8850 = make_8850_config();
 
 constexpr nokia_product_config make_8210_config()
 {
@@ -953,7 +1035,8 @@ constexpr nokia_product_config make_6210_config()
 	result.display = DISPLAY_6210;
 	// NPE-3 v5.56 0x4dc0e4 sets release bit 2 at CTSI+2, then
 	// 0x4dc0fa tests bit 4 via LSRS #5/carry. No bootstrap reply is assumed.
-	result.dsp_reset_wiring = { 0x10, 0x04 };
+	// Verifier start 426c36..426c3e separately sets CTSI+2 bit 0.
+	result.dsp_reset_wiring = { 0x10, 0x04, 0x01 };
 	result.gensio_wiring = GENSIO_NPE3;
 	// 0x426c58 alternates the two shared-buffer ownership words. Keep
 	// transfer acknowledgements separate from the unresolved final verdict.
@@ -964,6 +1047,34 @@ constexpr nokia_product_config make_6210_config()
 	return result;
 }
 constexpr nokia_product_config PRODUCT_6210 = make_6210_config();
+
+constexpr nokia_product_config make_6250_config()
+{
+	nokia_product_config result = make_conservative_config();
+	// NHM-3 source 7 maps to selector 2 (0x288fa0). Its acquired PMM
+	// calibration and 1500/232 scale convert raw 0x230 to about 3.60 V;
+	// full scale exceeds the analog initialization's 1.8..5.5 V window.
+	// This is a nominal board input, not a measured ADC transfer curve.
+	result.ccont_board.channel_defaults[2] = 0x230;
+	// Own five-row matrix at 0x288f7c; separate power table 0x288f98
+	// maps only column 4 to key 0x0d (the other columns are 0x5a).
+	result.keypad_wiring = { 5, 0x10 };
+	result.display = DISPLAY_6250;
+	// 6250 v5.03 sets CTSI+2 bit 2 at 0x4e7dc4 and polls bit 4
+	// at 0x4e7dca. Its reset path clears bit 2 and waits for bit 4 low.
+	result.dsp_reset_wiring = { 0x10, 0x04, 0x01 };
+	// Its CCONT read at 0x4f91c6 selects 0x22, writes 0x2c and polls
+	// 0x6d bit 2. Selection bit 2 is clear: the byte starts receive-ready.
+	result.gensio_wiring = { 0x2c, 0x2d, 0x2e, 0x6c, 0x6d, 0x6e, 0x03, true };
+	// Keep transport ownership acknowledgements, not the inherited 64-pair
+	// compatibility verdict. The 6250's final DSP publication is unproved.
+	result.dsp_bootstrap = {
+		nokia_dsp_hle_device::bootstrap_exchange_strategy::ping_pong,
+		0, {}, 0, std::nullopt, std::nullopt, 0
+	};
+	return result;
+}
+constexpr nokia_product_config PRODUCT_6250 = make_6250_config();
 
 constexpr nokia_product_config make_7110_config()
 {
@@ -1112,7 +1223,11 @@ public:
 	void noki7110(machine_config &config);
 	void nse5r4t(machine_config &config);
 	void noki6210(machine_config &config);
+	void npe3stage(machine_config &config);
+	void npe3hle(machine_config &config);
 	void noki6250(machine_config &config);
+	void nhm3stage(machine_config &config);
+	void nhm3hle(machine_config &config);
 	void dct3_base(machine_config &config);
 	void dct3_32mbit_flash_base(machine_config &config);
 	void noki3310(machine_config &config);
@@ -1120,7 +1235,16 @@ public:
 	void noki3210(machine_config &config);
 	void noki5210(machine_config &config);
 	void noki8xxx(machine_config &config);
+	void noki8850(machine_config &config);
+	void nsm2stage(machine_config &config);
+	void nsm2hle(machine_config &config);
+	void nsm3dr6(machine_config &config);
+	void nsm3dhle(machine_config &config);
+	void nsb6stage(machine_config &config);
+	void nsb6hle(machine_config &config);
 	void noki8210(machine_config &config);
+	void nsm3stage(machine_config &config);
+	void nsm3hle(machine_config &config);
 
 	DECLARE_INPUT_CHANGED_MEMBER(key_irq);
 	DECLARE_INPUT_CHANGED_MEMBER(charger_irq);
@@ -1662,6 +1786,10 @@ void nokia_dct3_state::machine_reset()
 	}
 	if (BIT(m_neighbour_config.read_safe(0x00), 5))
 		m_gsm_network->set_cell_carriers(86, 87);
+	const bool pcs1900 = BIT(m_neighbour_config.read_safe(0x00), 6);
+	m_gsm_network->set_pcs1900_band(pcs1900);
+	if (pcs1900)
+		m_gsm_network->set_cell_carriers(600, 601);
 	if (BIT(m_neighbour_config.read_safe(0x00), 4))
 		m_gsm_network->set_neighbour_bsic(0);
 	static constexpr std::array NEIGHBOUR_FAULT_PROFILES = {
@@ -2207,6 +2335,12 @@ uint8_t nokia_dct3_state::mad2_register_r(offs_t offset)
 
 void nokia_dct3_state::trace_mad2_read(offs_t offset, uint8_t data)
 {
+	// These retained board latches are not owned by the GENSIO endpoint.
+	const bool select_latch = offset == 0x6f ||
+			(offset >= 0xad && offset <= 0xaf) || (offset >= 0xed && offset <= 0xef);
+	if (m_trace_enabled && select_latch && m_gensio_trace_count++ < GENSIO_TRACE_LIMIT)
+		LOGMASKED(LOG_GENSIO, "gensio_select: R off=%02x data=%02x pc=%08x t=%.9f\n",
+				offset, data, m_maincpu->pc(), machine().time().as_double());
 	if (m_trace_enabled &&
 			m_gensio->owns(offset) &&
 			m_gensio_trace_count++ < GENSIO_TRACE_LIMIT)
@@ -2303,6 +2437,11 @@ void nokia_dct3_state::mad2_register_w(offs_t offset, uint8_t data)
 void nokia_dct3_state::trace_mad2_write(offs_t offset, uint8_t data, uint8_t old_data)
 {
 	const bool gensio_register = m_gensio->owns(offset);
+	const bool select_latch = offset == 0x6f ||
+			(offset >= 0xad && offset <= 0xaf) || (offset >= 0xed && offset <= 0xef);
+	if (m_trace_enabled && select_latch && m_gensio_trace_count++ < GENSIO_TRACE_LIMIT)
+		LOGMASKED(LOG_GENSIO, "gensio_select: W off=%02x data=%02x old=%02x pc=%08x t=%.9f\n",
+				offset, data, old_data, m_maincpu->pc(), machine().time().as_double());
 	if (m_trace_enabled &&
 			(offset >= 0x08 && offset <= 0x13) &&
 			m_mad2_timer_trace_count++ < 4096)
@@ -2649,6 +2788,9 @@ static INPUT_PORTS_START( dct3_network_config )
 	PORT_CONFNAME(0x20, 0x00, "NSM-5 laboratory carrier pair")
 	PORT_CONFSETTING(0x00, DEF_STR(Off))
 	PORT_CONFSETTING(0x20, "GSM 900 (ARFCN 86/87)")
+	PORT_CONFNAME(0x40, 0x00, "Laboratory PCS 1900 carriers")
+	PORT_CONFSETTING(0x00, DEF_STR(Off))
+	PORT_CONFSETTING(0x40, "PCS 1900 (ARFCN 600/601)")
 
 	PORT_START("NEIGHBORFAULT")
 	PORT_CONFNAME(0x07, 0x00, "Neighbour validation fault")
@@ -2869,6 +3011,12 @@ static INPUT_PORTS_START( noki6210 )
 	PORT_INCLUDE(noki5210)
 INPUT_PORTS_END
 
+static INPUT_PORTS_START( noki6250 )
+	// Own NHM-3 table 0x288f7c matches this existing five-row layout.
+	// The separate power table 0x288f98 selects column 4.
+	PORT_INCLUDE(noki5210)
+INPUT_PORTS_END
+
 static INPUT_PORTS_START( noki3310 )
 	PORT_INCLUDE(dct3_network_config)
 
@@ -2910,6 +3058,46 @@ static INPUT_PORTS_START( noki3310 )
 
 	PORT_START("CHARGER")
 	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_OTHER ) PORT_NAME("Charger connected") PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::charger_irq), 0)
+INPUT_PORTS_END
+
+static INPUT_PORTS_START( noki8850 )
+	PORT_INCLUDE(noki3310)
+	// NSM-2 v5.31 table 33f504: raw row * 5 + column, rows 1..4.
+	// Send/End are the 0e/0f entries; 11/10 are not call controls.
+	PORT_MODIFY("COL.0")
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Call / Send") PORT_CODE(KEYCODE_F1) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::key_irq), 0)
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("End") PORT_CODE(KEYCODE_F2) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::key_irq), 0)
+	PORT_BIT( 0x13, IP_ACTIVE_LOW, IPT_UNUSED )
+	PORT_MODIFY("COL.1")
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_UNUSED )
+	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Menu") PORT_CODE(KEYCODE_ENTER) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::key_irq), 0)
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Scroll Up") PORT_CODE(KEYCODE_UP) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::key_irq), 0)
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Scroll Down") PORT_CODE(KEYCODE_DOWN) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::key_irq), 0)
+	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Names / C") PORT_CODE(KEYCODE_BACKSPACE) PORT_CODE(KEYCODE_DEL) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::key_irq), 0)
+	PORT_MODIFY("COL.2")
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_UNUSED )
+	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Keypad 1") PORT_CODE(KEYCODE_1) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::key_irq), 0)
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Keypad 4") PORT_CODE(KEYCODE_4) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::key_irq), 0)
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Keypad 7") PORT_CODE(KEYCODE_7) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::key_irq), 0)
+	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Keypad #") PORT_CODE(KEYCODE_MINUS) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::key_irq), 0)
+	PORT_MODIFY("COL.3")
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_UNUSED )
+	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Keypad 2") PORT_CODE(KEYCODE_2) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::key_irq), 0)
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Keypad 5") PORT_CODE(KEYCODE_5) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::key_irq), 0)
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Keypad 8") PORT_CODE(KEYCODE_8) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::key_irq), 0)
+	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Keypad 0") PORT_CODE(KEYCODE_0) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::key_irq), 0)
+	PORT_MODIFY("COL.4")
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_UNUSED )
+	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Keypad 3") PORT_CODE(KEYCODE_3) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::key_irq), 0)
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Keypad 6") PORT_CODE(KEYCODE_6) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::key_irq), 0)
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Keypad 9") PORT_CODE(KEYCODE_9) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::key_irq), 0)
+	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Keypad *") PORT_CODE(KEYCODE_ASTERISK) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nokia_dct3_state::key_irq), 0)
+INPUT_PORTS_END
+
+static INPUT_PORTS_START( noki8890 )
+	// Own NSB-6 v12.20 table 339f4c has the same 25 decoded matrix
+	// entries, including Menu=19 and Send/End=0e/0f.
+	PORT_INCLUDE(noki8850)
 INPUT_PORTS_END
 
 static INPUT_PORTS_START( noki2100 )
@@ -3293,10 +3481,219 @@ void nokia_dct3_state::noki8xxx(machine_config &config)
 	apply_product_config(PRODUCT_8XXX);
 }
 
+void nokia_dct3_state::noki8850(machine_config &config)
+{
+	dct3_base(config);
+	apply_product_config(PRODUCT_8850);
+}
+
+void nokia_dct3_state::nsm2stage(machine_config &config)
+{
+	noki8850(config);
+	// NSM-2's own upload releases reset through CTSI+2 bit 0. Execute
+	// flash-contained code only, leaving absent mask instructions unknown.
+	m_mad2->set_dsp_reset_wiring_contract({ 0x10, 0x01 });
+	auto &staged = NOKIA_DSP_STAGED(config, "dsp_staged", 13'000'000);
+	staged.set_program_fragment(0x11ad54);
+	staged.set_loader2_source(0x11ae80);
+	staged.set_loader_control_address(0x0880);
+	staged.set_cycle_guard_for_loader(true);
+	staged.set_observe_after_missing_code(true);
+}
+
+void nokia_dct3_state::nsm2hle(machine_config &config)
+{
+	nsm2stage(config);
+	nokia_product_config runtime = PRODUCT_8850;
+	runtime.dsp_reset_wiring = { 0x10, 0x01 };
+	// Native uploads publish their own verdict. Runtime acknowledges the
+	// shared service handshake; LCD output does not require a service map.
+	runtime.dsp_service = true;
+	runtime.external_service_transport = true;
+	// Research card input: firmware still owns reset, detection and APDUs.
+	runtime.simi_controller = true;
+	runtime.synthetic_sim_card = true;
+	runtime.radio = RADIO_NSM2;
+	// Own dispatcher 243a42 routes class 74 to 240dbc; command 0d at
+	// 240e2c cancels the armed wait and reads two fault bits at body +9.
+	runtime.dsp_service_control = DSP_SERVICE_CONTROL_COMPACT;
+	apply_product_config(runtime);
+	subdevice<nokia_dsp_staged_device>("dsp_staged")->set_runtime_hle_after_loader(true);
+}
+
+void nokia_dct3_state::nsm3dr6(machine_config &config)
+{
+	noki8xxx(config);
+	// Product flash contains a ROM6 bootstrap fragment and two uploaded
+	// loaders. Execute those bytes only; the complete fitted mask is absent.
+	m_mad2->set_dsp_reset_wiring_contract({ 0x10, 0x01 });
+	auto &staged = NOKIA_DSP_STAGED(config, "dsp_staged", 13'000'000);
+	staged.set_program_fragment(0x11770c);
+	staged.set_loader2_source(0x117838);
+	// Diagnostic-only composition: stop before missing native code, retain
+	// DSP ownership, and observe subsequent MCU requests without replies.
+	staged.set_observe_after_missing_code(true);
+}
+
+void nokia_dct3_state::nsb6stage(machine_config &config)
+{
+	noki8xxx(config);
+	nokia_product_config research = PRODUCT_8XXX;
+	research.dsp_reset_wiring = { 0x10, 0x01 };
+	// Own consumer 2c2dbc requires matching non-sentinel identity words.
+	// Six is the acquired fragment's ROM input, not measured NSB-6 silicon.
+	research.dsp_bootstrap = {
+		nokia_dsp_hle_device::bootstrap_exchange_strategy::ping_pong,
+		0, {}, 0, std::nullopt,
+		nokia_dsp_hle_device::bootstrap_parked_contract { 0x004, 0xffff, 6 }, 0
+	};
+	apply_product_config(research);
+	auto &staged = NOKIA_DSP_STAGED(config, "dsp_staged", 13'000'000);
+	staged.set_program_fragment(0x11508c);
+	staged.set_loader2_source(0x1151b8);
+	staged.set_loader_control_address(0x0880);
+	staged.set_cycle_guard_for_loader(true);
+	staged.set_observe_after_missing_code(true);
+}
+
+void nokia_dct3_state::nsb6hle(machine_config &config)
+{
+	nsb6stage(config);
+	// Explicit runtime transport comparison, not missing resident execution.
+	// Identity and security-record replies remain unimplemented here;
+	// the request-correlated compact self-test contract is selected below.
+	nokia_product_config runtime = m_product;
+	// NSB-6's Nokia user manual specifies BLB-2. These shared nominal
+	// board samples are calibrated inputs, not measured electrical units.
+	runtime.ccont_board = ADC_5210;
+	// Own scanner 2fb850 drives row pins 1..4. IRQ handler 2fb9a4
+	// reads pending columns at 2b before acknowledging IRQ0.
+	runtime.keypad_wiring.row_pin_shift = 1;
+	runtime.keypad_wiring.column_irq_status = 0x2b;
+	// Compose the physical SIM interface and removable laboratory card;
+	// the NSB-6 firmware still owns activation and every APDU.
+	runtime.simi_controller = true;
+	runtime.synthetic_sim_card = true;
+	runtime.radio = RADIO_NSB6;
+	runtime.dsp_service = true;
+	runtime.external_service_transport = true;
+	// Own class-74 dispatcher 24373a calls 240938; command 0d at
+	// 2409ac cancels the armed wait and interprets fault bits at +9.
+	runtime.dsp_service_control = DSP_SERVICE_CONTROL_COMPACT;
+	apply_product_config(runtime);
+	m_dsp_hle->set_opaque_parameter_acceptance(true);
+	subdevice<nokia_dsp_staged_device>("dsp_staged")->set_runtime_hle_after_loader(true);
+}
+
+void nokia_dct3_state::nhm3stage(machine_config &config)
+{
+	noki6250(config);
+	// Execute this product's flash-contained bytes, not a fitted DSP mask.
+	auto &staged = NOKIA_DSP_STAGED(config, "dsp_staged", 13'000'000);
+	staged.set_program_fragment(0x1d390);
+	staged.set_loader2_source(0x1d4bc);
+	staged.set_verifier_source_end(0xd000);
+	staged.set_loader_control_address(0x0880);
+	staged.set_cycle_guard_for_loader(true);
+	staged.set_observe_after_missing_code(true);
+}
+
+void nokia_dct3_state::nhm3hle(machine_config &config)
+{
+	nhm3stage(config);
+	// Native uploads stop before the absent mask routine; the existing
+	// request-derived transport peer owns runtime afterward, not mask code.
+	nokia_product_config runtime = PRODUCT_6250;
+	// Own SIM initialization 0x491fd8..0x492034 and reset 0x491bb4
+	// use the existing 0x37/0x38/0x39 SIMI grammar. Keep this boundary
+	// comparison in the research composition; physical phonebook and SMS
+	// acceptance exercise the card exchange without promoting default boot.
+	runtime.simi_controller = true;
+	runtime.synthetic_sim_card = true;
+	runtime.external_service_transport = true;
+	// Own TX 0x56/160 publishes eighty big-endian candidate channels,
+	// beginning with 19 and padding with 0xffff. Only acquisition is
+	// selected here. Assigned-channel and call-release contracts are
+	// configured below; handover remains unproved.
+	runtime.radio.acquisition = nokia_radio_peer_device::acquisition_strategy::candidate_window;
+	// Own consumer 0x464756 compares RX body bit 0 with pending context
+	// 0x0402 byte 2, observed as 1 for assigned SDCCH.
+	runtime.radio.assigned_channel_confirmation = 1;
+	// Own physical-End release publishes type 02 with channel 0x60 and
+	// parameter 0x14; acknowledge that transaction through the peer.
+	runtime.radio.traffic_release_parameter = 0x14;
+	// NHM-3 compiler 0x3fbc54/0x3fbc68 clears field 0x0200 with ROM
+	// keep-mask 0xfdff and adds 0x0200 from its selector table. Physical
+	// Answer/End publish 0x8626/0x8426 through own command-8 helper.
+	runtime.dsp_speech_control = {
+		0x08, nokia_dsp_hle_device::speech_request_predicate { 0x0200, 0x0200 }
+	};
+	// 6250 consumer 304494 dispatches 0d, clears its armed timer and reads
+	// two fault bits from the following octet. This is a declared peer model.
+	runtime.dsp_service_control = DSP_SERVICE_CONTROL_COMPACT;
+	apply_product_config(runtime);
+	subdevice<nokia_dsp_staged_device>("dsp_staged")->set_runtime_hle_after_loader(true);
+}
+
+void nokia_dct3_state::nsm3dhle(machine_config &config)
+{
+	nsm3dr6(config);
+	nokia_product_config runtime = PRODUCT_8XXX;
+	runtime.dsp_reset_wiring = { 0x10, 0x01 };
+	// Request-derived D0 discovery only; no donor application/channel map.
+	runtime.external_service_transport = true;
+	apply_product_config(runtime);
+	subdevice<nokia_dsp_staged_device>("dsp_staged")->set_runtime_hle_after_loader(true);
+	m_dsp_hle->set_opaque_parameter_acceptance(true);
+	// Declared candidate codec only: no record/self-test verdict, no PMM edits.
+	// Revision 0 is an unmeasured HLE input, not a donor chip identity.
+	m_dsp_hle->set_record_codec83(true, 0);
+}
+
 void nokia_dct3_state::noki8210(machine_config &config)
 {
 	dct3_base(config);
 	apply_product_config(PRODUCT_8210);
+}
+
+void nokia_dct3_state::nsm3stage(machine_config &config)
+{
+	noki8210(config);
+	// ROM6 fragment and selector 14 are acquired NSM-3 uploads. The
+	// alternative ROM5 catalogue is not selected by this composition.
+	auto &staged = NOKIA_DSP_STAGED(config, "dsp_staged", 13'000'000);
+	staged.set_program_fragment(0x11ab14);
+	staged.set_loader2_source(0x11ac40, 623);
+	staged.set_loader_control_address(0x0880);
+	staged.set_cycle_guard_for_loader(true);
+	staged.set_observe_after_missing_code(true);
+}
+
+void nokia_dct3_state::nsm3hle(machine_config &config)
+{
+	nsm3stage(config);
+	// Explicit missing-resident boundary comparison. No service verdict or
+	// donor provisioning is selected. Own TX type 05 carries the ordinary
+	// D0 discovery transaction after native upload completion.
+	nokia_product_config runtime = m_product;
+	runtime.external_service_transport = true;
+	// Own class-74 call 243a3e selects handler 240db0. Command 0d at
+	// 240e20 requires the armed flag and consumes two fault bits at +9.
+	runtime.dsp_service = true;
+	runtime.dsp_service_control = DSP_SERVICE_CONTROL_COMPACT;
+	// NSM-3's Nokia user guide specifies BLB-2. Nominal board samples
+	// are calibrated external inputs, not measured 8210 electrical units.
+	runtime.ccont_board = ADC_5210;
+	// Own scanner 305998 drives pins 0..4 and returns row*5+column;
+	// matrix 33ee78 leaves row 0 empty and maps physical keys on 1..4.
+	runtime.keypad_wiring.row_pin_shift = 1;
+	// Compose the physical controller and removable laboratory card.
+	// NSM-3 firmware owns reset, activation and APDU sequencing.
+	runtime.simi_controller = true;
+	runtime.synthetic_sim_card = true;
+	runtime.radio = RADIO_NSM3;
+	apply_product_config(runtime);
+	subdevice<nokia_dsp_staged_device>("dsp_staged")->set_runtime_hle_after_loader(true);
 }
 
 void nokia_dct3_state::noki3410(machine_config &config)
@@ -3384,6 +3781,9 @@ void nokia_dct3_state::nse5r4t(machine_config &config)
 	noki7110(config);
 	config.device_remove("dsp_hle");
 	NOKIA_DSP_C54X(config, m_dsp_c54x, 52'000'000);
+	// Research geometry: NSE-5 uploads executable code above 0x2800.
+	// This tests the missing overlay bank, not the fitted mask identity.
+	m_dsp_c54x->set_overlay_end(0x3000);
 	m_dsp_c54x->tone_update_cb().set(FUNC(nokia_dct3_state::dsp_tone_update_w));
 }
 
@@ -3393,10 +3793,48 @@ void nokia_dct3_state::noki6210(machine_config &config)
 	apply_product_config(PRODUCT_6210);
 }
 
+void nokia_dct3_state::npe3stage(machine_config &config)
+{
+	noki6210(config);
+	// Own NPE-3 uploads: descriptor 224a44 contains 104 words;
+	// descriptor 224b70 contains 629 second-loader words, not NSM-3's 623.
+	auto &staged = NOKIA_DSP_STAGED(config, "dsp_staged", 13'000'000);
+	staged.set_program_fragment(0x24a50);
+	staged.set_loader2_source(0x24b7c, 629);
+	staged.set_verifier_source_end(0xd000);
+	staged.set_loader_control_address(0x0880);
+	staged.set_cycle_guard_for_loader(true);
+	staged.set_observe_after_missing_code(true);
+}
+
+void nokia_dct3_state::npe3hle(machine_config &config)
+{
+	npe3stage(config);
+	nokia_product_config runtime = PRODUCT_6210;
+	// Own 3d71f8 converts source 7 (selector 2) by calibration * 1500/232.
+	// Full scale yields 19f0, outside its 0708..157c accepted window.
+	// Nominal 0230 models about 3.6 V; this is not a measured ADC curve.
+	runtime.ccont_board.channel_defaults[2] = 0x230;
+	// Own SIMI path (48b7ac cause write / 48b7be control write) uses
+	// the physical controller; the firmware owns activation and APDUs.
+	runtime.simi_controller = true;
+	runtime.synthetic_sim_card = true;
+	runtime.radio = RADIO_NPE3;
+	// Explicit research handoff after own uploads, before absent mask code.
+	// Own 3029fe..302a02 selects command 0d -> 302a52, requires
+	// flag 17fd99 bit 2 and consumes fault bits 0/1 from message byte 9.
+	// This is a declared compact peer; no identity/record replies are selected.
+	runtime.external_service_transport = true;
+	runtime.dsp_service = true;
+	runtime.dsp_service_control = DSP_SERVICE_CONTROL_COMPACT;
+	apply_product_config(runtime);
+	subdevice<nokia_dsp_staged_device>("dsp_staged")->set_runtime_hle_after_loader(true);
+}
+
 void nokia_dct3_state::noki6250(machine_config &config)
 {
 	dct3_32mbit_flash_base(config);
-	apply_product_config(PRODUCT_DEFAULT);
+	apply_product_config(PRODUCT_6250);
 }
 
 // Shared later-MAD2 image set currently associated with these profiles. Its
@@ -3568,6 +4006,24 @@ ROM_START( noki6210 )
 	ROM_LOAD("6210 virgin eeprom 005fa000.fls", 0x3fa000, 0x006000, CRC(3c6d3437) SHA1(b3a527ede1be87bd715fb3741a81eef5bd422efa))
 ROM_END
 
+ROM_START( npe3stage )
+	DCT3_SHARED_MAD2_INTERNAL_ROMS
+	ROM_REGION16_BE(0x400000, "flash", ROMREGION_ERASEFF )
+	ROM_LOAD("6210_556c.fls", 0, 0x3a0000,
+		CRC(203fb962) SHA1(3d9ea319503e78ec69b60d72cda23e461e118ea9))
+	ROM_LOAD("6210 virgin eeprom 005fa000.fls", 0x3fa000, 0x6000,
+		CRC(3c6d3437) SHA1(b3a527ede1be87bd715fb3741a81eef5bd422efa))
+ROM_END
+
+ROM_START( npe3hle )
+	DCT3_SHARED_MAD2_INTERNAL_ROMS
+	ROM_REGION16_BE(0x400000, "flash", ROMREGION_ERASEFF )
+	ROM_LOAD("6210_556c.fls", 0, 0x3a0000,
+		CRC(203fb962) SHA1(3d9ea319503e78ec69b60d72cda23e461e118ea9))
+	ROM_LOAD("6210 virgin eeprom 005fa000.fls", 0x3fa000, 0x6000,
+		CRC(3c6d3437) SHA1(b3a527ede1be87bd715fb3741a81eef5bd422efa))
+ROM_END
+
 ROM_START( noki6250 )
 	DCT3_SHARED_MAD2_INTERNAL_ROMS
 
@@ -3575,6 +4031,24 @@ ROM_START( noki6250 )
 	ROM_SYSTEM_BIOS(0, "503", "v5.03")  // C 06-12-2001
 	ROMX_LOAD("6250-503mcuppmc.fls", 0x000000, 0x3a0000, CRC(8dffb91b) SHA1(95607ce39c383bda75f1e6aeae67a214b787b0a1), ROM_BIOS(0))
 	ROM_LOAD("6250 virgin eeprom 005fa000.fls", 0x3fa000, 0x006000, CRC(6087ce70) SHA1(57c29c8387caf864603d94a22bfb63ace427b7f9))
+ROM_END
+
+ROM_START( nhm3stage )
+	DCT3_SHARED_MAD2_INTERNAL_ROMS
+	ROM_REGION16_BE(0x400000, "flash", ROMREGION_ERASEFF)
+	ROM_LOAD("6250-503mcuppmc.fls", 0, 0x3a0000,
+		CRC(8dffb91b) SHA1(95607ce39c383bda75f1e6aeae67a214b787b0a1))
+	ROM_LOAD("6250 virgin eeprom 005fa000.fls", 0x3fa000, 0x6000,
+		CRC(6087ce70) SHA1(57c29c8387caf864603d94a22bfb63ace427b7f9))
+ROM_END
+
+ROM_START( nhm3hle )
+	DCT3_SHARED_MAD2_INTERNAL_ROMS
+	ROM_REGION16_BE(0x400000, "flash", ROMREGION_ERASEFF)
+	ROM_LOAD("6250-503mcuppmc.fls", 0, 0x3a0000,
+		CRC(8dffb91b) SHA1(95607ce39c383bda75f1e6aeae67a214b787b0a1))
+	ROM_LOAD("6250 virgin eeprom 005fa000.fls", 0x3fa000, 0x6000,
+		CRC(6087ce70) SHA1(57c29c8387caf864603d94a22bfb63ace427b7f9))
 ROM_END
 
 ROM_START( noki7110 )
@@ -3613,12 +4087,40 @@ ROM_START( noki8210 )
 	ROM_LOAD("8210 virgin eeprom 003d0000.fls", 0x1d0000, 0x030000, CRC(37fddeea) SHA1(1c01ad3948ff9919890498a84f31052369d93e1d))
 ROM_END
 
+ROM_START( nsm3stage )
+	DCT3_SHARED_MAD2_INTERNAL_ROMS
+	ROM_REGION16_BE(0x200000, "flash", ROMREGION_ERASEFF )
+	ROM_LOAD("8210_5.31ppm_c.fls", 0, 0x1d0000, CRC(927022b1) SHA1(c1a0fe95cedb89a92b19654208cc4855e1a4988e))
+	ROM_LOAD("8210 virgin eeprom 003d0000.fls", 0x1d0000, 0x030000, CRC(37fddeea) SHA1(1c01ad3948ff9919890498a84f31052369d93e1d))
+ROM_END
+
+ROM_START( nsm3hle )
+	DCT3_SHARED_MAD2_INTERNAL_ROMS
+	ROM_REGION16_BE(0x200000, "flash", ROMREGION_ERASEFF )
+	ROM_LOAD("8210_5.31ppm_c.fls", 0, 0x1d0000, CRC(927022b1) SHA1(c1a0fe95cedb89a92b19654208cc4855e1a4988e))
+	ROM_LOAD("8210 virgin eeprom 003d0000.fls", 0x1d0000, 0x030000, CRC(37fddeea) SHA1(1c01ad3948ff9919890498a84f31052369d93e1d))
+ROM_END
+
 ROM_START( noki8250 )
 	DCT3_SHARED_MAD2_INTERNAL_ROMS
 
 	ROM_REGION16_BE(0x200000, "flash", ROMREGION_ERASEFF )
 	ROM_SYSTEM_BIOS(0, "502", "v5.02")  // K 28-01-2002
 	ROMX_LOAD("8250-502mcuppmk.fls", 0x000000, 0x1d0000, CRC(2c58e48b) SHA1(f26c98ffcfffbbd5714889e10cfa41c5f6dd2529), ROM_BIOS(0))
+	ROM_LOAD("8250 virgin eeprom 003d0000.fls", 0x1d0000, 0x030000, CRC(7ca585e0) SHA1(a974fb5fddcd0438ac4aaf32b431f1453e8d923c))
+ROM_END
+
+ROM_START( nsm3dr6 )
+	DCT3_SHARED_MAD2_INTERNAL_ROMS
+	ROM_REGION16_BE(0x200000, "flash", ROMREGION_ERASEFF )
+	ROM_LOAD("8250-502mcuppmk.fls", 0, 0x1d0000, CRC(2c58e48b) SHA1(f26c98ffcfffbbd5714889e10cfa41c5f6dd2529))
+	ROM_LOAD("8250 virgin eeprom 003d0000.fls", 0x1d0000, 0x030000, CRC(7ca585e0) SHA1(a974fb5fddcd0438ac4aaf32b431f1453e8d923c))
+ROM_END
+
+ROM_START( nsm3dhle )
+	DCT3_SHARED_MAD2_INTERNAL_ROMS
+	ROM_REGION16_BE(0x200000, "flash", ROMREGION_ERASEFF )
+	ROM_LOAD("8250-502mcuppmk.fls", 0, 0x1d0000, CRC(2c58e48b) SHA1(f26c98ffcfffbbd5714889e10cfa41c5f6dd2529))
 	ROM_LOAD("8250 virgin eeprom 003d0000.fls", 0x1d0000, 0x030000, CRC(7ca585e0) SHA1(a974fb5fddcd0438ac4aaf32b431f1453e8d923c))
 ROM_END
 
@@ -3631,12 +4133,40 @@ ROM_START( noki8850 )
 	ROM_LOAD("8850 virgin eeprom 003d0000.fls", 0x1d0000, 0x030000, CRC(4823f27e) SHA1(b09455302d98fbedf35072c9ecfd7721a04924b0))
 ROM_END
 
+ROM_START( nsm2stage )
+	DCT3_SHARED_MAD2_INTERNAL_ROMS
+	ROM_REGION16_BE(0x200000, "flash", ROMREGION_ERASEFF )
+	ROM_LOAD("8850v531.fls", 0, 0x1d0000, CRC(8864fcb3) SHA1(9f966787403b68a09530680ad911302403eb1521))
+	ROM_LOAD("8850 virgin eeprom 003d0000.fls", 0x1d0000, 0x030000, CRC(4823f27e) SHA1(b09455302d98fbedf35072c9ecfd7721a04924b0))
+ROM_END
+
+ROM_START( nsm2hle )
+	DCT3_SHARED_MAD2_INTERNAL_ROMS
+	ROM_REGION16_BE(0x200000, "flash", ROMREGION_ERASEFF )
+	ROM_LOAD("8850v531.fls", 0, 0x1d0000, CRC(8864fcb3) SHA1(9f966787403b68a09530680ad911302403eb1521))
+	ROM_LOAD("8850 virgin eeprom 003d0000.fls", 0x1d0000, 0x030000, CRC(4823f27e) SHA1(b09455302d98fbedf35072c9ecfd7721a04924b0))
+ROM_END
+
 ROM_START( noki8890 )
 	DCT3_SHARED_MAD2_INTERNAL_ROMS
 
 	ROM_REGION16_BE(0x200000, "flash", ROMREGION_ERASEFF )
 	ROM_SYSTEM_BIOS(0, "1220", "v12.20")    // C 19-03-2001
 	ROMX_LOAD("8890_12.20_ppmc.fls", 0x000000, 0x1d0000, CRC(77206f78) SHA1(a214a0d69760ecd8eeca0b9d82f95c94bdfe70ed), ROM_BIOS(0))
+	ROM_LOAD("8890 virgin eeprom 003d0000.fls", 0x1d0000, 0x030000, CRC(1d8ef3b5) SHA1(cc0924cfd4c0ce796fca157c640fc3183c2b5f2c))
+ROM_END
+
+ROM_START( nsb6stage )
+	DCT3_SHARED_MAD2_INTERNAL_ROMS
+	ROM_REGION16_BE(0x200000, "flash", ROMREGION_ERASEFF )
+	ROM_LOAD("8890_12.20_ppmc.fls", 0, 0x1d0000, CRC(77206f78) SHA1(a214a0d69760ecd8eeca0b9d82f95c94bdfe70ed))
+	ROM_LOAD("8890 virgin eeprom 003d0000.fls", 0x1d0000, 0x030000, CRC(1d8ef3b5) SHA1(cc0924cfd4c0ce796fca157c640fc3183c2b5f2c))
+ROM_END
+
+ROM_START( nsb6hle )
+	DCT3_SHARED_MAD2_INTERNAL_ROMS
+	ROM_REGION16_BE(0x200000, "flash", ROMREGION_ERASEFF )
+	ROM_LOAD("8890_12.20_ppmc.fls", 0, 0x1d0000, CRC(77206f78) SHA1(a214a0d69760ecd8eeca0b9d82f95c94bdfe70ed))
 	ROM_LOAD("8890 virgin eeprom 003d0000.fls", 0x1d0000, 0x030000, CRC(1d8ef3b5) SHA1(cc0924cfd4c0ce796fca157c640fc3183c2b5f2c))
 ROM_END
 
@@ -3650,13 +4180,25 @@ SYST( 1997, noki6110, 0,      0,      noki6110, noki6110, nokia_dct3_state, empt
 SYST( 1999, noki7110, 0,      0,      noki7110, noki7110, nokia_dct3_state, empty_init, "Nokia", "Nokia 7110", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
 SYST( 1999, nse5r4t,  noki7110, 0,    nse5r4t,  noki7110, nokia_dct3_state, empty_init, "Nokia", "NSE-5 with NSE-1 ROM4 (compatibility fixture, not fitted mask)", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
 SYST( 1999, noki8210, 0,      0,      noki8210, noki3310, nokia_dct3_state, empty_init, "Nokia", "Nokia 8210", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
-SYST( 1999, noki8850, 0,      0,      noki8xxx, noki3310, nokia_dct3_state, empty_init, "Nokia", "Nokia 8850", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
+SYST( 1999, nsm3stage, noki8210, 0, nsm3stage, noki3310, nokia_dct3_state, empty_init, "Nokia", "8210 product-local staged DSP (research fixture)", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
+SYST( 1999, nsm3hle, noki8210, 0, nsm3hle, noki8890, nokia_dct3_state, empty_init, "Nokia", "8210 native uploads with runtime HLE (research fixture)", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
+SYST( 1999, noki8850, 0,      0,      noki8850, noki8850, nokia_dct3_state, empty_init, "Nokia", "Nokia 8850", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
+SYST( 1999, nsm2stage, noki8850, 0, nsm2stage, noki8850, nokia_dct3_state, empty_init, "Nokia", "8850 product-local staged DSP (research fixture)", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
+SYST( 1999, nsm2hle, noki8850, 0, nsm2hle, noki8850, nokia_dct3_state, empty_init, "Nokia", "8850 native uploads with runtime DSP HLE (research fixture)", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
 SYST( 2000, noki3310, 0,      0,      noki3310, noki3310, nokia_dct3_state, empty_init, "Nokia", "Nokia 3310", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
 SYST( 2002, noki3610, 0,      0,      noki3610, noki3310, nokia_dct3_state, empty_init, "Nokia", "Nokia 3610 (NAM-1 bring-up)", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
 SYST( 2000, noki6210, 0,      0,      noki6210, noki6210, nokia_dct3_state, empty_init, "Nokia", "Nokia 6210", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
-SYST( 2000, noki6250, 0,      0,      noki6250, noki3310, nokia_dct3_state, empty_init, "Nokia", "Nokia 6250", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
+SYST( 2000, npe3stage, noki6210, 0, npe3stage, noki6210, nokia_dct3_state, empty_init, "Nokia", "6210 product-local staged DSP (research fixture)", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
+SYST( 2000, npe3hle, noki6210, 0, npe3hle, noki6210, nokia_dct3_state, empty_init, "Nokia", "6210 native uploads with runtime HLE (research fixture)", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
+SYST( 2000, noki6250, 0,      0,      noki6250, noki6250, nokia_dct3_state, empty_init, "Nokia", "Nokia 6250", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
+SYST( 2000, nhm3stage, noki6250, 0, nhm3stage, noki6250, nokia_dct3_state, empty_init, "Nokia", "6250 product-local staged DSP (research fixture)", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
+SYST( 2000, nhm3hle, noki6250, 0, nhm3hle, noki6250, nokia_dct3_state, empty_init, "Nokia", "6250 native uploads with runtime DSP HLE (research fixture)", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
 SYST( 2000, noki8250, 0,      0,      noki8xxx, noki3310, nokia_dct3_state, empty_init, "Nokia", "Nokia 8250", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
+SYST( 2000, nsm3dr6, noki8250, 0,    nsm3dr6, noki3310, nokia_dct3_state, empty_init, "Nokia", "NSM-3D staged DSP with declared ROM6 input (research fixture)", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
+SYST( 2000, nsm3dhle, noki8250, 0,   nsm3dhle, noki3310, nokia_dct3_state, empty_init, "Nokia", "NSM-3D native uploads with runtime DSP HLE (research fixture)", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
 SYST( 2000, noki8890, 0,      0,      noki8xxx, noki3310, nokia_dct3_state, empty_init, "Nokia", "Nokia 8890", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
+SYST( 2000, nsb6stage, noki8890, 0, nsb6stage, noki3310, nokia_dct3_state, empty_init, "Nokia", "8890 native uploaded DSP research fixture", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
+SYST( 2000, nsb6hle, noki8890, 0, nsb6hle, noki8890, nokia_dct3_state, empty_init, "Nokia", "8890 native uploads with runtime transport HLE (research fixture)", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
 SYST( 2001, noki3330, 0,      0,      noki3330, noki3310, nokia_dct3_state, empty_init, "Nokia", "Nokia 3330", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
 SYST( 2002, noki3410, 0,      0,      noki3410, noki3410, nokia_dct3_state, empty_init, "Nokia", "Nokia 3410", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
 SYST( 2002, noki5210, 0,      0,      noki5210, noki5210, nokia_dct3_state, empty_init, "Nokia", "Nokia 5210", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )

@@ -238,8 +238,14 @@ transmit routine. The driver now forwards those writes to a replaceable COBBA
 transmit callback, as it already did for receive reads; no transmit activity
 has been observed in the coherent boot. The port-write sites on
 `0x31/0x32` are `0x36f7/0x36fb/0x370c/0x3710/0x4020/0x4025/0xa23a/0xa23e`.
-None ran in the 12-second census (`rf_port32_writes=0`), so the payload and
-trigger remain unresolved. Calling these ports a synthesizer pair was
+The earlier relative-timer census did not reach these writes. With the
+free-running CTSI counter and absolute compare model, fresh-profile boot
+emits `2a04/0006` twice through `0xa23a/0xa23e`, then `2813/0030` through
+`0x4020/0x4025`. The first pair is table-driven; the latter is sourced from
+accumulator MMRs 8/9. Persisted EEPROM additionally reaches `0041/0040`
+through `0x370c/0x3710`. See `7110_bringup.md` for the bounded operand
+observation and isolated counter/compare acceptance. Electrical meaning
+and subsequent radio-mode activation remain unresolved. Calling these ports a synthesizer pair was
 premature: Nokia's NSE-1 manual assigns synthesizer control to MAD2's SCU,
 while COBBA produces analog TXC and AFC signals. The manual also describes
 the COBBA parallel interface as carrying control and receive/transmit samples
@@ -527,12 +533,13 @@ The long-immediate ALU decoder charges two cycles, including the separately
 decoded XOR form. A cycle-stamped LD fixture checks the additional cycle;
 the LD contract is SPRU172C page 4-68. This does not cover all extended-address
 or repeated multicycle instruction timing.
-The XC timing correction deliberately re-banks the RF startup offset: the
-first port-27 read is now at frame 29, 0.160944 s. At 30 seconds there are
-6,497 frame expiries and 207,008 reads (`32 * (6497 - 28)`), with unchanged
-terminal IMR/IFR and no burst-port activity. The gate checks the first-read
-frame and the 32-reads-per-frame cadence, allowing only the previously
-documented bounded in-flight frame count at the fixed-time cutoff.
+The current HINT/absolute-compare model starts fresh-profile port-27 reads
+on frame 30. The 30-second observation has 6,499 frame expiries and 207,040
+reads (`32 * (6499 - 29)`), terminal IMR `035f`, IFR zero and no burst-port
+activity. The gate pins that first-read frame, the three ordered RF control
+pairs above and the 32-reads-per-frame cadence, allowing only the bounded
+in-flight frame count at the fixed-time cutoff. The older frame-29,
+zero-control-write oracle described the superseded timer boundary.
 The twelve-second verbose MCU trace contains a type-`0x1a` search-list
 publication at 1.511395 s (`00109800...`, 68 payload bytes). The seven
 type-`0x51` packets at 2.065--2.071 s are segmented command-`0x22` DSP memory
@@ -1819,3 +1826,19 @@ external unassisted run's 74 acknowledgements and stable UI remain the complete
 ROM4 reference; MAME has now independently crossed the same loader boundary.
 This is an instruction-semantics correction, not a reconstructed image or
 timing adjustment.
+
+## Delayed conditional return
+
+The core implements `0xfe44` as `RCD ANEQ`: test the full accumulator A
+before the two following delay words, pop the return address only when A
+is nonzero, and charge three cycles on either path. This follows
+[TI SPRU172C, RC[D], pages 4-133/4-134](https://www.ti.com/lit/ug/spru172c/spru172c.pdf).
+The executable core fixture tests both paths, including a delay-word write
+that changes A after the decision, stack preservation on a false condition,
+and port-to-port cycle counts. Other conditional delayed-return encodings
+are not implied to be implemented by this one opcode.
+
+ROM4 uses this instruction at `0x90eb` when additional demand-load
+continuations are delivered through BSCR.HINT. The bounded NSE-5 investigation
+documents that signal, accepted counter/compare model and research-only overlay
+in [7110 bring-up](7110_bringup.md#diagnostic-publication-and-partial-code-block-transfer).

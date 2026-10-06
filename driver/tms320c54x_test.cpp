@@ -313,6 +313,7 @@ private:
 		for (unsigned i = 0; i != 26; ++i)
 			data.write_word(0x1300 + i, 0x6000 + i);
 		m_phase = 0;
+		m_bleq_case = 0;
 		m_cpu->set_state_int(tms320c54x_device::STATE_PC, 0x0100);
 		m_cpu->set_state_int(tms320c54x_device::STATE_SP, 0x0300);
 		m_cpu->set_state_int(tms320c54x_device::STATE_AR0, 0x0700);
@@ -10029,8 +10030,8 @@ private:
 		}
 		if (m_phase >= 500 && m_phase <= 503)
 		{
-			const bool taken = m_phase == 500 || m_phase == 502;
-			const u16 opcode = m_phase <= 501 ? 0xf84a : 0xf84b;
+			const bool taken = m_bleq_case ? m_bleq_case < 3 : m_phase == 500 || m_phase == 502;
+			const u16 opcode = m_bleq_case ? 0xf84f : m_phase <= 501 ? 0xf84a : 0xf84b;
 			expect_opcode(opcode,
 					m_port_writes == 2 &&
 					m_last_port_cycle - m_first_port_cycle == (taken ? 7 : 5) &&
@@ -10046,6 +10047,17 @@ private:
 				m_cpu->set_state_int(tms320c54x_device::STATE_PC, 0x05e0);
 				m_cpu->set_state_int(tms320c54x_device::STATE_IDLE, 0);
 				++m_phase;
+				m_check_timer->adjust(attotime::from_usec(100));
+				return;
+			}
+			if (m_bleq_case < 3)
+			{
+				static constexpr u64 values[] = {0, 0xff00000000ULL, 1};
+				program.write_word(0x05e2, 0xf84f); // BC 05f0,BLEQ
+				m_cpu->set_state_int(tms320c54x_device::STATE_B, values[m_bleq_case++]);
+				m_cpu->set_state_int(tms320c54x_device::STATE_PC, 0x05e0);
+				m_cpu->set_state_int(tms320c54x_device::STATE_IDLE, 0);
+				m_port_writes = 0;
 				m_check_timer->adjust(attotime::from_usec(100));
 				return;
 			}
@@ -13737,7 +13749,145 @@ private:
 				m_cpu->state_int(tms320c54x_device::STATE_AR3) == 0x0200 &&
 				(m_cpu->state_int(tms320c54x_device::STATE_ST0) & 0x0400) &&
 				m_port_writes == 2 && m_last_port_cycle - m_first_port_cycle == 3,
-				"MPYU doubles unsigned operands under FRCT and saturates with OVA");
+					"MPYU doubles unsigned operands under FRCT and saturates with OVA");
+			program.write_word(0x05e0, 0x75d6);
+			program.write_word(0x05e1, 0x0124);
+			program.write_word(0x05e2, 0xfe44); // RCD ANEQ
+			program.write_word(0x05e3, 0xe800); // Delay word changes tested A.
+			program.write_word(0x05e4, 0xe802);
+			program.write_word(0x05e5, 0xe803); // Only the false path reaches this.
+			program.write_word(0x05e6, 0x75d6);
+			program.write_word(0x05e7, 0x0124);
+			program.write_word(0x05e8, 0xf5e1);
+			program.write_word(0x05ec, 0x75d6);
+			program.write_word(0x05ed, 0x0124);
+			program.write_word(0x05ee, 0xf5e1);
+			data.write_word(0x0300, 0x05ec);
+			m_port_writes = 0;
+			m_cpu->set_state_int(tms320c54x_device::STATE_A, 1);
+			m_cpu->set_state_int(tms320c54x_device::STATE_SP, 0x0300);
+			m_cpu->set_state_int(tms320c54x_device::STATE_PC, 0x05e0);
+			m_cpu->set_state_int(tms320c54x_device::STATE_IDLE, 0);
+			m_phase = 750;
+			m_check_timer->adjust(attotime::from_usec(100));
+			return;
+		}
+		if (m_phase == 750)
+		{
+			expect_opcode(0xfe44,
+				m_cpu->state_int(tms320c54x_device::STATE_A) == 2 &&
+				m_cpu->state_int(tms320c54x_device::STATE_SP) == 0x0301 &&
+				m_port_writes == 2 && m_last_port_cycle - m_first_port_cycle == 7,
+				"RCD ANEQ captures the true condition before its two delay words");
+			m_port_writes = 0;
+			m_cpu->set_state_int(tms320c54x_device::STATE_A, 0);
+			m_cpu->set_state_int(tms320c54x_device::STATE_SP, 0x0300);
+			m_cpu->set_state_int(tms320c54x_device::STATE_PC, 0x05e0);
+			m_cpu->set_state_int(tms320c54x_device::STATE_IDLE, 0);
+			m_phase = 751;
+			m_check_timer->adjust(attotime::from_usec(100));
+			return;
+		}
+		if (m_phase == 751)
+		{
+			expect_opcode(0xfe44,
+				m_cpu->state_int(tms320c54x_device::STATE_A) == 3 &&
+				m_cpu->state_int(tms320c54x_device::STATE_SP) == 0x0300 &&
+				m_port_writes == 2 && m_last_port_cycle - m_first_port_cycle == 8,
+					"RCD ANEQ false path preserves the stack and falls through");
+			// 0x60/0x61 belong to this fixture's interrupting read peripheral.
+			program.write_word(0x05e2, 0x4a62); // PSHM MMR 0x62
+			program.write_word(0x05e3, 0x4a63); // PSHM MMR 0x63
+			program.write_word(0x05e4, 0x8a62); // POPM MMR 0x62
+			program.write_word(0x05e5, 0x8a63); // POPM MMR 0x63
+			program.write_word(0x05e6, 0x75d6);
+			program.write_word(0x05e7, 0x0124);
+			program.write_word(0x05e8, 0xf5e1);
+			data.write_word(0x0062, 0x1234);
+			data.write_word(0x0063, 0x5678);
+			m_port_writes = 0;
+			m_cpu->set_state_int(tms320c54x_device::STATE_SP, 0x0300);
+			m_cpu->set_state_int(tms320c54x_device::STATE_PC, 0x05e0);
+			m_cpu->set_state_int(tms320c54x_device::STATE_IDLE, 0);
+			m_phase = 752;
+			m_check_timer->adjust(attotime::from_usec(100));
+			return;
+		}
+		if (m_phase == 752)
+		{
+			expect_opcode(0x4a62,
+				data.read_word(0x02ff) == 0x1234 && data.read_word(0x02fe) == 0x5678 &&
+				data.read_word(0x0062) == 0x5678 && data.read_word(0x0063) == 0x1234 &&
+				m_cpu->state_int(tms320c54x_device::STATE_SP) == 0x0300 &&
+				m_port_writes == 2 && m_last_port_cycle - m_first_port_cycle == 6,
+				"PSHM/POPM decode all seven MMR address bits with balanced stack and one-cycle costs");
+			expect_opcode(0x8a63, data.read_word(0x0063) == 0x1234,
+				"POPM preserves the high MMR address bits");
+			program.write_word(0x05e2, 0xfa43); // BCD ALT
+			program.write_word(0x05e3, 0x05ec);
+			program.write_word(0x05e4, 0xe801); // Changes A after the decision.
+			program.write_word(0x05e5, 0xe802);
+			program.write_word(0x05e6, 0xe803);
+			program.write_word(0x05e7, 0x75d6);
+			program.write_word(0x05e8, 0x0124);
+			program.write_word(0x05e9, 0xf5e1);
+			m_port_writes = 0;
+			m_cpu->set_state_int(tms320c54x_device::STATE_A, 0xffffffffffULL);
+			m_cpu->set_state_int(tms320c54x_device::STATE_PC, 0x05e0);
+			m_cpu->set_state_int(tms320c54x_device::STATE_IDLE, 0);
+			m_phase = 753;
+			m_check_timer->adjust(attotime::from_usec(100));
+			return;
+		}
+		if (m_phase == 753)
+		{
+			expect_opcode(0xfa43,
+				m_cpu->state_int(tms320c54x_device::STATE_A) == 2 &&
+				m_port_writes == 2 && m_last_port_cycle - m_first_port_cycle == 7,
+				"BCD ALT captures the signed condition before both delay words");
+			m_port_writes = 0;
+			m_cpu->set_state_int(tms320c54x_device::STATE_A, 1);
+			m_cpu->set_state_int(tms320c54x_device::STATE_PC, 0x05e0);
+			m_cpu->set_state_int(tms320c54x_device::STATE_IDLE, 0);
+			m_phase = 754;
+			m_check_timer->adjust(attotime::from_usec(100));
+			return;
+		}
+		if (m_phase == 754)
+		{
+			expect_opcode(0xfa43,
+				m_cpu->state_int(tms320c54x_device::STATE_A) == 3 &&
+				m_port_writes == 2 && m_last_port_cycle - m_first_port_cycle == 8,
+					"BCD ALT false path falls through with its three-cycle cost");
+			program.write_word(0x05e2, 0xfa4f); // BCD BLEQ (SPRU172C condition 01001111)
+			program.write_word(0x05e4, 0xe901); // Changes B after the decision.
+			program.write_word(0x05e5, 0xe902);
+			program.write_word(0x05e6, 0xe903);
+			m_port_writes = 0;
+			m_cpu->set_state_int(tms320c54x_device::STATE_B, 0xffffffffffULL);
+			m_cpu->set_state_int(tms320c54x_device::STATE_PC, 0x05e0);
+			m_cpu->set_state_int(tms320c54x_device::STATE_IDLE, 0);
+			m_phase = 755;
+			m_check_timer->adjust(attotime::from_usec(100));
+			return;
+		}
+		if (m_phase == 755 || m_phase == 756 || m_phase == 757)
+		{
+			const bool taken = m_phase != 757;
+			expect_opcode(0xfa4f,
+				m_cpu->state_int(tms320c54x_device::STATE_B) == (taken ? 2 : 3) &&
+				m_port_writes == 2 && m_last_port_cycle - m_first_port_cycle == (taken ? 7 : 8),
+				"BCD BLEQ tests signed 40-bit B including zero before delay slots");
+			if (m_phase != 757)
+			{
+				m_port_writes = 0;
+				m_cpu->set_state_int(tms320c54x_device::STATE_B, m_phase == 755 ? 0 : 1);
+				m_cpu->set_state_int(tms320c54x_device::STATE_PC, 0x05e0);
+				m_cpu->set_state_int(tms320c54x_device::STATE_IDLE, 0);
+				++m_phase;
+				m_check_timer->adjust(attotime::from_usec(100));
+				return;
+			}
 			osd_printf_info("TMS320C54x core conformance: PASS\n");
 			throw emu_fatalerror(0, "TMS320C54x core tests complete");
 		}
@@ -13924,6 +14074,7 @@ private:
 	optional_device<nokia_dspif_device> m_transport;
 	emu_timer *m_check_timer = nullptr;
 	unsigned m_phase = 0;
+	unsigned m_bleq_case = 0;
 	unsigned m_rom4_checks = 0;
 	bool m_irq_raised = false;
 	unsigned m_repeat_reads = 0;
@@ -13984,8 +14135,9 @@ public:
 
 private:
 	bool npe3() const { return !strcmp(machine().system().name, "npe3verify"); }
+	bool nhm3() const { return !strcmp(machine().system().name, "nhm3verify"); }
 	bool nse5() const { return !strcmp(machine().system().name, "nse5verify"); }
-	unsigned block_count() const { return nse5() ? 228 : npe3() ? 232 : 116; }
+	unsigned block_count() const { return nse5() ? 228 : (npe3() || nhm3()) ? 232 : 116; }
 	void program_map(address_map &map)
 	{
 		map(0, 0xffff).ram();
@@ -14057,8 +14209,8 @@ private:
 		data.write_word(0x0803, 0xffff);
 		data.write_word(0x087b, 0x0100);
 		data.write_word(0x087c, 0x0300);
-		data.write_word(0x087d, (npe3() || nse5()) ? 1 : 0);
-		data.write_word(0x087e, nse5() ? 0xc800 : npe3() ? 0xd000 : 0xe800);
+		data.write_word(0x087d, (npe3() || nhm3() || nse5()) ? 1 : 0);
+		data.write_word(0x087e, nse5() ? 0xc800 : (npe3() || nhm3()) ? 0xd000 : 0xe800);
 		data.write_word(0x087f, 1);
 		data.write_word(0x0880, 1);
 		data.write_word(0x0881, 0x0200);
@@ -14125,8 +14277,22 @@ ROM_START(nsm3verify)
 		CRC(927022b1) SHA1(c1a0fe95cedb89a92b19654208cc4855e1a4988e))
 ROM_END
 
-// Same staged program, distinct MCU-supplied count and flash input. The PROM
-// and COBBA variants remain sensitivity fixtures, not measured NPE-3 hardware.
+// Same staged program and observed geometry, distinct stock 8250 flash input.
+// Peripheral variants remain sensitivity fixtures, not fitted NSM-3D identity.
+ROM_START(nsm3dverify)
+	ROM_SYSTEM_BIOS(0, "boundary", "Fail closed at unsupported peripheral")
+	ROM_SYSTEM_BIOS(1, "cobba", "COBBA model comparison (not handset validation)")
+	ROM_SYSTEM_BIOS(2, "cobba_alt", "COBBA register-F sensitivity fixture")
+	ROM_SYSTEM_BIOS(3, "rom4", "PROM version sensitivity fixture")
+	ROM_REGION16_LE(446, "verifier", 0)
+	ROM_LOAD16_WORD_SWAP("nsm3_verifier.bin", 0, 446,
+		CRC(53e2de79) SHA1(6646da3c5be9c70deda7e0b5b9f257d5d2ace815))
+	ROM_REGION(0x1d0000, "flash", 0)
+	ROM_LOAD("8250-502mcuppmk.fls", 0, 0x1d0000,
+		CRC(2c58e48b) SHA1(f26c98ffcfffbbd5714889e10cfa41c5f6dd2529))
+ROM_END
+
+// NPE-3 additionally supplies a different block count and source extent.
 ROM_START(npe3verify)
 	ROM_SYSTEM_BIOS(0, "boundary", "Fail closed at unsupported peripheral")
 	ROM_SYSTEM_BIOS(1, "cobba", "COBBA model comparison (not handset validation)")
@@ -14138,6 +14304,20 @@ ROM_START(npe3verify)
 	ROM_REGION(0x3a0000, "flash", 0)
 	ROM_LOAD("6210_556c.fls", 0, 0x3a0000,
 		CRC(203fb962) SHA1(3d9ea319503e78ec69b60d72cda23e461e118ea9))
+ROM_END
+
+// 6250's own staged bytes and sparse flash stream; no handset verdict supplied.
+ROM_START(nhm3verify)
+	ROM_SYSTEM_BIOS(0, "boundary", "Fail closed at unsupported peripheral")
+	ROM_SYSTEM_BIOS(1, "cobba", "COBBA model comparison (not handset validation)")
+	ROM_SYSTEM_BIOS(2, "cobba_alt", "COBBA register-F sensitivity fixture")
+	ROM_SYSTEM_BIOS(3, "rom4", "PROM version sensitivity fixture")
+	ROM_REGION16_LE(446, "verifier", 0)
+	ROM_LOAD16_WORD_SWAP("nsm3_verifier.bin", 0, 446,
+		CRC(53e2de79) SHA1(6646da3c5be9c70deda7e0b5b9f257d5d2ace815))
+	ROM_REGION(0x3a0000, "flash", 0)
+	ROM_LOAD("6250-503mcuppmc.fls", 0, 0x3a0000,
+		CRC(8dffb91b) SHA1(95607ce39c383bda75f1e6aeae67a214b787b0a1))
 ROM_END
 
 // Stock NSE-5 upload plus independently recovered ROM4 CRC routines. COBBA
@@ -14190,8 +14370,14 @@ SYST(2026, tms54test, 0, 0, test, 0, tms320c54x_test_state, empty_init,
 SYST(2026, nsm3verify, 0, 0, verifier, 0, nsm3_verifier_state, empty_init,
 		"MAME", "NSM-3 stock staged DSP verifier fixture",
 		MACHINE_NO_SOUND_HW | MACHINE_NOT_WORKING)
+SYST(2026, nsm3dverify, 0, 0, verifier, 0, nsm3_verifier_state, empty_init,
+		"MAME", "NSM-3D stock staged DSP verifier fixture",
+		MACHINE_NO_SOUND_HW | MACHINE_NOT_WORKING)
 SYST(2026, npe3verify, 0, 0, verifier, 0, nsm3_verifier_state, empty_init,
 		"MAME", "NPE-3 stock staged DSP verifier fixture",
+		MACHINE_NO_SOUND_HW | MACHINE_NOT_WORKING)
+SYST(2026, nhm3verify, 0, 0, verifier, 0, nsm3_verifier_state, empty_init,
+		"MAME", "6250 stock staged DSP verifier fixture",
 		MACHINE_NO_SOUND_HW | MACHINE_NOT_WORKING)
 SYST(2026, nse5verify, 0, 0, nse5_verifier, 0, nsm3_verifier_state, empty_init,
 		"MAME", "NSE-5 stock staged DSP verifier with ROM4 CRC routines",

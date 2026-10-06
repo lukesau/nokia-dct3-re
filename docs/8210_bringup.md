@@ -2,12 +2,361 @@
 
 ## Current boundary
 
-NSM-3 v5.31 PPM C remains at the final sparse-flash verification wait,
-`0x2cadce`. No working-phone promotion is claimed. The next question is the
-DSP memory/operand contract governing the staged verifier's final publication:
-the explicit-version fixture produces 6, while the collaborator bridge reports
-an 8210 verdict of `1eff`. A matching raw capture has not been recovered, so
-neither that reported value nor the fixture's assumed version is promoted.
+The normal NSM-3 v5.31 PPM C machine remains at the final sparse-flash
+verification wait, `0x2cadce`. The separate `nsm3stage` research composition
+executes this product's uploaded verifier and loaders, then retains native
+ownership and stops at absent resident DSP routine `0x2c75`. Physical-verdict
+equivalence and complete native DSP runtime are not claimed.
+
+The separate `nsm3hle` composition explicitly hands off at that missing-code
+call. With the acquired unchanged base-record storage fixture, seven fresh
+isolated acceptance scenarios pass: graphical/physical security and menus,
+calculator, SIM initialization and cold-persistent phonebook, registration
+and operator idle, both call-signaling directions, and both SMS directions.
+Identity and record success replies remain unselected. This is research-HLE
+phone-service acceptance, not a promotion of the normal machine, complete
+hardware fidelity, speech, or authentic factory-default provisioning.
+
+The explicit-version fixture produces 6, while the collaborator bridge reports
+an 8210 verdict of `1eff`. A matching raw capture has not been recovered;
+neither value is promoted as a measured silicon result.
+
+## Native upload acceptance
+
+Both catalogue origins are decoded from the pinned acquired flash, not a donor
+image: ROM5 initializes at `0x30ced4` into `0x135810`; ROM6 initializes at
+`0x30cf50` into `0x13579c`. Each contains 28 descriptors. The selected ROM6
+fragment starts at file offset `0x11ab14`; its 104 words have SHA-1
+`440bf49f1eba4cadb12f7f7581c992b0025807d6`.
+
+The second-loader descriptor at `0x31ac34` contains
+`0a00 1000 026f 0200 03e8 0000`: **623 words**, not the 613-word extent of
+earlier products. Its payload starts at file offset `0x11ac40`, SHA-1
+`8e9e4aefa311375ae090b90a607f00cb8e7059ca`. Loader control is data `0x0880`,
+whose observed value is `0x0078`; using `0x087f` selects a zero field and fails
+the loader contract. These are product configuration, not transport behavior.
+
+The read-only `tools/noki8210_staged_observe.lua` fixture observes the MCU
+consuming native publication `0000/0006`. The native loader requests selector
+`0x14` once and selector `0x01` 133 times, verifies all 623 second-loader words,
+installs 422 program words at `0x0590..0x0735`, and stops at `0x2c75` with
+ownership retained. No runtime HLE handoff occurs in this fixture.
+
+Reproduce with a fresh NVRAM/config directory, `nsm3stage`, `-debug -debugger
+none`, the observer as `-autoboot_script`, and `-seconds_to_run 12`. Check the
+result with:
+
+```sh
+.venv/bin/python tools/noki8210_staged_check.py RUN/error.log \
+  roms/noki8210/8210_5.31ppm_c.fls
+```
+
+This establishes execution under explicit version/peripheral inputs and the
+own-upload boundary; it does not supply missing ROM6 mask code, validate the
+physical PMST mapping, or prove graphical boot.
+
+## Runtime service frontier
+
+`nsm3hle` suspends native execution only at the observed missing `0x2c75`
+call. Without a service peer, its own MCU sends type `05` body
+`1eff00d000030101e000` repeatedly. Enabling the shared request-correlated D0
+discovery transport yields response `1e0002d000030401c100`, which this MCU
+acknowledges with `1e0200d0000305014100`. This is a research HLE transaction,
+not native execution of missing resident code.
+
+After discovery the acquired composition publishes type `70` requests:
+
+| Command | Payload Length | Observed Body |
+| --- | --- | --- |
+| `13` | 6 | `1304d52a008f` |
+| `14` | 14 | `140c47ecf9859aff4d3ba84f86bd` |
+| `15` | 22 | `151429ad7d6cc76d5b55a0dbc4d7ffffffffffffffff` |
+| `16` | 26 | `161839a29f978ca9fe05c7a73068f2947c45e76a574e9c7f8ad8` |
+| `0d` | 2 | `0d00` |
+
+No identity or record response is configured by this composition. The own
+class dispatcher `0x243a02..0x243a3e` sums to class `0x74` and calls
+`0x240db0`. Its command cascade selects `0x0d` at `0x240e20`, checks bit 2
+of flag byte `0x13fde1`, cancels timer `0x18`, and interprets response byte
+`+9` bits 0/1 as faults. It clears the pending field at `0x13fbef` and stores
+the two outcomes at `0x13fbf0/0x13fbf1`. The pinned instruction/literal check
+is `tools/noki8210_selftest_contract.py`; sibling addresses are not its input.
+
+The original acquired journal is a negative control: compact `0d00`
+completion reaches the own handler armed (`flag=84`) with cleared DSP fault
+outcomes, but local NV validation has already failed. Its frame remains
+blank. The unchanged base-record fixture below instead preserves the local
+validation bit (`flag=c4`) and supports graphical/runtime acceptance.
+
+Run the same fresh-directory command with `nsm3hle` instead of `nsm3stage`,
+then add `--runtime` to `noki8210_staged_check.py`. This acceptance requires
+native upload completion, explicit ownership handoff, the own discovery
+request and its firmware acknowledgement. It makes no display or handset
+functionality claim.
+
+Add `--selftest` to require the own armed handler and cleared fault outcomes;
+add `--base-record` for that explicitly labelled storage fixture. Local NV
+validation, not an unsolicited service map, explains the missing startup
+initializers in the original-journal negative control. Identity/record
+responses remain unselected in the accepted runtime composition.
+
+## Board and physical-input observations
+
+Nokia's [8210 user guide](https://www.telefonguru.hu/manuals/nokia_8210_en.pdf)
+specifies the BLB-2 battery. The research composition selects the existing
+nominal BLB-2 board tuple instead of the conservative full-scale placeholders;
+its raw values are calibrated laboratory inputs, not measured NSM-3 units.
+The own firmware then samples BSI/temperature selectors 3/4 and VBATT selector
+2 repeatedly, rather than the earlier selector-3-only path. This change alone
+does not paint the screen.
+
+The own scanner `0x305940` drives row pins 0..4 and computes row*5+column at
+`0x3059c8..0x3059ce`. Decoder `0x307dbe` loads the matrix pointer at
+`0x307e40`, which resolves to `0x33ee78`. Its 25 bytes are
+`3e3e3e3e3e11190102030e170405060f18070809101a0c0a0b`: row 0 is unused,
+and the four physical rows occupy pins 1..4. The research machine therefore
+selects the five-column host layout and row-pin shift 1. This is static wiring
+evidence; the physical fixtures below also validate decoded input.
+
+`tools/noki8210_menu_input.lua` applies only a physical Menu field for 150 ms
+at 12 seconds and captures the result. The original-journal negative control
+has no decoded key and a blank frame. On the checksum-valid base-record
+fixture the same key decodes as `19`; the security, menu and application
+fixtures below demonstrate organic physical UI interaction.
+
+## Startup readiness boundary
+
+The physical-input observer retains bounded, read-only probes of the own
+startup report primitive `0x2885ac` and readiness checklist. The original-
+journal negative control observes task-1 reports `17`, `16` and `14`,
+but not `15`. The four-report consumer at `0x2a59c4..0x2a5a86` records bits
+8/2/1 for those reports and bit 4 for `15`; its completion checks low nibble
+`0xf` as well as the separate mode predicate. Missing `15` is therefore a
+concrete startup dependency, not a guessed service message.
+
+Keyboard initialization `0x307df6` is invoked from `0x2a59a2`. Its write at
+`0x307e1c` ORs `0x1f` into column-mask register `0x6b` at 1.406088 seconds,
+after low-level enable `0x305a5c` has executed. The recovered MMIO write
+identifies this writer; neither the IRQ0 masking helper `0x305a3a` nor a
+host input failure accounts for that write.
+
+Report `15` is posted by `0x2ff7ac`, whose only direct BL caller is
+`0x24a9ac`. The preceding handler `0x24a8e4` accepts input codes `0c..15`
+through a ten-record jump table at `0x24a910`; `13` is a no-op. Inputs mark
+nine bytes at `0x137e44`, and the report posts only when all nine are nonzero.
+Input `64` clears the array. In the original-journal negative control the
+handler sees only that reset, called from `0x2925aa`; all nine bytes remain
+zero. The accepted base-record fixture instead completes all nine inputs.
+
+An aligned direct-BL scan of the acquired image finds ten calls to this
+handler: one reset plus these nine literal-input publishers. This is direct
+call coverage, not a claim that indirect producers cannot exist.
+
+| Input | Checklist Index | Own Direct Publisher Call |
+| --- | --- | --- |
+| `0c` | 0 | `21b876` |
+| `0d` | 1 | `25d316` |
+| `0e` | 2 | `250240` |
+| `0f` | 3 | `20b222` |
+| `10` | 4 | `2564c4` |
+| `11` | 5 | `225eba` |
+| `12` | 6 | `2bb346` |
+| `14` | 7 | `2085ba` |
+| `15` | 8 | `2aaa7e` |
+
+The strongest preceding failure is local NV validation, not an absent DSP
+self-test verdict. Firmware clears bit `0x40` of `0x13fde1` at `0x240c00`
+before the compact self-test response arrives. The checksum routine
+`0x2408bc` sums logical NV bytes `0x120..0x253`, excluding `0x154/0x155`,
+and the caller compares that result with the word at `0x254`; it also
+requires the checksum/companion word at `0x170` not both to be zero.
+Logical reads use the cache at `0x11ea18` through `0x2ca3ec`.
+
+The acquired PMM's base record is valid for this check: its body at file
+`0x10026` computes and stores `0x77e2`. A passive cache snapshot at the
+failure has the same bytes throughout `0x120..0x253`, but stores `0x7b26`
+at `0x254`. A write watch proves that firmware first copies `0x77e2` at
+0.044949 seconds, then writes `0x7b66` at 0.200631 and `0x7b26` at
+0.208416, all through copy routine `0x30bc98`. Own sector scanner
+`0x2c9d40` invokes flash-copy routine `0x2eca08`: the initial body is read
+from MCU `0x3e0026`, then the checksum updates from `0x3e821e` and
+`0x3e866c`. They are existing journal records, not a new computation.
+`tools/noki8210_pmm_check.py` independently replays all 870 records through
+file `0x1f68a`; its entire 32 KiB result exactly matches the passive runtime
+cache snapshot. The archive's journal is therefore inconsistent with this
+firmware's checksum, while the storage read path reproduces it correctly.
+Preserve the original archive. Before selecting any derived base-record
+fixture, establish its provenance and which later product records it would
+omit; do not mistake a donor or edited success verdict for a storage fix.
+
+A diagnostic fixture retaining the unchanged acquired base record and
+erasing only its later low-record journal (`0x18026..0x1ffff` in the PMM
+tail) passes local validation. Other PMM sectors and all base-record fields,
+including identity and checksum, remain unchanged. It is an acquired
+earlier snapshot, not an established factory-default profile. With this
+fixture all nine readiness publishers execute, report `15` arrives, and
+physical Menu decodes as `0x19`. The current `nsm3hle` composition includes
+the laboratory SIM and radio peer; their separate acceptance contracts are
+below. None establishes native DSP completion.
+
+Generate that explicitly diagnostic persistent flash in an isolated run:
+
+```sh
+.venv/bin/python tools/noki8210_pmm_check.py \
+  'roms/noki8210/8210 virgin eeprom 003d0000.fls' \
+  --mcu roms/noki8210/8210_5.31ppm_c.fls \
+  --base-record-flash RUN/nvram/nsm3hle/flash
+```
+
+Run `nsm3hle` with the physical Menu fixture and that NVRAM directory.
+`nsm3hle` now composes SIMI and the removable laboratory card. On this
+labelled snapshot, the firmware activates the card, performs its own
+SELECT/STATUS/read conversation, reads all 50 EF_ADN records (`6f3a`), and
+reaches the phone security editor. `tools/noki8210_security_input.lua`
+presses physical digits `1..5` and Menu at 12 seconds; the own decoder logs
+`01..05` and `19`. The editor dismisses to a Menu/Names idle presentation,
+and the subsequent physical Menu press opens the Messages menu. This is
+interactive UI and SIM-read acceptance; phonebook writes, registration,
+calls and SMS require the separate scenario checks below.
+Retain the original-journal negative control and do not silently promote
+this fixture to the normal machine ROM.
+
+### SIM phonebook persistence
+
+On the same labelled base-record composition,
+`noki8210_phonebook_input.lua` navigates Names -> Add entry and enters
+`A / 123` with physical keys. The firmware issues absolute EF_ADN record-1
+UPDATE RECORD (`A0 DC 01 04 20`), receives `9000`, and displays “Saved to
+SIM card”. A fresh process running `noki8210_phonebook_read.lua` with the
+same NVRAM reads the contact through Search -> Detail: captured screens
+show `A` and `123`. No storage is seeded between these processes.
+`noki8210_phonebook_check.py WRITE_LOG READ_LOG SIM_NVRAM` requires the
+ordered physical save/APDU completion, cold record read, absence of writes
+in the readback process, and exact persisted `A/123` record with the other
+49 entries erased. Inspect UI captures separately; the checker does not
+claim to recognize screen text. Preserve the write log before the second
+process replaces `error.log`. Handset-local contacts remain untested.
+
+### Radio acquisition boundary
+
+The own ring dispatcher at `0x306fa6` selects the thirteen-entry
+`0x83..0x8f` table at `0x306fd4`. Type `8b` calls `0x2df484`, which posts
+to task 12 through `0x28845c`. Type `89` calls `0x2df210`; instructions
+`0x2df22e..0x2df238` correlate body bit 0 with the pending channel context.
+`noki8210_radio_contract.py` checks these own-ROM facts and the full table.
+Startup organically publishes a 160-byte type `56` candidate window.
+
+The declared `RADIO_NSM3` research contract selects request-correlated
+candidate acquisition and bit-0 assigned-channel confirmation. Release,
+handover and neighbour contracts remain unset pending observations. A
+65-second coherent run observes serving-cell selection, handset Location
+Updating Request (own capability octet `33`), acknowledgement of Location
+Updating Accept and Channel Release, writes to EF_LOCI LAI and status, and
+subsequent paging/BCCH reconfiguration. This is preliminary registration
+transport evidence is now independently checked by
+`noki8210_registration_check.py LOG SIM_NVRAM`: ordered own request with
+capability `33`, accept/release acknowledgements, EF_LOCI LAI update,
+deconfiguration/confirmation and post-release paging. Persisted EF_LOCI
+contains LAI `00f1100001` and status `00`. A cold process retaining that
+storage passes the same exchange and `noki8210_registration_input.lua`
+captures `DCT3 LAB` at both 24 and 44 seconds after physical unlock.
+Incoming calls, SMS, mobility and other bands remain unproved.
+
+### Outgoing call signaling
+
+`noki8210_outgoing_call_input.lua` physically unlocks, dials `1234567`,
+presses Send, then End. The own decoder emits Send/End `0e/0f`, the
+laboratory session receives exactly that number, and the UI shows Call 1
+with Options/Hold. The firmware organically configures traffic with
+`040002000271012fc10000010000000400000000`; physical End publishes
+`040000001117001a600000040000001400000001`. Its observed `14` release
+parameter is now declared in `RADIO_NSM3`.
+`noki8210_outgoing_call_check.py LOG` requires the ordered physical and
+CC/RR lifecycle, exact called number, assignment/connect/disconnect counts,
+own traffic/release packets, idle confirmation and return to paging.
+The final capture returns to DCT3 LAB. This validates signaling and UI,
+not speech or native DSP execution.
+
+### Incoming call signaling
+
+Seed the isolated run's configuration directory with
+`fixtures/radio_incoming_call_answered/nsm3hle.cfg` and run
+`noki8210_incoming_call_input.lua`. The external network queues one call;
+no handset message is injected. The ringing capture presents `5551234`,
+physical Send answers, and physical End restores DCT3 LAB idle.
+Own Call Confirmed is `8308150101` (five bytes); do not inherit the
+sibling's eleven-byte expectation. `noki8210_incoming_call_check.py LOG`
+requires paging/contention, cipher/MM information, SETUP/Alerting,
+traffic assignment, physical Answer/End and full CC/RR release followed by
+idle confirmation and paging. Exactly one SETUP, CONNECT and DISCONNECT
+must occur. Speech and native DSP execution remain unproved.
+
+### Incoming SMS
+
+Copy `fixtures/radio_incoming_sms/nsm3hle.cfg` into the isolated run's
+configuration directory and run `noki8210_incoming_sms_input.lua`.
+The laboratory network delivers one ordinary message; the phone shows
+“1 message received”, and physical Read opens `hello`.
+`noki8210_incoming_sms_check.py LOG SIM_NVRAM` requires paging, the own
+`0080ffffffffffffffff0000` cipher-control publication, SAPI-3 establishment,
+segmented CP-DATA, CP/RP acknowledgements, RR release, physical reading,
+and exact durable read-status/content. Exactly two EF_SMS record-1 writes
+occur: delivery and marking read. Screen captures are independently
+reviewed, not recognized by the trace checker.
+
+### Outgoing SMS
+
+`noki8210_outgoing_sms_input.lua` navigates Messages -> Write messages,
+physically enters `A` and `5551234`, and confirms Send. The success capture
+shows “Message sent”; the composer subsequently clears. The network
+decodes the exact GSM 7-bit SMS-SUBMIT, receives one accepted submission,
+and closes CP/RP and RR before returning to paging.
+`noki8210_outgoing_sms_check.py LOG` uses shared GSM transaction checks,
+but requires the own physical-key log. TP-MR is allowed to advance across
+successive submissions; destination, alphabet and exact `A` payload remain
+pinned. Two consecutive preserved-storage runs pass with TP-MR `01/02`.
+### Application and isolated acceptance
+
+`noki8210_calculator_input.lua` physically navigates Menu 7, selects
+Calculator and computes `12 + 3 = 15`. The result frame is pinned in
+`run_noki8210_acceptance.py`; no firmware arithmetic or UI state is edited.
+This is a representative app check, not exhaustive coverage of all apps.
+
+Run any focused scenario from a new directory:
+
+```sh
+.venv/bin/python tools/run_noki8210_acceptance.py RUN \
+  --scenario registration
+```
+
+Available scenarios are `registration`, `incoming-call`, `outgoing-call`,
+`incoming-sms`, `outgoing-sms`, `calculator` and `phonebook`. Each seeds
+only the unchanged acquired base-record snapshot into a fresh persistent
+flash image. Incoming events use copied external network configuration;
+all UI interaction uses physical key fields. `phonebook` executes save
+and cold readback as separate processes sharing only persistent storage.
+Successful checks produce `acceptance.json`, console/log evidence and
+captures. Existing directories are refused. The normal machine remains
+unchanged; native DSP completion and speech are explicitly not claimed.
+
+The same scenarios are standard gates: `make verify-8210-registration
+RUN_DIR=/tmp/8210-registration`, with corresponding `incoming-call`,
+`outgoing-call`, `incoming-sms`, `outgoing-sms`, `calculator` and `phonebook`
+suffixes. Use a distinct, nonexistent `RUN_DIR` for every gate. The runner
+pins both acquired input hashes before creating storage; wrong-product inputs
+are rejected rather than silently provisioned. Incoming configuration is
+copied into the run, never modified in the tracked fixtures.
+
+The shared observer retains staged-DSP/self-test, decoded-key and readiness
+acceptance records only. PMM copy/cache dump, column-mask and input-lifecycle
+investigation probes are retired. The journal replay and checksum tools/tests
+retain their conclusions: the original journal is a failing negative control,
+and omitting its later low records is a diagnostic snapshot fixture, not an
+authentic factory-default reconstruction.
+
+Readiness observations (`8210_startup_post`, `8210_readiness_input` and
+`8210_readiness_flags`) are passive. Neither report `15`, checklist bytes nor
+task-resume results are injected by acceptance.
 
 ## Inputs and hardware
 

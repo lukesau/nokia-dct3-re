@@ -36,6 +36,11 @@ COMMON_CHECKPOINTS_AFTER_ACCEPT = (
 )
 
 PROFILE_CHECKPOINTS = {
+    "nhm3": (
+        ("Location Updating Accept", re.compile(
+            r"RX enqueue type=80 payload=34 .*data=80[0-9a-f]{18}"
+            r"030045050200f11000011708")),
+    ),
     "nse8": (
         ("Location Updating Accept", re.compile(
             r"radio_mm_parse: phase=return .*result=00000048 ")),
@@ -62,25 +67,34 @@ PROFILE_CHECKPOINTS = {
             r"RX enqueue type=80 payload=34 .*data=80[0-9a-f]{18}"
             r"030045050200f11000011708")),
     ),
+    "nsm2": (
+        ("Location Updating Accept", re.compile(
+            r"RX enqueue type=80 payload=34 .*data=80[0-9a-f]{18}"
+            r"030045050200f11000011708")),
+    ),
 }
 
 PROFILE_ARFCN = {
+    "nhm3": "0013",
     "nse8": "0001",
     "nhm5": "0058",
     "nhm6": "0337",
     "nhm2": "0001",
     "nsm5": "0056",
+    "nsm2": "0001",
 }
 
 PROFILE_DECONFIG_PREFIX = {
+    "nhm3": "040000",
     "nse8": "041202",
-    "nhm5": "041202",
+    "nhm5": "040000",
     # NHM-6's ordinary registration release publishes the same zeroed
     # header observed in its candidate/serving channel-change family.  The
-    # older 0x041202 expectation was borrowed from NHM-5 packet grammar.
+    # older 0x041202 expectation belongs to the NSE-8 packet grammar.
     "nhm6": "040000",
     "nhm2": "041202",
     "nsm5": "040000",
+    "nsm2": "041202",
 }
 
 COMMON_POST_ACCEPT_CHECKPOINTS = (
@@ -93,7 +107,7 @@ def verify(text: str, profile: str = "nse8", preserved: bool = False) -> None:
     if profile not in PROFILE_CHECKPOINTS:
         raise ValueError(f"unknown registration profile: {profile}")
 
-    if preserved and profile == "nhm2":
+    if preserved and profile in ("nhm2", "nhm3"):
         after_accept = tuple(
             checkpoint for checkpoint in COMMON_CHECKPOINTS_AFTER_ACCEPT
             if not checkpoint[0].startswith("EF_LOCI"))
@@ -135,11 +149,19 @@ def verify(text: str, profile: str = "nse8", preserved: bool = False) -> None:
             text):
         raise ValueError(
             "preserved cold boot did not use the persisted LAI/TMSI location update")
+    if preserved and profile == "nhm3":
+        accept = text.find("LAPDm Location Updating Accept acknowledged nr=1")
+        release_end = text.find("radio_phase=release_channel_change", accept)
+        interval = text[accept:release_end]
+        if "sim_device: update-binary fid=6f7e offset=4 length=5" not in interval:
+            raise ValueError("NHM-3 did not refresh persisted EF_LOCI before deconfiguration")
+        if "sim_device: update-binary fid=6f7e offset=10" in text:
+            raise ValueError("NHM-3 redundantly rewrote persisted location status")
     if preserved and profile == "nhm2" and re.search(
             r"sim_device: update-binary fid=6f7e", text):
-        raise ValueError("NHM-2 redundantly mutated persisted EF_LOCI")
+        raise ValueError(f"{profile.upper()} redundantly mutated persisted EF_LOCI")
 
-    if profile in ("nhm5", "nhm6", "nhm2", "nsm5"):
+    if profile in ("nhm3", "nhm5", "nhm6", "nhm2", "nsm5", "nsm2"):
         assigned_confirmation = re.search(
             r"radio_phase=assigned_channel_change[^\n]*"
             r"(?:\n.*)*?RX enqueue type=89 payload=8 .*data=0100000000000000",
