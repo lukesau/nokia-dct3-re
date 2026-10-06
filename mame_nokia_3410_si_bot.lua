@@ -4,6 +4,7 @@
 --     every call of the handler si_handler_25c974;
 --   "SIPER <ms>", "SISND <id>", "SIVIB <on>" the tick period, sounds and
 --     vibrator the game asks the framework for;
+--   "SIKEYS keys=<key bytes>" the keys when the game polls them in play;
 --   "SIBOT <key> down|up t=<s>" each key the autopilot presses and lets go.
 -- Runs on top of the input exerciser, which presses KEYS to reach the game;
 -- needs -debug -debugger none -log.
@@ -14,9 +15,9 @@
 --      SI_CONTINUE    1: on the continue screen, press 1 to go on
 --      SI_IDLE        1: never move, only fire
 --      SI_IMMORTAL    1: whenever a life is lost in play, write the lives back
---                     to 3 and log "SIPOKE lives 3", for a replay to do the
---                     same at the same point: a run then reaches the later
---                     chapters
+--                     to 3 as the handler is next entered and log "SIPOKE
+--                     lives 3", for a replay to do the same at the same
+--                     point: a run then reaches the later chapters
 --
 -- The autopilot steers the ship toward the row of the nearest enemy ahead
 -- of it by holding 8 (up) or 0 (down) and fires with 1; the keys are held
@@ -33,6 +34,20 @@ local space = cpu.spaces["program"]
 -- keys it holds every tick (0x3b29d0, a byte per key code from 0x12d298):
 -- "keys=" is those of codes 0..11, four to a word.
 dbg:bpset(0x25c974, "1", 'logerror "SIEV %x %x %x c=%d seed=%x keys=%08x%08x%08x\\n",r0,r1,r2,totalcycles,maincpu.pd@12ebac,maincpu.pd@12d298,maincpu.pd@12d29c,maincpu.pd@12d2a0; g')
+-- Immortal: at the handler's second instruction (MAME keeps one breakpoint
+-- an address), never in the middle of a call, which can span a video frame,
+-- so that a replay can make the same write before the same event.
+if os.getenv("SI_IMMORTAL") == "1" then
+	dbg:bpset(0x25c976, "(b@11dda0 == 0xa || b@11dda0 == 0x1e) && b@11ddae < 3 && b@11ddae != 0",
+		'b@11ddae = 3; logerror "SIPOKE lives 3\\n"; g')
+end
+-- SI_LOG_SPAWN=1: every object made (0x2596dc): type, mode, x, y.
+if os.getenv("SI_LOG_SPAWN") == "1" then
+	dbg:bpset(0x2596dc, "1", 'logerror "SISPAWN %x %x %x %x\\n",r0,r1,r2,r3; g')
+end
+-- The keys as the game polls them in play (0x25a110), which the keyboard
+-- interrupt may have changed since the handler was entered.
+dbg:bpset(0x25a110, "1", 'logerror "SIKEYS keys=%08x%08x%08x\\n",maincpu.pd@12d298,maincpu.pd@12d29c,maincpu.pd@12d2a0; g')
 dbg:bpset(0x3b2546, "1", 'logerror "SIPER %d c=%d\\n",r0,totalcycles; g')
 dbg:bpset(0x3b2510, "1", 'logerror "SISND %x c=%d\\n",r0,totalcycles; g')
 dbg:bpset(0x3b25d4, "1", 'logerror "SIVIB %x c=%d\\n",r0,totalcycles; g')
@@ -88,15 +103,19 @@ local function tap(k, n)
 end
 
 local start, frame, pausing = nil, 0, nil
+local last_chapter = nil
 
 emu.register_frame_done(function()
 	for k, n in pairs(taps) do
 		if n <= 1 then up(k); taps[k] = nil else taps[k] = n - 1 end
 	end
 	local phase = rb(STATE + 0x558)
-	if immortal and (phase == 10 or phase == 0x1e) and rb(STATE + 0x566) < 3 and rb(STATE + 0x566) > 0 then
-		space:write_u8(STATE + 0x566, 3)
-		machine:logerror("SIPOKE lives 3\n")
+	if os.getenv("SI_LOG_SPAWN") == "1" and rb(STATE + 0x3e) ~= last_chapter then
+		last_chapter = rb(STATE + 0x3e)
+		local t = space:read_u32(0x11d7a0 + 8)
+		local bytes = {}
+		for i = 0, 19 do bytes[#bytes + 1] = string.format("%02x", rb(t + 4 * 20 + i)) end
+		machine:logerror("SITEMPLATE4 ch=" .. last_chapter .. " " .. table.concat(bytes, " ") .. "\n")
 	end
 	if phase ~= 10 and phase ~= 0x14 and phase ~= 0x1e then
 		start = nil
