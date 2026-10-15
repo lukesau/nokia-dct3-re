@@ -81,5 +81,7 @@ python tools/dct3_5110_game_harness.py --game snake --level 4 --ms 6000 \
 sheet. Snake steers, eats and dies against the wall. Memory deals and flips
 cards. Logic places symbols, checks a row with `*` and plays tone `0x10`.
 
-Not yet covered: the framework's menus, game-over and top-score screens, NV
-saving of records, and Memory and Logic win conditions.
+The menus, the Level, Instructions and Top score pages and the game-over
+note are drawn by `tools/dct3_5110_menu_harness.py`; see
+`games_menus_5110.md`. Not yet covered: NV saving of records, and Memory and
+Logic win conditions.
