@@ -5,7 +5,8 @@ More games; Select game lists Snake II, Space Impact, Bumper, Bantumi and
 Link5. This document maps how they are reached and dispatched, as the
 starting point for one map per game. It is the 3410 counterpart of
 `games_applications_3310.md`; `games_survey_3410.md` compares the two phones'
-games statically. Snake II has its own map, `games_snake2_3410.md`.
+games statically. Snake II has its own map, `games_snake2_3410.md`, as do
+Space Impact, `games_si_3410.md`, and Bantumi, `games_bantumi_3410.md`.
 
 Addresses apply to one image only: NHM-2 v5.46 with PPM E and the virgin PMM,
 `0x370000` bytes at flash base `0x200000` (`make normalize-3410`).
