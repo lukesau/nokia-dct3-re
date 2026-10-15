@@ -25,7 +25,7 @@ from unicorn import (UC_ARCH_ARM, UC_HOOK_BLOCK, UC_HOOK_MEM_FETCH_UNMAPPED,
                      UC_MODE_BIG_ENDIAN, UC_MODE_THUMB, Uc, UcError)
 from unicorn.arm_const import (UC_ARM_REG_LR, UC_ARM_REG_PC, UC_ARM_REG_R0,
                                UC_ARM_REG_R1, UC_ARM_REG_R2, UC_ARM_REG_R3,
-                               UC_ARM_REG_SP)
+                               UC_ARM_REG_SP, UC_CPU_ARM_TI925T)
 
 FLASH = 0x200000
 RAM_SIZE = 0x200000            # MAD2 I/O at 0x20000, RAM at 0x100000
@@ -63,10 +63,14 @@ class Stop(Exception):
 
 
 class Harness:
-    def __init__(self, image, verbose=False):
+    def __init__(self, image, verbose=False, native=None):
         self.img = open(image, "rb").read()
         self.verbose = verbose
+        self.native = NATIVE if native is None else native
         mu = self.mu = Uc(UC_ARCH_ARM, UC_MODE_THUMB | UC_MODE_BIG_ENDIAN)
+        # The MCU is an ARM7TDMI (ARMv4T). Unicorn's default core interworks
+        # on pop {pc}, which turns the firmware's mov lr, pc returns into ARM.
+        mu.ctl_set_cpu_model(UC_CPU_ARM_TI925T)
         mu.mem_map(FLASH, (len(self.img) + 0xFFF) & ~0xFFF)
         mu.mem_write(FLASH, self.img)
         mu.mem_map(0, RAM_SIZE)
@@ -154,7 +158,7 @@ class Harness:
                 print(f"  {name}({', '.join(hex(a) for a in args)}) -> {value}")
             self._return(value)
             return
-        for lo, hi, _ in NATIVE:
+        for lo, hi, _ in self.native:
             if lo <= addr < hi:
                 return
         lr = self.reg(UC_ARM_REG_LR)
