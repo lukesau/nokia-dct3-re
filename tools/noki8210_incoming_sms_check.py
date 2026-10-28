@@ -1,12 +1,14 @@
 """Check NSM-3 incoming SMS closure, physical reading and persisted content."""
 import argparse
+import hashlib
 from pathlib import Path
 import re
 import sys
+from PIL import Image
 
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from tools.radio_call_lifecycle_common import require_ordered
+from tools.radio_call_lifecycle_common import require_ordered, require_count
 from tools.radio_incoming_sms_trace_check import (
     COMMON_CHECKPOINTS, SMS_NVRAM_OFFSET, STORED_RECORD_PREFIX,
 )
@@ -18,7 +20,7 @@ def verify(text, storage):
     checkpoints = COMMON_CHECKPOINTS[:5] + ((
         'own DSP cipher control', re.compile(
             r'TX packet type=14 payload=12 .*data=0080ffffffffffffffff0000'),
-    ),) + COMMON_CHECKPOINTS[5:] + (
+    ),) + COMMON_CHECKPOINTS[6:] + (
         ('CP ACK', re.compile(r'GSM service uplink sapi=3 pd=09 message=04 length=2')),
         ('RP ACK', re.compile(r'GSM service uplink sapi=3 pd=09 message=01 length=5 data=8901020240')),
         ('network CP ACK', re.compile(r'GSM service downlink kind=17 sapi=3 pd=09 message=04 length=2')),
@@ -27,6 +29,12 @@ def verify(text, storage):
         ('read key', re.compile(r'8210_keypad_decoded: key=19\b')),
     )
     require_ordered(text, checkpoints, '8210 incoming SMS')
+    # MM Information and Cipher Mode Complete are both mandatory before
+    # SAPI 3 establishment, without imposing their incidental trace order.
+    require_ordered(text, (COMMON_CHECKPOINTS[4], COMMON_CHECKPOINTS[5],
+                          COMMON_CHECKPOINTS[7]), '8210 SMS MM information')
+    for name, pattern in COMMON_CHECKPOINTS[4:7]:
+        require_count(text, pattern, 1, f'exactly one {name}')
     if text.count('PCH IMSI page transmitted channel=60') != 1:
         raise ValueError('expected exactly one SMS page')
     if text.count('sim_device: update fid=6f3c record=1 length=176') != 2:
@@ -36,10 +44,19 @@ def verify(text, storage):
         raise ValueError('missing persistent read hello SMS')
 
 
+def verify_frame(path):
+    with Image.open(path) as source:
+        if source.size != (84, 48) or hashlib.sha256(
+                source.convert('L').crop((0, 0, 84, 24)).tobytes()).hexdigest() != (
+                '426de6fc34ebd2112536e8f3245696c996f624abf6d6569ead2c8c0651b49635'):
+            raise ValueError('missing reviewed hello message body')
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('log', type=Path)
     parser.add_argument('storage', type=Path)
+    parser.add_argument('--frame', type=Path)
     args = parser.parse_args()
     try:
         with args.log.open(errors='replace') as stream:
@@ -48,6 +65,9 @@ if __name__ == '__main__':
                            '8210_sms_physical' in line or '8210_keypad_decoded' in line or
                            '[LUA ERROR]' in line)
         verify(text, args.storage.read_bytes())
+        if args.frame:
+            verify_frame(args.frame)
     except (OSError, ValueError) as error:
         parser.exit(1, f'8210 incoming SMS FAIL: {error}\n')
-    print('8210 incoming SMS transport, physical read and persistent hello PASS; inspect UI separately')
+    print('8210 incoming SMS transport, physical read and persistent hello PASS; ' +
+          ('reviewed body pixels verified' if args.frame else 'inspect UI separately'))

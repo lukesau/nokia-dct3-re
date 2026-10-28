@@ -10,16 +10,35 @@ differences belong in typed product contracts and machine configurations. The
 driver must not select behavior from firmware PCs, filenames, driver names or
 environment variables.
 
+The board source is divided by responsibility:
+
+- `driver/nokia_dct3.cpp`: runtime board wiring, ordinary handset machine
+  configurations, and the single ROM/system catalogue;
+- `driver/nokia_dct3_config.h`: typed product contracts, immutable product
+  data and shared register constants;
+- `driver/nokia_dct3_state.h`: the shared board-state declaration;
+- `driver/nokia_dct3_research.cpp` and `.h`: explicit compatibility and
+  staged-backend configurations, research input compositions, laboratory
+  PCM clocks and instruction observers.
+
+Research machines remain registered in the main catalogue because MAME's ROM
+tables have translation-unit-local linkage. This keeps ROM aliases, BIOS
+selection and storage namespaces authoritative in one place rather than
+duplicating product declarations. Their separate implementation is not a
+capability promotion: donor-mask compatibility, laboratory clocks and
+unvalidated bus dialects retain their explicit research status. Device models
+and ordinary board callbacks are shared, not forked for these machines.
+
 | Layer | Intended owner | Current implementation |
 | --- | --- | --- |
 | ARM execution | generic MAME ARM7 core | present |
 | MAD2 system logic | Nokia MAD2 devices: CTSI, PUP, KBGPIO, UIF, GENSIO, MBUS, SIMI and DSPIF | extracted partial hardware |
 | power management | `nokia_ccont_device` | extracted partial hardware |
 | audio/RF codec | `nokia_cobba_device` | serial-control capture seam and partial PCM/audio model |
-| persistent storage | generic flash and I2C EEPROM devices, with a temporary B3 adapter where the generic flash core lacks partition behavior | present, partly transitional |
+| persistent storage | native flash and I2C EEPROM devices; ST owns command/protection/deferred-operation and persistent OTP engines, literal CFI and explicit identity/electrical limits in `flash_storage.md` | present, partially validated |
 | display | geometry-configured PCD8544-family device | present |
 | SIM | SIMI controller plus replaceable card-side protocol device | present |
-| DSP execution | clean-room TMS320C54x core and product-correct internal ROMs | selected by the 5110; other handsets retain HLE pending their own ROMs and integration |
+| DSP execution | clean-room TMS320C54x core and product-correct internal ROMs | native 5110 plus explicitly scoped cross-product ROM4 compatibility profiles; fitted-mask identity remains product-specific, with HLE/silent alternatives retained |
 | DSP backend contract | `nokia_dsp_backend_interface` | present; transport-facing substitution seam |
 | DSP compatibility backend | `nokia_dsp_hle_device` | present and explicitly provisional implementation of that seam |
 | GSM-FR codec | `util::gsm_fr_codec` and bundled libgsm | generic utility, independently built and linked by MAME; explicit predictor snapshots |
@@ -28,6 +47,14 @@ environment variables.
 Device boundaries follow independently stateful hardware interfaces, not
 package count. MAD2 is one physical ASIC, but retaining its internal peripheral
 blocks as devices keeps their contracts independently testable and reusable.
+
+The native/staged/HLE DSP backends, MAD2 PCM and MBUS terminal expose attachment
+setters rather than assuming parent sibling names. Board configuration binds
+their transport, codec, power, peer and ROM dependencies. Their own internal
+CPU child remains local. The native BSP fixture deliberately renames all five
+external dependencies to exercise this boundary. Laboratory network-peer
+internal attachments retain their existing composition; this is not a mandate
+to replace every finder with a callback or build a generic dependency framework.
 
 ## DSP substitution seam
 
@@ -52,7 +79,7 @@ retains a separately typed optional finder only while applying HLE-specific
 product contracts. Runtime transport, reset and tone paths use the abstract
 backend.
 
-The 5110 real-DSP backend implements that endpoint. Full product coverage still
+The native DSP backend implements that endpoint. Full product coverage still
 requires the following contracts to be validated or completed:
 
 1. TMS320C54x program, data and I/O address spaces;
@@ -84,35 +111,32 @@ profile behavior remain outside the CPU directory. The 5110 machine removes
 `dsp_hle` and instantiates `NOKIA_DSP_C54X` with its own ROM4 images; other
 handsets do not inherit that ROM or execution contract.
 
-The first semantic tranche covers the generic encodings exercised at the
-transform boundary for CALL/RET, RPT/RPTB, immediate auxiliary-register loads,
-auxiliary-register moves, ordinary indirect pre/post addressing, accumulator
-loads/logical operations and low-word stores. Stack growth and block-repeat
-termination follow the TI CPU guide. Focused CPU conformance tests and the
-unassisted 5110 handset gates cover different levels of this implementation.
+### CPU validation ownership
 
-`make check-c54x-core` executes distributable synthetic programs on the MAME
-CPU device itself. It currently checks the downward-growing CALL/RET stack,
-`RPT`'s `k+1` count, immediate MMR decoding, and an `RPTB` whose final
-instruction is a two-word CALL. The first run rejected an incorrect compact
-AR-index interpretation of MMR code `0x12`; the corrected decoder treats
-`0x10..0x17` as AR0..AR7. This executable gate, not source-token inspection,
-is the acceptance boundary for subsequent opcode families.
+The CPU supports independently configured atomic/staged execution and explicit
+extended-program capability. Product wiring, internal-ROM provenance and bus
+profiles remain backend responsibilities; enabling a CPU feature does not
+qualify a new handset.
 
-The gate also executes the final six-iteration ROM4 challenge-transform loop
-from independently observed workspace operands. Its six output words reproduce
-`1cee 7cb6 d2a3 b986 4c57 e65e` exactly. This validates SXM-controlled
-16-to-40-bit operand extension, NOT/OR/XOR behavior, descending auxiliary
-pointers, low-word stores and the RPTB/CALL interaction in the MAME core; it
-does not yet claim that the preceding transform routines execute.
+[C54x execution contracts](c54x_execution_contracts.md) owns ISA admission,
+arithmetic, pipeline/dependency semantics, synthetic fixtures and the qualified
+default-suite checkpoint. [ROM4 DSP loader](rom4_dsp_loader.md) owns upload,
+bootstrap, cold-entry masks and original-ROM routine/bus evidence.
+[5510 bring-up](5510_bringup.md) owns the separate MU4 application boundary.
 
-`make check-c54x-rom4-execute` retains the private transform-entry fixture as a
-focused regression, not the full-phone frontier. `make check-c54x-rom4-coherent`
-checks the 5110's organic DSP service completion, and `make verify-5110-menu`
-checks an unassisted boot through a physical Menu key to an exact Phone book
-frame. `make verify-5110-save-state` repeats that UI path after restoring the
-running DSP composition. These gates establish useful ROM4 execution, not
-complete RF acquisition or speech behavior.
+Keep these acceptance levels distinct:
+
+| Acceptance | Scope |
+| --- | --- |
+| `check-c54x-core` and isolated CPU profiles | Executed ISA/composition contracts, not handset or physical timing proof |
+| `check-c54x-rom4-coherent` | Organic 5110 DSP service completion |
+| `verify-5110-menu` and `verify-5110-save-state` | Unassisted graphical/input and restoration behavior |
+| Staged/codec laboratory profiles | Only their separately documented clocks, media and replay contracts |
+
+The default 5110 frontend remains atomic; explicitly selected staged profiles
+do not silently promote fitted bus timing, native RF acquisition or speech.
+Research mask substitutions and opcode reachability counts are not hardware
+reset specifications or CPU correctness oracles.
 
 ## DSP ROM policy
 
@@ -152,13 +176,22 @@ machine compositions.
 
 The handset model ends at an explicit DSP/radio attachment. The deterministic
 GSM network is useful for regression and interactive emulation, but it is not a
-simulation of the analogue RF board. A future external GSM or SIP bridge should
-attach beyond the network/call adapter and must not add telephony policy to
-MAD2, DSPIF or COBBA.
+simulation of the analogue RF board. The optional standalone
+[SIP bridge](external_call_bridge.md#sip-call-bridge) attaches beyond the host
+call adapter; physical 3210 incoming/outgoing HLE gates verify its signaling
+and media transport, not native DSP speech. SIP policy and wall-clock media
+remain outside MAD2, DSPIF and COBBA. An external GSM backend must preserve
+the same boundary.
 
 ## Upstream series
 
-The current overlay contains eight MAME patches plus local CPU, utility and Nokia
+The generic ARM7 patch `mame-arm7-pc-export.patch` refreshes the named
+`ARM7_PC` debugger entry through the same export path as `STATE_GENPC`.
+Without it, Lua can observe stale cached PC data after load despite restored
+architectural registers. `check-c54x-rom4-pcm-restore` checks PC/GENPC agreement
+and active native audio replay; this correction contains no Nokia logic.
+
+The current overlay contains an ordered MAME patch stack plus local CPU, utility and Nokia
 sources. `make check-mame-patches` replays the patches in Makefile order against
 the pinned MAME commit in a temporary Git index. It does not inspect the dirty
 overlay worktree or prove that the resulting source builds. Run it before
@@ -167,7 +200,7 @@ and CPU gates after any behavior change.
 
 The likely reviewable sequence is:
 
-1. generic flash and PCD8544-family corrections, plus GSM-FR utility integration;
+1. generic flash, PCD8544-family and host microphone-input corrections, plus GSM-FR utility integration;
 2. independently useful Nokia hardware devices;
 3. the Nokia DCT3 family driver with explicit HLE status;
 4. the clean-room, MAME-compatible TMS320C54x CPU core now exercised by 5110;
@@ -179,9 +212,27 @@ checkers remain in this repository. Upstream source keeps concise hardware
 comments, citations, ROM metadata, save-state support and user-visible
 limitations.
 
+The board firmware-trace quarantine has an explicit build boundary. The
+standalone source header defaults `DCT3_RESEARCH_TRACES` to zero; the repository
+overlay enables it by default for research acceptance. `make build-tracefree`
+and `make check-tracefree` select zero. The latter retains the existing exact
+v6.00/v5.01 menu oracles and checks three known probe strings are absent from
+the linked executable. RAM writes, native flash routing and hardware logs
+remain outside the guard; there are no production stubs that emulate firmware
+trace results. The positive research build must contain the same canaries.
+
+Both modes share one overlay/object tree: never build or run them concurrently.
+The generated configuration is rewritten only when its content changes, so
+mode changes rebuild the board through ordinary header dependencies. A normal
+`make build` restores the repository research mode. Trace-free is not a claim
+that the research machine catalogue, private benches or all upstream packaging
+have been removed; those still belong to the separate transplant series.
+
 Before submitting that series:
 
-- Retire `nokia_dct3_trace.inc` from the production source list. Its current
+- Retire `nokia_dct3_trace.inc` from the proposed distributable source series.
+  The trace-free build gate proves it can be excluded, not that the export is
+  already packaged. Its current
   firmware-PC probes are observation-only but are research instrumentation,
   not a MAME hardware contract; preserve their accepted conclusions in the
   subsystem documents and retain focused checks here.
@@ -222,49 +273,8 @@ so its real-DSP path is experimental for full phone operation. HLE remains the
 compatibility backend for the other handsets until their own ROM and boundary
 gates justify promotion.
 
-Before full-phone promotion, the new CPU core must pass smaller deterministic
-ROM4 gates for the instructions already known to be load-bearing: OVLY-aware
-MVDP, RPT/RPTB over multiword CALL, F0B0 status operations, repeat-mode
-immediate-address updates, 40-bit shifts/rotates and shifted cross-accumulator
-logical operations. These tests should be derived from TI semantics and small
-instruction fixtures; the external no-assist phone run supplies expected
-boundary results but no implementation source.
-
-An observation-only 30-million-MCU-instruction run through interactive ROM4
-idle executed 628 distinct 16-bit opcode words spanning 112 high-byte groups;
-the sorted opcode-set SHA-256 is
-`63ae45c872ccea39112898bfde7f5926acd675701675a860d765a66a35815d34`.
-This is a reference trace, not a coverage claim for the current core.
-`tools/c54x_opcode_coverage.py` preserves the opcode-set baseline; the
-unassisted handset gates establish current execution reachability.
-
-An earlier 12-second clean MAME NSE-1 checkpoint reached 437 distinct opcode words
-across 80 high-byte groups in twelve seconds (sorted-set SHA-256
-`523cd6019736d1fb7bb09cae8a0f96124a97a768f00e40df7c3933be6ba7c7bd`).
-The original 191-word count difference was a reachability delta rather than a
-CPU correctness failure. The earlier reference exercised the receiver loop at
-`0x3238` because its processor was seeded with an inadmissible cross-silicon
-`IMR=0x52fd` snapshot. Local static and runtime evidence now derives only the
-needed ROM4 cold-entry bit: firmware ORs its masks into retained IMR state,
-INT0 vectors to the receiver, INT3 is an empty fast-return handler, and setting
-only bit 0 produces terminal `0x035f` plus organic RF reads. The Nokia backend
-therefore configures `IMR=0x0001` at cold entry while subsequent resets retain
-firmware state; no other imported mask bits are used.
-
-Differential execution did identify one independent core defect in this path:
-the block-repeat engine failed to publish and retire `ST1.BRAF`. Synchronising
-that architectural flag makes the post-loader scheduler status agree with the
-reference and is covered by the core conformance gate.
-
-A disposable mask-substitution run confirms causality rather than provenance:
-`0x52fd` lets the corrected core reach the RF receive loop and exposes `EDxx`
-(`LD #k5, ASM`) as the next instruction family. That generic family is now
-implemented and unit-tested. No mask substitution remains in source; the run
-does not establish a ROM4 power-on value.
-
-That diagnostic reachability was also used to close the newly exposed generic
-CPU surface. `RPTBD`, class-7 MPY/MAC, class-14 parallel store/MAC, `SQDST`,
-delayed ANEQ and `NEG` now have focused conformance fixtures. With those
-instructions present, the disposable run executes 26,944 RF sample reads and
-returns to the scheduler without an illegal opcode, but produces no RF tuning
-pair. The unassisted composition remains the authority for supported behavior.
+Before promotion, require the current qualified CPU checkpoint and the affected
+handset gates, not a historical list of initially missing instruction families.
+The loader contract retains the rejected cross-silicon IMR substitution and
+the evidence for the product-specific cold-entry bit. Do not restore an imported
+mask to increase opcode reachability or treat reachability as silicon evidence.

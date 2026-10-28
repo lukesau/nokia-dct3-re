@@ -1,0 +1,328 @@
+"""Own-PMM NSB-6 real SIP lifecycles and explicitly qualified HLE media."""
+import argparse
+import json
+import hashlib
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import sys
+import xml.etree.ElementTree as ET
+
+if __package__ in (None, ''):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from tools.run_noki8xxx_supplementary import PROFILES, verify_inputs
+from tools.run_noki8890_host_sms import check_output
+from tools.noki8890_staged_check import verify as verify_stage
+from tools.noki8890_incoming_call_check import host_setup_pattern
+from tools.radio_call_lifecycle_common import require_ordered, RELEASE_CONFIRMATION, IDLE_PCH
+from PIL import Image
+
+FRAMES = {
+    '8890_sip_registered_idle.png': '46520fc623a6b562b2aee5f1c59e6943d4a5c1798eff4064091c38e7b3a285de',
+    '8890_sip_missed_call.png': 'e367f48115cd4ba19751cb3e813ac7873d45157552b943a97667e5f9be101e8f',
+    '8890_sip_after_cancel.png': '46520fc623a6b562b2aee5f1c59e6943d4a5c1798eff4064091c38e7b3a285de',
+}
+
+
+def check_frames(directory):
+    for name, expected in FRAMES.items():
+        with Image.open(directory / name) as source:
+            # The top-row clock advances; preserve notification, softkeys and idle content.
+            digest = hashlib.sha256(source.convert('L').crop((0, 8, 84, 48)).tobytes()).hexdigest()
+            if source.size != (84, 48) or digest != expected:
+                raise ValueError('missing reviewed SIP cleanup frame: ' + name)
+
+
+def check_product_result(run, restore_idle=False, *, pcs1900=False):
+    text = (run / 'error.log').read_text(errors='replace')
+    check_output(text)
+    check_output((run / 'console.log').read_text(errors='replace'))
+    verify_stage(text, runtime=True, selftest=True)
+    if restore_idle:
+        from tools.noki8890_state_check import verify as verify_state
+        verify_state(text, sip_cancel=True)
+        restored = text.find('state_roundtrip: result=pass scenario=8890_idle')
+        paging = text.find('gsm_call_adapter: incoming state id=1 epoch=')
+        if restored < 0 or paging <= restored:
+            raise ValueError('incoming SIP call did not follow exact idle restoration')
+        if json.loads((run / 'sip-result.json').read_text()).get('epoch') != 2:
+            raise ValueError('idle restore did not establish a fresh host epoch')
+    carrier = 600 if pcs1900 else 60
+    if not re.search(rf'gsm_call_adapter: network registered=1 arfcn={carrier}\b', text):
+        raise ValueError('host registration lacks own configured carrier')
+    if len(host_setup_pattern('5551234').findall(text)) != 1:
+        raise ValueError('missing one own SETUP for the real SIP caller')
+    storage = (run / 'nvram/nsb6hle/sim_card').read_bytes()
+    if len(storage) < 1611 or storage[1604:1609] != bytes.fromhex('00f1100001') or storage[1610] != 0:
+        raise ValueError('persisted SIM location is not laboratory-registered')
+    exit_at = text.find('8890_sip_cancel: physical Exit')
+    if exit_at < 0 or not re.search(r'8890_keypad_decoded: key=1a\b', text[exit_at:]):
+        raise ValueError('missed-call notification was not dismissed by decoded physical Exit')
+    check_frames(run / 'snap')
+
+
+def check_outgoing_result(run, *, pcs1900=False):
+    text = (run / 'error.log').read_text(errors='replace')
+    check_output(text)
+    check_output((run / 'console.log').read_text(errors='replace'))
+    verify_stage(text, runtime=True, selftest=True)
+    carrier = 600 if pcs1900 else 60
+    if not re.search(rf'gsm_call_adapter: network registered=1 arfcn={carrier}\b', text):
+        raise ValueError('host registration lacks own configured carrier')
+    storage = (run / 'nvram/nsb6hle/sim_card').read_bytes()
+    if len(storage) < 1611 or storage[1604:1609] != bytes.fromhex('00f1100001') or storage[1610] != 0:
+        raise ValueError('outgoing cleanup lacks persisted laboratory SIM location')
+    send_at = text.find('8890_call_physical: action=send')
+    if send_at < 0 or not re.search(r'8890_keypad_decoded: key=0e\b', text[send_at:]):
+        raise ValueError('outgoing call lacks decoded physical Send')
+    for name in ('8890_registered_idle.png', '8890_after_outgoing_call.png'):
+        with Image.open(run / 'snap' / name) as source:
+            digest = hashlib.sha256(source.convert('L').crop((0, 8, 84, 48)).tobytes()).hexdigest()
+            if source.size != (84, 48) or digest != FRAMES['8890_sip_registered_idle.png']:
+                raise ValueError('outgoing cleanup differs from reviewed idle content: ' + name)
+
+
+def check_alerting_restoration(text, outgoing=False, connected=False):
+    states = re.findall(r'8890_state: event=(saved|restored) pc=(\w+) sp=(\w+) ram=(\w+) t=([0-9.]+)', text)
+    if (len(states) != 2 or [state[0] for state in states] != ['saved', 'restored'] or
+            states[0][1:] != states[1][1:] or '8890_state: FAIL' in text):
+        raise ValueError('incoming alerting architecture did not restore exactly')
+    registers = re.findall(r'8890_state_cpu: event=(saved|restored) cpu=([^\n]+)', text)
+    if (len(registers) != 2 or [row[0] for row in registers] != ['saved', 'restored'] or
+            registers[0][1] != registers[1][1] or
+            not re.fullmatch(r'[0-9a-f]{8}(?:,[0-9a-f]{8}){36}', registers[0][1])):
+        raise ValueError('incomplete or changed ARM/banked register restoration')
+    values = registers[0][1].split(',')
+    if values[15] != states[0][1] or values[13] != states[0][2]:
+        raise ValueError('ARM/banked snapshot disagrees with observed PC/SP')
+    cursor = 0
+    for marker in (('gsm_call_adapter: request id=1 epoch=1 digits=1234567' if outgoing else
+                    'incoming state id=1 epoch=1 phase=' + ('connected' if connected else 'alerting')),
+                   'sip_state: saved', 'sip_state: restored',
+                   'state_roundtrip: result=pass scenario=8890_' +
+                   ('outgoing_connected' if outgoing and connected else
+                    'outgoing_pending' if outgoing else
+                    'incoming_connected' if connected else 'incoming_alerting')):
+        position = text.find(marker, cursor)
+        if position < 0:
+            raise ValueError('missing ordered alerting restoration checkpoint: ' + marker)
+        cursor = position + len(marker)
+    if not outgoing and not connected and text.find('8890_sip_cancel: physical Exit', cursor) < 0:
+        raise ValueError('missing post-load physical Exit')
+
+
+def check_connected_restoration_radio(text, *, outgoing, pcs1900=False):
+    from tools.noki8890_registration_check import verify as verify_registration
+    before_save, marker, _ = text.partition('sip_state: saved')
+    if not marker:
+        raise ValueError('connected restoration lacks save boundary')
+    verify_registration(before_save, pcs1900=pcs1900, configured_gsm900=not pcs1900)
+    for pattern in (r'gsm_call_adapter: media direction=uplink id=1 sequence=\d+ good=1\b',
+                    r'gsm_call_adapter: media direction=downlink id=1 sequence=\d+ result=accepted\b'):
+        if not re.search(pattern, before_save):
+            raise ValueError('connected restoration lacks bidirectional media before save')
+    carrier = '0258' if pcs1900 else '003c'
+    require_ordered(text, (
+        ('own traffic carrier', rf'TX packet type=02 payload=20 .*data=041202000271012fc100{carrier}0000000400000000'),
+        ('connected before save', r'gsm_call_adapter: ' + ('' if outgoing else 'incoming ') +
+         r'state id=1 epoch=1 phase=connected'),
+        ('handset restored', r'sip_state: restored'),
+        ('own release carrier', rf'TX packet type=02 payload=20 .*data=041202001117001a6000{carrier}0000001400000001'),
+        ('release confirmation', RELEASE_CONFIRMATION),
+        ('resumed paging', IDLE_PCH),
+    ), 'NSB-6 connected restoration')
+
+
+def check_unanswered_restoration_radio(text, *, pcs1900=False):
+    from tools.noki8890_registration_check import verify as verify_registration
+    before_save, marker, _ = text.partition('sip_state: saved')
+    if not marker:
+        raise ValueError('unanswered restoration lacks save boundary')
+    verify_registration(before_save, pcs1900=pcs1900, configured_gsm900=not pcs1900)
+    carrier = '0258' if pcs1900 else '003c'
+    require_ordered(text, (
+        ('save', r'sip_state: saved'), ('restore', r'sip_state: restored'),
+        ('own release carrier', rf'TX packet type=02 payload=20 .*data=041202001117001a6000{carrier}0000001400000001'),
+        ('release confirmation', RELEASE_CONFIRMATION), ('resumed paging', IDLE_PCH),
+    ), 'NSB-6 unanswered restoration')
+    from tools.noki8890_pcm_check import verify_unanswered_restore
+    verify_unanswered_restore(text)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('run_directory', type=Path)
+    parser.add_argument('--pjsua', type=Path, required=True)
+    parser.add_argument('--mame', type=Path)
+    parser.add_argument('--restore-idle', action='store_true',
+                        help='restore idle before admitting the fresh unanswered SIP call')
+    outgoing = parser.add_mutually_exclusive_group()
+    outgoing.add_argument('--outgoing-media', '--outgoing-connected-signaling',
+                          dest='outgoing_connected_signaling', action='store_true',
+                          help='physically connect/end SIP and require bidirectional HLE media')
+    outgoing.add_argument('--incoming-media', '--incoming-connected-signaling',
+                          dest='incoming_connected_signaling', action='store_true',
+                          help='physically answer/end SIP and require bidirectional HLE media')
+    outgoing.add_argument('--outgoing-busy', action='store_true',
+                        help='physically dial 1234567 against a real SIP 486 response')
+    outgoing.add_argument('--outgoing-unavailable', action='store_true',
+                          help='physically dial 1234567 against a real SIP 480 response')
+    outgoing.add_argument('--restore-incoming-alerting', action='store_true',
+                          help='restore an unanswered incoming call and clear the external dialog')
+    outgoing.add_argument('--restore-outgoing-pending', action='store_true',
+                          help='restore an outgoing SIP 180 request without redial or media')
+    outgoing.add_argument('--restore-outgoing-connected-media', '--restore-outgoing-connected-signaling',
+                          dest='restore_outgoing_connected_signaling', action='store_true',
+                          help='restore and clear a connected outgoing HLE SIP dialog')
+    outgoing.add_argument('--restore-incoming-connected-media', '--restore-incoming-connected-signaling',
+                          dest='restore_incoming_connected_signaling', action='store_true',
+                          help='physically answer, restore and clear an incoming HLE SIP dialog')
+    parser.add_argument('--record-media', action='store_true')
+    parser.add_argument('--pcs1900', action='store_true',
+                        help='independent PCS ordinary media or call-phase restoration acceptance')
+    parser.add_argument('--sound', choices=('none', 'pulse'), default='none')
+    parser.add_argument('--http-port', type=int, default=18889)
+    parser.add_argument('--sip-port', type=int, default=25889)
+    args = parser.parse_args()
+    if args.pcs1900 and not (args.outgoing_connected_signaling or args.incoming_connected_signaling or
+                            args.restore_outgoing_connected_signaling or args.restore_incoming_connected_signaling or
+                            args.restore_outgoing_pending or args.restore_incoming_alerting):
+        parser.error('--pcs1900 requires ordinary media or call-phase restoration')
+    outgoing_failure = args.outgoing_busy or args.outgoing_unavailable
+    outgoing_run = outgoing_failure or args.restore_outgoing_pending or args.outgoing_connected_signaling or args.restore_outgoing_connected_signaling
+    if args.restore_idle and (outgoing_run or args.incoming_connected_signaling or args.restore_incoming_connected_signaling or args.restore_incoming_alerting):
+        parser.error('--restore-idle cannot be combined with outgoing failure')
+    if args.record_media and not (args.outgoing_connected_signaling or args.incoming_connected_signaling):
+        parser.error('--record-media requires an incoming/outgoing media call')
+    root = Path(__file__).resolve().parents[1]
+    run = args.run_directory.resolve()
+    profile = PROFILES['8890']
+    try:
+        roms = root / 'roms/noki8890'
+        verify_inputs('8890', (roms / profile[1]).read_bytes(), (roms / profile[3]).read_bytes())
+        run.mkdir(parents=True, exist_ok=False)
+        (run / 'cfg').mkdir()
+        shutil.copyfile(root / 'fixtures/noki8890_host/nsb6hle.cfg', run / 'cfg/nsb6hle.cfg')
+        if args.pcs1900:
+            configuration = ET.parse(root / 'fixtures/noki8890_pcs1900/nsb6hle.cfg')
+            ET.SubElement(configuration.find('./system/input'), 'port', tag=':CALLHOST',
+                          type='CONFIG', mask='1', defvalue='0', value='1')
+            configuration.write(run / 'cfg/nsb6hle.cfg', encoding='utf-8', xml_declaration=True)
+        handset = [str((args.mame or root / 'mame/mame').resolve()), 'nsb6hle',
+                   '-rompath', str(root / 'roms'), '-nvram_directory', str(run / 'nvram'),
+                   '-cfg_directory', str(run / 'cfg'), '-noreadconfig',
+                   '-debug', '-debugger', 'none', '-autoboot_delay', '0',
+                   '-autoboot_script', str(root / 'tools' / (
+                       'noki8890_sip_incoming_connected_restore.lua' if args.restore_incoming_connected_signaling else
+                       'noki8890_sip_outgoing_connected_restore.lua' if args.restore_outgoing_connected_signaling else
+                       'noki8890_sip_incoming_connected.lua' if args.incoming_connected_signaling else
+                       'noki8890_sip_outgoing_pending_restore.lua' if args.restore_outgoing_pending else
+                       'noki8890_outgoing_call_input.lua' if outgoing_failure or args.outgoing_connected_signaling else
+                       'noki8890_sip_incoming_alerting_restore.lua' if args.restore_incoming_alerting else
+                       'noki8890_sip_idle_restore.lua' if args.restore_idle else
+                       'noki8890_sip_cancel_observe.lua')),
+                   '-state_directory', str(run / 'sta'),
+                   '-snapshot_directory', str(run / 'snap'), '-seconds_to_run', '70',
+                   '-video', 'none', '-sound', args.sound, '-throttle', '-log', '-verbose',
+                   '-http', '-http_port', str(args.http_port)]
+        command = [sys.executable, str(root / 'tools/run_sip_handset_gate.py'),
+                   '--pjsua', str(args.pjsua.resolve()), '--run-dir', str(run),
+                   '--product', '8890',
+                   *(['--pcs1900'] if args.pcs1900 else []),
+                   *(['--incoming', '--restore-call', '--ready-file',
+                      str(run / 'snap/8890_sip_registered_idle.png')] if args.restore_incoming_connected_signaling else
+                     ['--restore-outgoing', '--sip-response', '200'] if args.restore_outgoing_connected_signaling else
+                     ['--incoming', '--ready-file',
+                      str(run / 'snap/8890_sip_registered_idle.png')] if args.incoming_connected_signaling else
+                     ['--sip-response', '200'] if args.outgoing_connected_signaling else
+                     ['--restore-outgoing', '--sip-response', '180'] if args.restore_outgoing_pending else
+                     ['--sip-response', '480' if args.outgoing_unavailable else '486'] if outgoing_failure else
+                     ['--incoming', '--restore-call', '--restore-phase', 'alerting', '--ready-file',
+                      str(run / 'snap/8890_sip_registered_idle.png')] if args.restore_incoming_alerting else
+                     ['--incoming', '--cancel-incoming', '--ready-file',
+                      str(run / 'snap/8890_sip_registered_idle.png')]),
+                   '--http-port', str(args.http_port), '--sip-port', str(args.sip_port),
+                   *(['--record-media'] if args.record_media else []),
+                   '--', *handset]
+        with (run / 'console.log').open('w') as output:
+            subprocess.run(command, cwd=run, stdout=output, stderr=subprocess.STDOUT,
+                           check=True, timeout=180)
+        if args.restore_outgoing_pending or args.restore_incoming_alerting:
+            check_unanswered_restoration_radio((run / 'error.log').read_text(errors='replace'),
+                                               pcs1900=args.pcs1900)
+        if outgoing_run:
+            check_outgoing_result(run, pcs1900=args.pcs1900)
+            if args.outgoing_connected_signaling:
+                from tools.noki8890_outgoing_call_check import verify as verify_outgoing
+                verify_outgoing((run / 'error.log').read_text(errors='replace'),
+                                configured_gsm900=not args.pcs1900, pcs1900=args.pcs1900)
+            if args.restore_outgoing_pending or args.restore_outgoing_connected_signaling:
+                check_alerting_restoration((run / 'error.log').read_text(errors='replace'), outgoing=True,
+                                          connected=args.restore_outgoing_connected_signaling)
+            if args.restore_outgoing_connected_signaling:
+                check_connected_restoration_radio((run / 'error.log').read_text(errors='replace'),
+                                                  outgoing=True, pcs1900=args.pcs1900)
+        elif args.incoming_connected_signaling or args.restore_incoming_connected_signaling:
+            text = (run / 'error.log').read_text(errors='replace')
+            check_output(text)
+            check_output((run / 'console.log').read_text(errors='replace'))
+            verify_stage(text, runtime=True, selftest=True)
+            if args.restore_incoming_connected_signaling:
+                check_alerting_restoration(text, connected=True)
+                check_connected_restoration_radio(text, outgoing=False, pcs1900=args.pcs1900)
+                if len(host_setup_pattern('5551234').findall(text)) != 1:
+                    raise ValueError('connected restoration lacks one own caller SETUP')
+            else:
+                from tools.noki8890_incoming_call_check import verify as verify_incoming
+                verify_incoming(text, caller='5551234', configured_gsm900=not args.pcs1900,
+                                pcs1900=args.pcs1900)
+            storage = (run / 'nvram/nsb6hle/sim_card').read_bytes()
+            if len(storage) < 1611 or storage[1604:1609] != bytes.fromhex('00f1100001') or storage[1610] != 0:
+                raise ValueError('incoming cleanup lacks persisted laboratory SIM location')
+            for name in ('8890_sip_registered_idle.png',
+                         '8890_sip_connected_after_restore.png' if args.restore_incoming_connected_signaling else
+                         '8890_after_incoming_call.png'):
+                with Image.open(run / 'snap' / name) as frame:
+                    digest = hashlib.sha256(frame.convert('L').crop((0, 8, 84, 48)).tobytes()).hexdigest()
+                    if frame.size != (84, 48) or digest != FRAMES['8890_sip_registered_idle.png']:
+                        raise ValueError('incoming cleanup differs from reviewed idle content: ' + name)
+        else:
+            check_product_result(run, args.restore_idle, pcs1900=args.pcs1900)
+            if args.restore_incoming_alerting:
+                check_alerting_restoration((run / 'error.log').read_text(errors='replace'))
+        subprocess.run([sys.executable, str(root / 'tools/noki8890_registration_check.py'),
+                        '--pcs1900' if args.pcs1900 else '--configured-gsm900',
+                        str(run / 'error.log')], check=True)
+        if args.outgoing_connected_signaling or args.incoming_connected_signaling:
+            from tools.noki8890_pcm_check import verify as verify_pcm
+            verify_pcm((run / 'error.log').read_text(errors='replace'),
+                       incoming=args.incoming_connected_signaling)
+        (run / 'acceptance.json').write_text(json.dumps({
+            'machine': 'nsb6hle', 'scenario': ('incoming-sip-connected-restore' if args.restore_incoming_connected_signaling else
+                                             'outgoing-sip-connected-restore' if args.restore_outgoing_connected_signaling else
+                                             'incoming-sip-media' if args.incoming_connected_signaling else
+                                             'outgoing-sip-media' if args.outgoing_connected_signaling else
+                                             'outgoing-sip-pending-restore' if args.restore_outgoing_pending else
+                                             'incoming-sip-alerting-restore' if args.restore_incoming_alerting else
+                                             'outgoing-sip-unavailable' if args.outgoing_unavailable else
+                                             'outgoing-sip-busy' if args.outgoing_busy else 'incoming-sip-cancel'),
+            'mcu_sha1': profile[2], 'pmm_sha1': profile[4],
+            'provisioning': 'own acquired PMM unchanged',
+            'laboratory_carrier': 600 if args.pcs1900 else 60,
+            'native_dsp_complete': False,
+            'hle_media_tested': args.outgoing_connected_signaling or args.incoming_connected_signaling,
+            'idle_restored': args.restore_idle,
+            'incoming_alerting_restored': args.restore_incoming_alerting,
+            'outgoing_pending_restored': args.restore_outgoing_pending,
+            'outgoing_connected_restored': args.restore_outgoing_connected_signaling,
+            'incoming_connected_restored': args.restore_incoming_connected_signaling,
+            'command': command, 'result': 'pass',
+        }, indent=2) + '\n')
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        parser.exit(1, f'8890 SIP signaling FAIL: {error}; inspect {run}\n')
+    print('8890 real SIP lifecycle PASS; native DSP speech unproved')
+
+
+if __name__ == '__main__':
+    main()

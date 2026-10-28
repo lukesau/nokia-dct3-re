@@ -9,13 +9,340 @@ ownership and stops at absent resident DSP routine `0x2c75`. Physical-verdict
 equivalence and complete native DSP runtime are not claimed.
 
 The separate `nsm3hle` composition explicitly hands off at that missing-code
-call. With the acquired unchanged base-record storage fixture, seven fresh
+call. With the acquired unchanged base-record storage fixture, fresh
 isolated acceptance scenarios pass: graphical/physical security and menus,
 calculator, SIM initialization and cold-persistent phonebook, registration
 and operator idle, both call-signaling directions, and both SMS directions.
 Identity and record success replies remain unselected. This is research-HLE
 phone-service acceptance, not a promotion of the normal machine, complete
-hardware fidelity, speech, or authentic factory-default provisioning.
+hardware fidelity, native DSP speech, or authentic factory-default provisioning.
+
+### Late-PIN DCS laboratory acceptance
+
+Physical PIN entry starting at eight seconds now reaches own DCS823
+registration/EF_LOCI and registered idle in `nsm3hle`. The declared NSM-3
+lab peer completes an unsupported unlisted mode-4 directed measurement with
+a type88 failure, rather than silently dropping the request. This is not a
+claim that a real receiver would fail to measure the receivable candidate.
+The own transport delivers error1 and full target0338 to `21ee8c` and
+`286e9a`; firmware reselects record824 rather than serving record823,
+increments its error counter0->1 and changes only selector2->1. Location
+Updating completes afterwards. No request, state, callback or successful
+measurement is synthesized inside MCU firmware.
+
+The pending response and target are saved/reset with the peer and published
+through its ordinary service tick; a full RX ring retains the pending result.
+This is a calibrated HLE completion and a single-outstanding-request fixture,
+not recovered ROM6 measurement timing or general NMEAS mode semantics.
+Early-PIN DCS, no-PIN DCS and slow-PIN GSM registration controls still pass.
+
+Independent eight-second-PIN targets are:
+
+- `verify-8210-dcs-late-pin-registration`: request/RX/object identity,
+  firmware error-state update and subsequent registration/release/EF_LOCI.
+- `verify-8210-dcs-late-pin-state-idle`: exact idle CPU/RAM/time, protocol
+  and pixels across restoration, followed by physical Menu continuation.
+- `verify-8210-dcs-late-pin-host-incoming-call`: settled host paging,
+  physical Answer/End, own DCS channel words, reviewed caller/idle pixels
+  and complete CC/RR release; no speech claim.
+- `verify-8210-dcs-late-pin-host-incoming-sms`: host delivery, CP/RP/RR
+  closure, physical reading, exact persisted hello record and body pixels.
+- `verify-8210-dcs-late-pin-host-outgoing-sms`: physical A/5551234 SMS,
+  host acceptance, exact SMS-SUBMIT and sent-screen/CP/RP/RR checks.
+- `verify-8210-dcs-late-pin-host-rejected-sms` and `...-host-silent-sms`:
+  host RP rejection or deliberate absence of an RP result, respectively.
+  Both prove physical submission, transport closure, reviewed failure text
+  and physical End/Menu recovery. The silent case releases at approximately
+  104.51 seconds through the firmware's timeout, not a synthetic RP reply.
+  TP-MR is handset-maintained and may vary; destination, payload and all
+  remaining SMS-SUBMIT bytes stay exact, including relative TP-VP A7.
+- `verify-8210-dcs-late-pin-host-outgoing-call`: physical1234567 dialing,
+  correlated host Connect, reviewed number/connected/idle frames and End.
+- `verify-8210-dcs-late-pin-state-call` and `...-state-sms`: exact active
+  call/delivered-SMS restoration, ordered protocol replay, matching pixels
+  and post-load physical End/Read continuation.
+- `verify-8210-dcs-late-pin-phonebook`: physical A/123 Save, independent
+  cold PIN authentication/registration and preserved-card Search/Detail.
+- `verify-8210-dcs-late-pin-sms-status-persistence`: two cold PIN-authenticated
+  processes; firmware reads/updates EF_SMSS and advances submitted reference
+  0->1 with own relative TP-VP A7 and host CP/RP/RR acceptance.
+
+`verify-8210-dcs-pin-delay-matrix` independently runs fresh own-PMM/card
+fixtures with physical PIN entry starting at7/8/10/12/20 seconds. The checker
+requires the exact five physical key times and registration after physical
+OK, in addition to each child gate's authentication/protocol/EF_LOCI checks.
+The early case publishes no timing failure; each delayed case publishes one.
+Observed registration times are12.891095/13.182360/15.307192/17.135156/
+25.064863 seconds respectively. These are results, not reply-delay settings.
+Binary and fixture sources must remain unchanged throughout the matrix.
+This qualifies five discrete input schedules, not every possible input time;
+only the eight-second profile supplies the service/storage/restoration
+coverage above.
+
+The incoming call/SMS checkers require MM Information and Cipher Mode
+Complete before SETUP/SAPI3 respectively, without fixing their incidental
+relative log order. Both orders and missing/late-event rejection are tested.
+The automatic one-shot call fixture pages at14.767s while phone-security
+input is still pending and does not complete a call; it is not promoted by
+the settled host-call result. Other input schedules remain separate
+qualifications.
+
+`verify-8210-dcs-late-pin-sip-outgoing-media` and
+`verify-8210-dcs-late-pin-sip-incoming-media` independently qualify real
+local SIP-200 calls after physical PIN entry at eight seconds, own-card
+authentication and DCS823 registration. Both require the exact own-DCS
+traffic/release words, physical dialing or Answer, physical End, reviewed
+UI, normal SIP release and sustained ordered bidirectional HLE PCM transport.
+The runner's `--late-pin-dcs` option selects only this explicit profile;
+ordinary GSM900 fixtures retain their separate contracts.
+The remote peer has a30-second safety hangup instead of the older8-second
+limit, so its BYE cannot race the scheduled physical End. This is a host
+fixture lifetime, not a radio or firmware latency change. It proves neither
+non-silent microphone/earpiece waveforms nor native DSP speech. The separately
+qualified waveform gates below retain their own acceptance scopes.
+
+`verify-8210-dcs-late-pin-sip-outgoing-waveform` and
+`verify-8210-dcs-late-pin-sip-incoming-waveform` independently add isolated
+host microphone/earpiece endpoints to this same eight-second PIN/DCS profile.
+The physical input, registration, own CC/RR, SIP release and UI checks remain
+mandatory. The shared waveform checker requires at least two consecutive
+seconds of 440 Hz in the remote microphone recording and 660 Hz in the MAME
+earpiece recording; blank, wrong-tone and short recordings remain failures.
+Both directions pass. The shell fixture selects this profile explicitly with
+`SIP_LATE_PIN_DCS=1` and rejects other products/invalid values before audio
+setup; ordinary waveform gates remain unchanged. Temporary audio endpoints
+and defaults use the existing cleanup trap. This proves non-silent synthetic
+audio through the HLE codec/PCM path and local SIP, not native DSP speech,
+electrical gain calibration or waveform continuity across save/load.
+
+The same late-PIN/DCS profile has four independent SIP restoration gates:
+
+- `verify-8210-dcs-late-pin-sip-outgoing-restore`: connected outgoing call,
+  exact handset architecture restored at34s; external dialog closed by BYE.
+- `verify-8210-dcs-late-pin-sip-pending-outgoing-restore`: outgoing SIP180,
+  exact handset restore at34s; CANCEL/487 without connection or media.
+- `verify-8210-dcs-late-pin-sip-incoming-restore`: physical Answer before
+  exact handset restore at42s; connected external dialog closed by BYE.
+- `verify-8210-dcs-late-pin-sip-alerting-incoming-restore`: exact ringing
+  handset restore at36s; INVITE rejected without Answer, connection or media.
+
+Each verifies physical PIN/authentication and DCS registration, exact
+PC/SP/RAM/time restoration, one epoch1->2 transition, one correlated
+restored-call clear and complete firmware release without external replay
+or redial. The external SIP dialog is discarded, not serialized. These are
+restoration tests, not waveform continuity or native-speech acceptance.
+
+`verify-8210-sms-status-persistence` checks two separate PIN-enabled
+research-HLE processes with retained own-product storage and physical SMS
+composition. Firmware reads and updates EF_SMSS, and the submitted TP-MR
+advances from 0 to 1 across cold restart. Both processes independently pass
+registration, host CP/RP/RR closure and the sent-screen oracle. The shared
+status checker preserves the product's relative TP-VP (`A7`); neither its
+initial reference nor its validity period is borrowed from the 6210.
+`verify-8210-dcs-early-pin-sms-status-persistence` independently verifies
+the same two-process contract on coherent DCS ARFCN 823 with physical PIN
+entry starting at seven seconds. The cold firmware reads retained SMSS
+byte `00`, submits reference 1 and updates the file after host acknowledgement.
+Both processes independently verify PIN, own DCS registration and sent
+pixels. This independently qualifies the early-PIN cold SMSS boundary;
+it is not a late-PIN two-process status-report result.
+
+### Documented PCM bus
+
+Nokia's NSM-3 System Module, issue 1 (12/1999), printed page 24,
+independently specifies COBBA-GJP-generated PCMDClk at 1 MHz (13 MHz / 13)
+and PCMSClk at 8 kHz (PCMDClk / 125). The inspected timing diagram shows
+a one-data-clock active-high sync pulse, MSB-first 16-bit words with bits
+15..13 extending the sign of the 13-bit sample, and data transitions at
+rising clock edges (falling-edge sampling). This establishes the product's
+physical PCM contract, not native DSP speech. The product configuration records
+those independently evidenced bus fields. A fresh rebuilt physical
+outgoing-call gate (`run_8210_pcm_profile_regression`) preserves own-number
+dialing and CC/RR release. That profile-only signaling regression does not
+establish audio. Own speech-request selection and endpoint routing have
+separate compiler, runtime and physical-audio evidence below; neither is
+inferred from the PCM diagram alone.
+
+The primary-authored PDF is acquired from
+[the service-manual mirror](https://www.eserviceinfo.com/downloadsm/228901/NOKIA_03sys.html)
+and retained as `roms/research/nsm3/nsm3-system-module.pdf` (ignored source
+collection), SHA256
+`dbd9e70549b6de726be9667a2451bda74b7317f84956b50e5c91fce3124939c0`.
+
+Own compiler `0x2cafd8` has 53 selector entries at `0x2cb00c`.
+Selector `0x11` reaches `0x2cb254`, constructs bit `0200`, and combines it
+with keep-mask `fdff` into field shadow `0x135776`. Selector 8 reaches
+`0x2cb29c`, prefixes the low twelve argument bits with `8000`, retains a
+separate command shadow `0x135778` and publishes DSPIF `0x100a8` at
+`0x2cb2ea`. Do not conflate the two shadows. The independent parameter
+publisher at `0x2c6cf4` masks its constructed word with `fdff` from
+`0x337db8`, then conditionally adds a halfword from table `0x337db0`.
+The four entries preceding that keep-mask are `0200`; runtime index-domain
+coverage is not claimed. Its command-selector table at `0x337da4` starts
+`08 09 30`, and `0x2c733e` publishes the first constructed word through
+the own compiler. This is a decoded producer connection, not an inference
+from shadow adjacency. The fresh physical outgoing trace changes
+command 8 to `860b` after Send and back to `840a` after End, independently
+corroborating call-correlated bit `0200`, not delivered audio.
+`noki8210_speech_control_check.py ROM LOG` pins the own
+ROM, selector instructions/literals and ordered physical/control events.
+
+The command-8 mask/value `0200` is now selected only in the explicit
+`nsm3hle` composition. Fresh rebuilt `run_8210_speech_request_regression`
+passes the physical outgoing lifecycle and own control checker; HLE retains
+`060b` during the call and `040a` at release. Its PCM-derived cadence executes
+400 uplink frames and zero downlink frames before stopping. That run preceded
+audio endpoint configuration, so its uplink frames are not evidence of
+captured microphone audio. It is not an answered SIP/media gate. The normal
+machine and native-DSP limitations are unchanged.
+
+### Own audio endpoint evidence
+
+The complete three-volume NSM-3 service archive from
+[this mirror](https://www.eserviceinfo.com/downloadsm/5456/Nokia_8210.html)
+is acquired and passes `unrar t`; its PDFs are retained under
+`roms/research/nsm3/`. Do not infer the product from the misleading archive
+filename mentioning 8810: the inspected document headers identify NSM-3.
+`04ui.pdf`, UI Module issue 1 (12/1999), printed page 15, explicitly connects
+the built-in microphone to COBBA MIC2. Its table maps X300/2 MICP to MIC2N
+and X300/1 MICN to MIC2P; preserve that documented polarity rather than
+silently swapping labels. Printed page 4 identifies EARP/EARN receiver
+connections. These support MIC2/EAR as declared HLE endpoints, not decoded
+COBBA register policy. The page-15 32 dB gain is an electrical test condition,
+not a recovered runtime gain. No gain is promoted from that figure.
+SHA256 of `04ui.pdf`:
+`684b896015d1531f552d224742d957286d7869ecda2517910f1c5bfa88062c5e`.
+
+The explicit `nsm3hle` composition now selects those declared MIC2/EAR
+endpoints and neutral host microphone/receiver routes, without inherited
+gains or synthesized COBBA register writes. Fresh rebuilt
+`run_8210_audio_endpoints_final` preserves the physical outgoing call gate;
+five focused NSM-3/NPE-3 control tests pass. These controls alone do not
+validate answered SIP/RTP or non-silent physical audio; the independent
+acceptance gates below cover those boundaries. Endpoint wiring does not
+promote native DSP execution or factory provisioning.
+
+`make verify-8210-sip-outgoing-media RUN_DIR=NEW_DIRECTORY` validates one physical
+outgoing SIP-200 call on `nsm3hle`, with own PCM timing and endpoints.
+It invokes `tools/run_noki8210_sip_cancel.py --outgoing-media` and requires
+the optional PJSIP 2.16 build documented in `external_call_bridge.md`.
+Fresh run `run_8210_sip_outgoing_media_verified` passes the shared media,
+full own-product CC/RR lifecycle and reviewed presentation checks. Bridge
+counters are uplink 365, downlink 353, transmitted PCM 365 and received PCM
+400 (39 dropped); handset sequences 0..351 are accepted in order.
+Physical End emits DISCONNECT `036502e090`, network RELEASE, then handset
+RELEASE COMPLETE `032a`, RR release and return to paging. This is not the
+handset-RELEASE direction assumed by the older products' SIP fixtures.
+
+The adapter publishes correlated `media_closed` when the connected session
+ends, before draining queued media; final `ended` follows CC/RR completion.
+The bridge stops downlink immediately on `media_closed` but retains the
+dialog until `ended`. A queued terminal packet may be rejected safely only
+after that explicit boundary, with correlated completion and radio release.
+Wrong requests, unclassified or active-media rejections, sequence
+gaps and accepted packets after closure remain failures. Adapter rejection
+reason fields are observational; no admission behavior changed. The common
+checker accepts exact PJSIP status 200 with reason `OK` or `Normal call clearing`.
+
+This establishes outgoing HLE media transport, not native DSP speech. Provisioning remains the declared
+base-record comparison, not validated factory data.
+The outgoing runner accepts `--record-media --sound pulse` for explicit
+audio observation; recordings alone are not waveform acceptance.
+
+`make verify-8210-sip-outgoing-waveform RUN_DIR=NEW_DIRECTORY` adds isolated
+virtual PulseAudio endpoints and restores server defaults on exit. Fresh
+`run_8210_sip_waveform_probe/handset` passes the full outgoing call plus
+at least two consecutive seconds of 440 Hz in the SIP remote microphone
+recording and 660 Hz in the MAME earpiece recording. Both stream routes were
+observed. The tones traverse the configured physical audio ports and HLE
+codec/PCM paths, not firmware-state injection. This validates non-silent
+synthetic audio in both directions; it does not establish native DSP speech,
+analog gain calibration or real RF service. Incoming audio is tested separately.
+
+`make verify-8210-sip-incoming-media RUN_DIR=NEW_DIRECTORY` waits for a fresh
+registered-idle frame before a local SIP INVITE, then uses the existing own
+physical Call/Send and End fixture. It requires decoded keys, paging,
+assignment, CONNECT/acknowledgement, DISCONNECT/network RELEASE/RELEASE
+COMPLETE, return to paging, own loader/self-test/provisioning checks, ordered
+media, and reviewed ringing/post-release UI. Call restoration acceptance is
+separate, not inherited from these media tests.
+Fresh `run_8210_sip_incoming_media_verified` passes with bridge counters
+uplink 396, downlink 380, transmitted PCM 396 and received PCM 401 (13
+dropped). This is independently executed incoming HLE media transport,
+not native DSP or non-silent incoming-waveform proof.
+
+`make verify-8210-sip-incoming-waveform RUN_DIR=NEW_DIRECTORY` independently
+adds the isolated virtual microphone/earpiece tone fixture to incoming calls.
+Fresh `run_8210_sip_incoming_waveform_probe/handset` passes sustained 440 Hz
+microphone and 660 Hz earpiece recordings, full physical Answer/End, release
+and UI checks. Bridge counters are uplink 396, downlink 379, transmitted PCM
+396 and received PCM 400 (13 dropped). This verifies non-silent synthetic
+audio in both directions on an incoming HLE call, not native DSP speech.
+
+`make verify-8210-sip-outgoing-restore RUN_DIR=NEW_DIRECTORY` saves a connected
+physical outgoing call, verifies exact CPU/SP/RAM/time restoration using the
+existing architecture observer, then requires the external dialog to close
+with SIP BYE. The fresh epoch republishes the own `1234567` request; the bridge
+must clear it exactly once without redial and complete firmware CC/RR release.
+Fresh `run_8210_sip_outgoing_restore_probe` passes, restoring architecture at
+34.000 s and ending the epoch-2 call at 34.130 s. SIP dialog restoration,
+waveform continuity across load is
+not claimed. This fixture tests restoration, not media-quality acceptance.
+
+`verify-8210-sip-pending-outgoing-restore` uses SIP 180 and the same exact
+architectural save/load before connection. Fresh
+`run_8210_sip_pending_restore_probe` passes real CANCEL/487, one fresh-epoch
+clear and complete firmware release without redial, CONNECT, or accepted
+media. The physically dialed `1234567` is checked both in request identities
+and decoded SETUP; another product's digits cannot substitute for it.
+
+`verify-8210-sip-incoming-restore` holds the existing physical incoming
+Answer fixture, saves/restores exact CPU/SP/RAM/time at 42.000 s, closes
+the real SIP dialog with BYE and clears the restored handset once under
+epoch 2. Fresh `run_8210_sip_incoming_restore_probe` passes, ending the
+restored call at 42.130 s. The checker requires the own decoded physical
+Answer before connection, complete firmware release, and no dialog replay.
+Waveform continuity across load remains a separate unvalidated case.
+
+`verify-8210-sip-alerting-incoming-restore` holds before physical Answer and
+saves/restores exact CPU/SP/RAM/time at 36.000 s. Fresh
+`run_8210_sip_alerting_restore_probe` passes real INVITE rejection and one
+fresh-epoch handset clear, ending at 36.110 s, without Answer, CONNECT,
+accepted media or dialog replay. Connected and alerting restoration are
+independently exercised in both call directions; external dialogs are always
+discarded, not restored. None of these gates establishes native DSP speech.
+
+Fresh matrix run `run_8210_sip_media_closed` passes with explicit media
+closure at 37.030 s and completion at 37.040 s, with no rejected downlink.
+The separate boundaries replace the falsified same-poll assumption; no
+arbitrary rejection-time tolerance is used. A WebSocket transition test
+verifies closure stops downlink without prematurely terminating the dialog.
+
+## Physical power lifecycle
+
+`make verify-8210-power-cycle RUN_DIR=NEW_DIRECTORY` starts with private fresh
+storage, the declared base-record comparison and the configured ARFCN4 lab
+cell. Physical security entry reaches idle, a four-second Power press drives
+CCONT rail-off, and a later physical Power press wakes through PWRONX `02`.
+The gate requires a blank off screen, at least eight seconds of continuous
+CCONT RTC ticks and no DSP/radio transport activity during the off interval.
+It independently checks both own native-upload sequences, explicit HLE
+handoffs, compact self-tests and coherent registration; it does not infer the
+second boot from the first.
+
+After wake the firmware reads retained `EF_LOCI` before sending warm Location
+Updating with body `05087200f110000133080910101032547698`. It rewrites the LAI
+after acceptance but does not redundantly rewrite the already-valid location
+status byte. The security editor reappears; physical `12345` and Menu decode
+organically and return to reviewed operator-idle pixels. The RTC runs while
+off and remains continuous through three checked post-wake ticks. Firmware
+initializes the independent acquisition-control write address `07=00`, not
+the RTC seconds read counter. The checker anchors progression to the last
+pre-off sample rather than equating RTC seconds with elapsed run time.
+Cold-process RTC
+persistence, measured wake latency, all-peripheral rail gating and native
+speech remain unproved. No charger pulse, donor storage or firmware-state
+write participates in this fixture.
 
 The explicit-version fixture produces 6, while the collaborator bridge reports
 an 8210 verdict of `1eff`. A matching raw capture has not been recovered;
@@ -239,6 +566,50 @@ process replaces `error.log`. Handset-local contacts remain untested.
 
 ### Radio acquisition boundary
 
+SIM PIN is distinct from the phone security editor.
+`verify-8210-slow-pin-registration` enters physical `1234`/Menu at 8..12 seconds,
+then the phone code `12345`. It requires enabled CHV1, unchanged PIN, restored
+retries, the `57/03050000` background request, a receivable ARFCN 4 measurement,
+correlated own-ROM route/completion and the full registration/EF_LOCI contract.
+Type `8b` selects task 12, not NPE-3/NHM-3's task 14: completion
+`21ef4c -> 2a2250 -> 28755e` consumes forty four-byte records, ARFCN at offsets
+6/7 and signed RSSI at 9. The static radio-contract tool checks those own-ROM
+instructions. The configured ARFCN 4/5 laboratory network supplies the response;
+no phone PMM or firmware state is forced. Ordinary phone-code-only registration
+remains a separate regression, and native speech is not established.
+
+`verify-8210-pin-host-incoming-call` and `verify-8210-pin-host-incoming-sms`
+compose that authentication lifecycle with the existing coherent host fixture.
+The call gate checks caller pixels, physical Answer/End, own CC/RR signaling
+and registered-idle recovery. The SMS gate checks CP/RP closure, physical Read,
+reviewed message-body pixels and persistent read-status storage. Host inputs
+are retained when selecting the PIN fixture's carrier pair; conflicting cell
+configuration is rejected rather than silently rewritten.
+
+`verify-8210-pin-host-outgoing-call` retains the physical `1234567` number,
+host connect decision, exact own CC/RR grammar and release/idle UI checks.
+`verify-8210-pin-host-outgoing-sms` retains physical `A` to `5551234`, the
+correlated host submission decision, CP/RP closure and reviewed success UI.
+Both require the same PIN/phone-code and coherent-registration evidence as
+the incoming gates; no native speech claim follows from call signaling.
+
+`verify-8210-pin-phonebook` saves `A / 123`, starts a fresh MAME process using
+the saved card, repeats physical PIN and phone-code entry, and searches the
+contact through ordinary keys. It requires own upload/self-test evidence,
+one successful VERIFY per process, byte-identical card storage on readback,
+retained-LAI registration without rewriting valid location status, and the
+exact reviewed `Number: 123` image. The same image check also protects the
+ordinary no-PIN save/readback gate.
+
+The `verify-8210-pin-state-idle`, `-call` and `-sms` gates independently
+restore authenticated sessions. They require exact CPU/RAM/emulated-time,
+matched protocol replay and identical saved/restored pixels. Physical Menu,
+End or Read must work after load; the call gate requires an established-call
+save boundary and registered idle after release, while SMS checks delivered
+storage before save and persistent read status afterward. Enabled CHV1/PIN
+and exactly one successful startup VERIFY are retained. Native DSP restoration
+is outside these research-HLE gates.
+
 The own ring dispatcher at `0x306fa6` selects the thirteen-entry
 `0x83..0x8f` table at `0x306fd4`. Type `8b` calls `0x2df484`, which posts
 to task 12 through `0x28845c`. Type `89` calls `0x2df210`; instructions
@@ -260,7 +631,9 @@ deconfiguration/confirmation and post-release paging. Persisted EF_LOCI
 contains LAI `00f1100001` and status `00`. A cold process retaining that
 storage passes the same exchange and `noki8210_registration_input.lua`
 captures `DCT3 LAB` at both 24 and 44 seconds after physical unlock.
-Incoming calls, SMS, mobility and other bands remain unproved.
+Incoming calls and SMS have the separate acceptance contracts below;
+Mobility remains unproved; no-PIN DCS1800 registration is separately
+covered below, without inheriting call/SMS acceptance.
 
 ### Outgoing call signaling
 
@@ -330,7 +703,9 @@ Run any focused scenario from a new directory:
 ```
 
 Available scenarios are `registration`, `incoming-call`, `outgoing-call`,
-`incoming-sms`, `outgoing-sms`, `calculator` and `phonebook`. Each seeds
+`incoming-sms`, `outgoing-sms`, `calculator`, `phonebook`, `idle-state` and
+`call-state`, `sms-state`, `host-incoming-call`, `host-incoming-sms` and
+`host-outgoing-sms`, `host-rejected-sms` and `host-silent-sms`. Each seeds
 only the unchanged acquired base-record snapshot into a fresh persistent
 flash image. Incoming events use copied external network configuration;
 all UI interaction uses physical key fields. `phonebook` executes save
@@ -339,13 +714,265 @@ Successful checks produce `acceptance.json`, console/log evidence and
 captures. Existing directories are refused. The normal machine remains
 unchanged; native DSP completion and speech are explicitly not claimed.
 
-The same scenarios are standard gates: `make verify-8210-registration
+### DCS Host SMS Acceptance
+
+All four host SMS outcomes pass without PIN and with early physical PIN
+entry (`--pin-enabled --pin-start 7`). Standard targets use prefix
+`verify-8210-dcs-`; supply a new `RUN_DIR` for each:
+
+| Outcome | No-PIN Suffix | Early-PIN Suffix | Additional Required Evidence |
+| --- | --- | --- | --- |
+| Incoming | `host-incoming-sms` | `early-pin-host-incoming-sms` | Physical Read, SIM read-status persistence, reviewed `hello` pixels |
+| Submitted | `host-outgoing-sms` | `early-pin-host-outgoing-sms` | Physical `A` to `5551234`, reviewed success pixels |
+| Rejected | `host-rejected-sms` | `early-pin-host-rejected-sms` | RP error, reviewed failure pixels, physical recovery |
+| Timed out | `host-silent-sms` | `early-pin-host-silent-sms` | RP silence/timeout closure, distinct failure pixels, physical recovery |
+
+Each requires own DCS registration, persisted EF_LOCI, correlated host
+outcome and firmware CP/RP closure. ARFCN4 cannot satisfy DCS823 checks.
+PIN fixtures additionally require the correlated measurement/VERIFY/registration
+sequence. Fresh authenticated failure evidence is
+`run_8210_early_pin_dcs_rejected_sms_01` and
+`run_8210_early_pin_dcs_silent_sms_01`. The default eight-second PIN sequence
+remains a failing negative control; these gates do not establish its recovery.
+
+The original seven scenarios are standard gates: `make verify-8210-registration
 RUN_DIR=/tmp/8210-registration`, with corresponding `incoming-call`,
 `outgoing-call`, `incoming-sms`, `outgoing-sms`, `calculator` and `phonebook`
 suffixes. Use a distinct, nonexistent `RUN_DIR` for every gate. The runner
 pins both acquired input hashes before creating storage; wrong-product inputs
 are rejected rather than silently provisioned. Incoming configuration is
 copied into the run, never modified in the tracked fixtures.
+
+`make verify-8210-ussd` independently exercises physical `*123#` and Send,
+the exact GSM 04.80 processUnstructuredSS request and network response,
+clean RR release, the firmware's `Nokia test network` screen, and physical
+Back to registered idle. It also requires persisted laboratory EF_LOCI.
+The NSM-3 normal decoder at `307dbe..307df4` reads pointer `33ee78` from
+literal `307e40`; its last row is `10 1a 0c 0a 0b`. Thus Star occupies
+column 2 and Hash column 4. The own NSM-2 table at `33f504` and NSB-6 table
+at `339f4c` contain the same 25 bytes, so these research compositions share
+the corrected port labels without a product-local override. Matrix bits and
+controller behavior are unchanged. This is
+physical firmware input and laboratory supplementary-service coverage,
+not native DSP or factory-PMM promotion.
+
+`make verify-8210-call-divert` independently enters physical `*#21#`/Send,
+requires the exact service-`21` InterrogateSS and inactive network result,
+RR release, the transient `Service not active` screen and physical Back
+to registered idle with persistent EF_LOCI. Its early result capture is
+intentional: the firmware automatically dismisses this result before the
+later USSD capture time. Both fixtures share input mechanics and boundary
+checks, not message payloads or frame oracles. This verifies interrogation
+of an inactive service, not activation, forwarding or delivery of a call.
+
+`verify-8210-sim-toolkit` independently enables the card-owned Phase 2+
+DISPLAY TEXT fixture on the same acquired base-record comparison. The own
+firmware reads EF_PHASE=3, publishes a nine-byte TERMINAL PROFILE, observes
+STATUS `91 16` and fetches `A0 12 00 00 16`. The reviewed 84x48 `DCT3 SAT`
+frame has pixel SHA256
+`0c609d0fc7f1f59534f7e29ccaa995d441ff52f701b76093661b2458380ff558`.
+Physical Menu/OK produces successful TERMINAL RESPONSE
+`810301218002028281030100`/`90 00` and restores numeric-PLMN idle (pixel
+SHA256 `d6d4b05af24a06c42a97e31c3134f7e497e149f4420f87f3d243613f06926300`).
+The gate requires own staged/self-test/base-record predicates and persisted
+laboratory registration. These Toolkit gates establish the default-cell,
+PIN-disabled composition are established; no DCS/PIN Toolkit combination,
+factory PMM or native DSP promotion follows. Accepted protocol ordering is
+shared through `dct3_toolkit_check.py`; startup, provisioning and frames
+remain product-owned.
+
+`verify-8210-sim-toolkit-inkey` selects the existing card-owned GET INKEY
+sequence after DISPLAY TEXT. The first terminal response advertises the
+next command with `91 15`; firmware fetches its 21-byte payload and renders
+`Press 5`. Physical digit 5 enters the editor, and physical Menu/OK completes
+TERMINAL RESPONSE `8103022200020282810301000d020435`, followed by `90 00`
+and registered idle. Digit entry alone does not complete this NSM-3 UI
+transaction. The gate retains the own staged/self-test/base-record and SIM
+location requirements and checks exact DISPLAY TEXT, GET INKEY and idle
+pixels. This proves GET INKEY in this composition, not other proactive
+commands or a change to the native-DSP boundary.
+
+`verify-8210-sim-toolkit-input` extends that same sequence with GET INPUT.
+The GET INKEY response advertises `91 1a`; firmware fetches 26 bytes and
+renders `Enter 42`. Physical digits 4, 2 and Menu/OK produce
+`8103032300020282810301000d03043432` and `90 00`, returning to registered
+idle. The extended gate checks both preceding commands, all three physical
+input actions, the GET INPUT prompt and the final idle pixels, along with
+unchanged own-product startup and persistent-location predicates. Its
+accepted response is two GSM-default-alphabet digits; arbitrary text,
+UCS2, cancellation, timeout and PIN/DCS combinations are not established.
+
+`verify-8210-sim-toolkit-menu` uses `tools/noki8210_toolkit_menu_input.lua` to extend this
+sequence with the existing card-owned `SATCFG=4` profile. An isolated
+65-second NSM-3 run preserves staged boot and laboratory registration,
+accepts SET UP MENU with terminal response `810304250002028281030100`,
+and physical Menu, Up, Menu, Menu navigation produces ENVELOPE
+`d30702020181100101`, accepted item 1 and `90 00`. This establishes
+card/handset menu-selection protocol behavior in research HLE. The gate
+checks exact reviewed entry, item-list and post-selection pixels alongside
+the preceding interactive commands. Selection leaves the item list visible;
+it does not establish a launched application. Other item IDs,
+help requests, menu replacement and native DSP behavior remain unproved.
+
+`verify-8210-sim-toolkit-menu-state` saves with that item list open and
+physically selects item 1 in both reference and restored intervals. It
+requires exact PC/SP/mapped-RAM digest/emulated-time restoration, identical
+nonempty card protocol records including the accepted ENVELOPE and status
+words, and exact reviewed menu pixels. This covers the live menu/card state,
+not an in-flight partial APDU, menu replacement or native DSP execution.
+
+`verify-8210-sim-toolkit-sms` selects card profile 5. Physical item-1
+selection advertises `91 24`; firmware fetches SEND SHORT MESSAGE and
+submits the card's 8-bit `SAT` payload to `5551234` through its own CP/RP
+path (`CP=39`, TP message reference 1). The gate requires exactly one
+decoded submission, network CP/RP acknowledgment, successful terminal
+response `810305130002028281030100`, handset CP acknowledgment and RR
+channel release before physical End returns to reviewed numeric-PLMN idle.
+Menu and post-network list pixels are also checked. This is laboratory
+SMS signaling/acknowledgment, not public-network delivery or native speech.
+
+`verify-8210-sim-toolkit-call` selects card profile 6. Item-1 selection
+advertises `91 1c`, FETCH supplies SET UP CALL, and physical Menu/Call
+precedes both SETUP and the request for `5551234`. The gate requires
+assignment, connect acknowledgment, successful terminal response
+`810306100002028281030100`, and physical End before Disconnect and the
+complete CC/RR release. Reviewed consent, active `SAT call` and returned
+idle pixels are checked alongside staged boot and persisted registration.
+This establishes laboratory call signaling, not speech or native DSP.
+`verify-8210-sim-toolkit-call-decline` exercises the same card request but
+physically selects Names/C. Firmware returns
+`810306100002028281030122` (user did not accept), with no outgoing request,
+SETUP, assignment or connect. The gate checks the consent prompt, returned
+item list and physical End to idle as well as boot/registration predicates.
+
+`idle-state` uses `noki8210_state_idle.lua` after physical security-code
+acceptance and laboratory registration. At 32 seconds it saves registered
+idle, compares a one-second reference interval with the restored interval,
+then presses physical Menu and captures Messages. `noki8210_state_check.py`
+requires exact PC/SP/mapped-RAM digest/emulated-time restoration, a nonempty
+ordered radio/SIM replay with identical payloads, identical full idle pixels,
+reviewed `DCT3 LAB` text, and post-load decoded Menu/Messages presentation.
+Missing protocol logs are a failure; use the runner's verbose logging.
+This is research idle/UI restoration under the declared base-record PMM
+comparison, not active-call/SMS replay, factory provisioning or native DSP
+completion. No handset state or message is injected.
+
+`call-state` uses the same exact-state/replay harness after physically dialing
+`1234567` and Send. It saves at 34 seconds, after Connect Acknowledge and
+before any Disconnect, then requires the same nonempty one-second protocol
+replay and identical active-call pixels. After load, physical End completes
+the own NSM-3 CC/RR release grammar and returns to reviewed `DCT3 LAB` idle.
+The physical composer schedules no End while this restoration fixture owns
+the continuation. Check with `noki8210_state_check.py LOG SNAP --call`;
+ordinary outgoing-call and idle-state fixtures remain independent. This
+verifies active signaling/UI restoration, not native speech or delivered-SMS
+restoration.
+
+`sms-state` delivers the laboratory `hello` once, stores it and closes
+CP/RP/RR before saving at 21 seconds. It requires exact architectural
+restoration, identical saved-screen pixels and nonempty one-second ordered
+radio/SIM replay; only after load does the shared physical Read fixture
+open the message. Acceptance requires exact persistent read-status content,
+reviewed `hello` body pixels, exactly one page and exactly the delivery plus
+read-status writes. Redelivery or rewriting the message cannot repair a
+restore. Run `run_noki8210_acceptance.py RUN --scenario sms-state`, or check
+`noki8210_state_check.py LOG SNAP --sms --storage SIM_NVRAM`. This completes
+the independently executed idle, active-call and delivered-message
+restoration set for the research composition; it does not prove save/load
+within an unfinished SMS transaction or native DSP runtime.
+
+`verify-8210-host-incoming-call` uses the shared configured GSM900 host
+fixture, not automatic incoming calls. The physical startup
+fixture produces registered idle at 32 seconds; only then does
+`run_host_incoming_signaling_gate.py` queue caller `5551234`. Physical Send
+and End complete the own NSM-3 CC/RR lifecycle. The runner requires matching
+epoch/request identity and all five host phases; handset acceptance also
+requires reviewed caller and post-release `DCT3 LAB` pixels. ARFCN4 SCH,
+candidate/release parameters, host registration and persistent EF_LOCI are
+checked alongside own native uploads, explicit HLE handoff and self-test. The
+exact configured-cell traffic words are
+`041202000271012fc10000040000000400000000`, with teardown
+`041202001117001a600000040000001400000001`. Default-cell call comparisons
+retain their separate words; the two variants cannot satisfy each other's
+matchers. Run from a new
+directory with `run_noki8210_acceptance.py RUN --scenario host-incoming-call`
+(`--port` selects the private HTTP endpoint). The manifest records both MAME
+and host runner commands. This proves external host signaling through the
+research composition, not native speech or external-network calls.
+
+`verify-8210-host-outgoing-call` physically dials `1234567` and Send, then
+requires one correlated host request, rejection of wrong-ID and duplicate
+decisions, one accepted Connect, firmware CC/RR assignment and Connect
+Acknowledge, and physical End followed by complete release. It uses the
+same exact configured-cell traffic grammar and mandatory own-stage,
+registration and persistent-SIM checks. Reviewed dialed-number, Call 1 and
+post-release operator regions prove presentation; the connected/idle crops
+agree with the independent own-product state oracles. Neither host-call
+gate exercises media payloads or proves native speech.
+
+`verify-8210-sip-cancel` separately proves a real local PJSIP INVITE followed
+by caller CANCEL while alerting, 487, exactly one correlated host termination
+and complete firmware CC/RR release with zero accepted media. Physical
+security entry settles registered idle before admitting the call. The own
+SETUP carries caller `5551234`; physical Names/C decodes `1a` and dismisses
+the reviewed `1 missed call` screen. The final idle frame displays numeric
+`001 01`, not the initial `DCT3 LAB`; both are separately reviewed, with no
+forced network-name repaint and no established cause for that presentation
+difference.
+
+This runner pins the acquired MCU and PMM and uses the same explicitly
+labelled base-record comparison, not reconstructed factory data or donor
+provisioning. Its host fixture independently selects a GSM900 laboratory
+cell pair 4/5. Acceptance requires ARFCN4 SCH, recovered `041202` candidate
+and release parameters, host registration on 4 and persistent EF_LOCI.
+Legacy default-cell gates tune MCU carrier 4 while their default network
+reports 1; they establish their documented signaling contracts but not this
+stronger carrier-coherence claim. This gate does not promote those gates,
+factory PMM validation, native resident DSP execution or speech/media.
+
+`verify-8210-sip-idle-restore` saves settled registered idle at 32 s and
+requires exact PC/SP/mapped-RAM checksum/time restoration, identical full
+idle pixels and nonempty ordered one-second radio/SIM replay. Only after
+that replay completes does the fixture publish a fresh readiness frame at
+35 s and admit one external SIP call under host epoch 2. The same coherent
+ARFCN4, CANCEL/487, zero-media, CC/RR, SIM-location and physical Exit checks
+remain mandatory. No external dialog is active at save or restored, and no
+SIP request may precede the successful idle restore. The ordinary idle gate
+retains its independent physical Menu/Messages continuation. Provisioning
+and native-speech limitations remain unchanged.
+
+The four `verify-8210-host-*-sms` gates independently use fresh storage and
+`fixtures/noki8210_host_gsm900/nsm3hle.cfg`, shared with the SIP fixtures.
+It enables the host adapter and an external GSM900 cell pair 4/5, not an
+automatic call/SMS scenario. Every outcome requires ARFCN4 SCH, recovered
+candidate/release parameters, host registration on 4 and persistent EF_LOCI
+and the own native uploads/explicit HLE handoff/self-test in addition to
+its message-specific checks. Default-cell comparison gates
+and factory-provisioning limitations are not promoted.
+The incoming host supplies
+GSM-7 `hello` from `5551234`; acceptance requires queued/delivered request
+identity, handset CP/RP/RR closure, exactly one page, delivery/read-status
+SIM writes, persistent text and reviewed physical Read pixels. Outgoing
+physical Write/Send submits exact GSM-7 `A` to `5551234`; the host accepts
+the correlated request once while wrong-ID and duplicate decisions are
+rejected, and handset acknowledgement/release returns to paging. Reviewed
+`Message sent` text is required independently of the animated envelope. Each
+runner checks both the host protocol and the own-product handset contract.
+These tests establish external software SMS transport, not external carrier
+delivery or native DSP execution. `--port` and a new run directory isolate
+each case; the manifest retains the exact host command.
+
+`host-rejected-sms` selects explicit RP-ERROR: the handset closes CP/RP/RR,
+shows **Message not sent this time**, then physically decoded End/Menu
+reopen Messages. `host-silent-sms` supplies no RP result and observes for
+125 seconds. At about 104.5 seconds the handset sends main-link DISC;
+UA/channel deconfiguration ends the correlated host request and resumes
+paging. Its transient error is **Message sending failed**, not an RP result.
+Only afterwards do physical End/Menu test recovery. Both outcomes require
+their distinct reviewed English error text and Messages title, and reuse
+the evidenced 8850 protocol/presentation checker with NSM-3's own key-trace
+format. Silence fails if any RP-ACK/RP-ERROR appears. These are failure and
+recovery tests, not delivery; no handset timeout or release is injected.
 
 The shared observer retains staged-DSP/self-test, decoded-key and readiness
 acceptance records only. PMM copy/cache dump, column-mask and input-lifecycle
@@ -486,7 +1113,1212 @@ an isolated run directory and checks the unsupported-peripheral case plus
 COBBA and immutable-version sensitivity cases. Unsupported peripheral reads
 are fatal rather than synthetic responses.
 
-## Evidence needed to resume
+## Research-HLE DCS1800 registration
+
+`verify-8210-dcs-registration` selects external laboratory carriers 823/824
+through ordinary network configuration, retaining the acquired NSM-3 MCU
+and declared own base-record PMM comparison. No firmware or peer change is
+needed. The own scan publishes `56:03370338`, selects SCH on carrier `0337`,
+uses recovered `041202` channel parameters and capability byte `30` in its
+Location Updating request (GSM900 uses `33`). Acceptance requires the ordered
+Location Updating/release sequence, carrier-823 paging and updated EF_LOCI.
+Media and native DSP on this band are not promoted.
+`verify-8210-dcs-idle-state` extends the no-PIN DCS profile through an
+idle save/load round trip. `run_8210_dcs_idle_state_01` passes explicit
+DCS registration and persisted EF_LOCI, exact saved/restored PC/SP/RAM
+and emulated time, transport replay, matching registered-screen pixels,
+and post-load physical Menu decode plus reviewed menu presentation.
+PIN-enabled DCS restoration has separate early- and late-PIN gates;
+this no-PIN result does not supply their evidence.
+`verify-8210-dcs-incoming-sms` composes the same topology with the external
+incoming-SMS scenario without discarding either configuration. Run
+`run_8210_dcs_incoming_sms_01` passes DCS registration and EF_LOCI,
+ordered paging/CP/RP/LAPDm closure, delivery and read-status writes to
+EF_SMS, persistent read `hello` content, and physical reading with reviewed
+body pixels. No-PIN coverage only; call coverage has separate gates below.
+`verify-8210-dcs-sms-state` uses that same external SMS/band composition
+and saves after delivery and release. `run_8210_dcs_sms_state_01` passes
+exact architecture, transport and pixel replay, persistent read content,
+and physical message reading after restoration, with DCS registration
+verified separately. This remains no-PIN research-HLE coverage.
+`verify-8210-dcs-outgoing-sms` validates physical `A`/`5551234` entry,
+exact SMS-SUBMIT, laboratory acceptance, network CP/RP acknowledgement,
+release/resumed paging and reviewed Message-sent pixels. Run
+`run_8210_dcs_outgoing_sms_01` also passes explicit DCS registration and
+persisted EF_LOCI. This is no-PIN laboratory signaling, not external
+SMS delivery or native DSP validation.
+`verify-8210-dcs-outgoing-call` independently checks registration, physical
+`1234567` entry/Send/End, CC setup/connect/disconnect/release and reviewed
+dialed/active/released screens. Capture `run_8210_dcs_outgoing_call_contract_01`
+established traffic word `041202000271012fc10003370000000400000000` and
+release word `041202001117001a600003370000001400000001`; fresh run
+`run_8210_dcs_outgoing_call_01` passes those exact contracts. GSM and DCS
+patterns reject each other's carrier words. No peer behavior changed;
+this is no-PIN laboratory signaling, not native speech or an external call.
+`verify-8210-dcs-call-state` saves inside the connected call and verifies
+exact architectural, protocol and pixel replay before physically ending
+the restored call. `run_8210_dcs_call_state_01` passes the DCS channel
+contract and separate DCS registration/EF_LOCI check. No-PIN signaling
+restoration only; no media/native-speech claim follows from this gate.
+`verify-8210-dcs-incoming-call` validates paging, caller presentation,
+physical Answer/End, exact DCS traffic/release words, CC/RR closure and
+returned registered-idle pixels. `run_8210_dcs_incoming_call_02` passes.
+The caller crop `(40,8,80,16)` contains the reviewed `5551234` text and
+is byte-identical to fresh GSM control `run_8210_gsm_incoming_call_pixels_01`;
+the retired wider crop included changing signal/battery/animation pixels
+and failed for both bands. Blank-caller negative tests remain enforced.
+This gate proves no-PIN laboratory signaling only. DCS host services and
+early- and late-PIN acceptance have separate gates above. Native speech
+and external end-to-end speech calls remain unproved by these signaling gates.
+`verify-8210-dcs-phonebook` creates contact `A/123` through physical
+inputs, checks initial DCS registration/EF_LOCI, cold-boots preserved
+storage with the same own base-record comparison and carrier-823
+configuration, then physically reads the contact. Run
+`run_8210_dcs_phonebook_01` passes record persistence and reviewed
+contact pixels. This does not add PIN-timing or host-backend coverage.
+
+**Control without a terminal timing result:** the following negative maps
+describe the peer with unlisted mode-4 failure completion disabled, not the
+current accepted late-PIN lab composition. In this control, physical PIN
+entry starting at eight seconds does not register; seven seconds does. The passing
+no-PIN DCS control also lacks `07f0`, `1587` and type 57: none is a universal
+DCS prerequisite. It receives `03ec` before serving-channel completion;
+PIN DCS receives it afterwards. At completion, the passing control has
+`03ec` queued alongside current `03eb`; PIN DCS has no queued replacement.
+The later request is retained, but its argument-3 selector returns 4 and
+returns to the receive loop. Successful early PIN enters receive state 15
+before the acknowledgement; default late PIN is already in state 13.
+State 13 can reevaluate the queue on a subsequent `8b` measurement via
+the argument-0 selector, but ordinary `03f9` neighbour notifications do
+not do so. The alternate `0413` route requires timer `81`, whose descriptor
+never changes after initialization in the failing run; its setup owners
+are separate receive states 23/24. The concrete open contract is the
+ordinary post-acquisition measurement/request-continuation lifetime.
+The peer currently replaces one pending type-`56` measurement completion
+on channel configuration, but its cancellation semantics are unvalidated.
+Simply retaining that completion at the current cadence would deliver it
+before late PIN readiness, not prove a late recovery. The own producer/
+consumer anchors below are verified; they do not justify periodic `8b`
+or acknowledgement replay. Do not make DCS reproduce GSM's reference
+chain. No firmware state or peer response is forced.
+
+In that no-completion control, default-timing DCS/PIN is unsuccessful:
+the early `55:03050000` response reaches the correlated task-12 completion
+at 5.54 seconds, before physical PIN acceptance at 12 seconds. Unlike the
+verified GSM900 PIN lifecycle, no later type-57 request is emitted. The
+passing no-PIN DCS control shows that request is not required on this band;
+Location Updating acceptance is still missing and the strict runner rejects
+the PIN run. Its measurement contract now expects the observed type 55,
+with correlated delivery, physical PIN acceptance and Location Updating;
+the late-request recovery lifecycle must be understood before
+timing-independent authenticated DCS coverage can be claimed. The
+explicit seven-second fixture is bounded authenticated coverage, not a
+replacement default. No response, firmware state or timer is forced.
+Continuous carrier-823 SI1/2/3/4 and paging packets remain present after PIN,
+excluding a one-shot-broadcast explanation. Passive completion observation
+finds the same context `00113264`, selector `03` and zero word at `+4` in
+both GSM900 and DCS1800 runs. Both therefore select parser `28755e`, not
+alternate `287664`; parser selection alone does not explain the divergence.
+The selected-cell lifecycle spans SIM acceptance; the measurement envelope
+and periodic SI transmission are present.
+
+### Mapped GSM reference chain
+Own firmware diagnostic strings narrow this further: successful GSM reaches
+`PH_1300`, whereas authenticated DCS enters `PH_9000b2`. Both call decision
+helper `2a1380`, whose halfword state is at `137f5a`. The GSM `PH_1250`
+calls observe states 4 then 6; DCS observes state 5 and subsequently calls
+the same helper with argument 3 from `21f5c8`. These are observed internal
+states, not yet named protocol semantics. Decode the state-5/argument-3
+contract and its `2a0eb8` dependency before adding any peer response.
+The observed state-5/argument-3 rejection reaches `2a194c`: its measurement
+outcome is `4`, which fails the first `outcome & ~2 == 0` predicate. The
+record is `07 08 01 00`, and the two selected-cell links are nonzero/zero;
+those later predicates are not reached. The outcome is written organically
+by parser `28755e` at `287640` into the object referenced by `13722c`.
+GSM also receives outcome `4`, so it is not a DCS-specific failure code.
+The post-rejection `21b8ea -> 21bb8c` path repeatedly enters `PH_9000`
+while broadcasts arrive: the task remains live, not blocked inside the
+decision helper. Compare the lifecycle that establishes the selected-cell
+record/links before treating the outcome as a missing peer reply.
+The link roots have six/four aligned literal references respectively. Runtime
+writes identify `287470` scan-link creation, `287218` scan-link clearing and
+`2873a4` selected-link publication. The working GSM path additionally uses
+`28725c` at measurement completion; these are MCU-owned transitions.
+
+The decisive post-PIN inputs differ: DCS receives `03ec`, while GSM receives
+`03ed`. Both are constructed by `2aede0`, called from `258afc`, and posted to
+task 12 by `2af11a`. The producer's status cascade maps `07d4 -> 03ec` and
+`07da -> 03ed`; enumerate the producers of those status values next. The raw
+byte at message `+3` differs too, but this constructor does not demonstrably
+initialize it as a class, so its observed `c7`/`3b` bytes have no assigned
+semantics. Do not substitute `03ed` or alter the selected-cell links.
+
+The own-ROM status mapper at `209b90` provides a concrete upstream candidate:
+its subtract cascade starts at `09c6`, maps `09c8 -> 07d4` and
+`09cc -> 07da`, and publishes through `20925c` with argument zero.
+The cascade arithmetic, branch targets and aligned pool literals are checked
+by `noki8210_radio_contract.py`. This is a static mapping, not proof that this
+routine supplies the statuses in the paired runs: other literal references
+exist. The next observation should establish whether `209b90` receives those
+inputs, its callers, and the producer of the differing input before assigning
+protocol semantics or changing peer behavior.
+A linear Thumb decode finds direct `bl 209b90` candidates at `20cc9a`,
+`210fd2` and `211048`. These are investigation anchors, not an exhaustive
+producer census: linear decoding can include data and misses indirect calls.
+Paired passive runtime observation confirms `210fd2` is the selected caller:
+DCS supplies `09c8` at 12.695703 seconds, followed by `03ec` construction
+at 12.695866; GSM supplies `09cc` at 12.696790, followed by `03ed` at
+12.696956. Both earlier supply `09c7` through the same caller at 3.181184.
+The caller loads the input from `[sp,#4]`; its message dispatch and input
+producer are the next boundary. GSM additionally invokes the mapper with
+`09fc`/`09fa` through `211048`; those are observations, not assigned protocol
+semantics. Evidence: `run_8210_pin_{dcs,gsm}_mapper_01`; GSM registration
+passes, DCS is rejected by the unchanged strict acceptance checker.
+The paired `run_8210_pin_{dcs,gsm}_upstream_constructor_01` runs identify
+the actual input producers. Constructor `2252cc` receives DCS `09c8` from
+`22923e` and GSM `09cc` from `2280c8`; its common `225366` mailbox send
+targets task 15. These distinct producer branches precede the common mapper.
+The working GSM branch tests context `+60`, byte `+19` and helper `2c2986`
+before constructing `09cc`; the observed DCS branch constructs `09c8`
+after clearing the object referenced by its `229222` pool load. Context
+ownership and the entry conditions of these branches remain unresolved.
+Trace those branch selectors next, without assigning radio/SIM semantics
+from message numbers alone. GSM acceptance passes; DCS still fails.
+Paired producer-context observations identify the first selector: at `22803e`,
+context `136aec` byte `+11` is zero on DCS and one on GSM. Zero calls
+`229224` through `228052`, emitting `09c8`; one branches to `228080` and
+subsequently emits `09cc`. At that selector DCS also has byte `+19=0`,
+word `+5c=0`, word `+60=4`; GSM has `+19=1`, `+5c=113594`, `+60=1`.
+Both have `+0a=0` and `+30=10` (decimal). The successful branch clears
+`+11` before constructing its message, so inspecting it only at the
+constructor would hide this difference. The next question is the writer
+and meaning of `136afd` (context `+11`), not a replacement radio reply.
+Evidence: `run_8210_pin_dcs_readiness_context_02` and
+`run_8210_pin_gsm_readiness_context_01`; strict GSM acceptance passes and
+DCS remains unregistered. Direct-store candidates in the local subsystem
+are `226ff6`, `22703a`, `22707a`, `227108`, `227126`, `227aca`, `22806e`,
+`228086` and `2281d0`; this syntactic scan is not exhaustive writer coverage.
+The paired `run_8210_pin_{dcs,gsm}_selector_writers_01` write watches find
+the concrete successful setter: GSM writes one through `227126` at
+10.795097 seconds, then clears it through `228086` at 12.694759. DCS
+only has the initial zeroing writes, not a later set or clear in this run.
+The setter loop calls input retrieval `225688` and requires `1587` before
+storing one. Own-ROM checks pin this predicate and store; the watch reports
+PC `227124`, the preceding instruction, not a different store site.
+Paired `run_8210_pin_{dcs,gsm}_readiness_prerequisite_01` observations
+confirm the predecessor: GSM posts `09fc` at 10.793668, maps it through
+`209b90`, then posts `1587` at 10.794179 before the selector write.
+DCS posts neither in this run. The raw send observation reports target
+arguments 15 and 17 respectively; these are not subsystem names.
+`run_8210_pin_gsm_prerequisite_constructor_01` identifies `258c6e` as the
+original `09fc` constructor call. Its status cascade selects this input
+for `07f0` (`7f << 4`) at `258c1a`; the other branches construct
+`09f8`, `09f9` or `09fa`.
+The `07f0` source is now observed: constructor `2a20b0` is called through
+`2a21f4`, and its common send is `2a213a`. Dispatcher `2a21a4` reads the
+stored input object at context `137f58 +8`; `03eb` selects `07f0`.
+In paired `run_8210_pin_{dcs,gsm}_status_dispatch_01`, GSM calls this
+dispatcher from `21bffa` at 10.793016 with stored `03eb`, state 5; DCS
+does not call it. Both originally receive the same `03eb` request at
+3.182437 in task-12 state 8. Therefore the original request is present in
+DCS: the missing transition is the completion path reaching `21bffa`,
+not construction of the request or the final PIN readiness selector.
+GSM subsequently calls it again with `03ed`, state 0, at 12.896008.
+The independent `run_8210_dcs_no_pin_completion_01` passes full registration
+while following `03ec`, with no `07f0`, `1587` or type-57 request. Its
+`03ec` arrives at 6.422718 seconds, before candidate/serving changes; in the
+PIN run it arrives at 12.696057, after the serving acknowledgement.
+`run_8210_{pin_dcs,dcs_no_pin}_pending_requests_01` observes the queue at
+`2a0dc8`: both retain current `03eb`, but at the serving completion the
+passing control has queued `03ec` while PIN DCS has zero at context `+0c`.
+The helper returns 0 with no queued request, 1 for the first current request,
+or 2 when promoting a replacement. That result controls the state-5 tail
+through `2a1484`. Gate byte `13721e` is `05` in both runs, excluding a
+different value of that gate as the explanation. The remaining question is
+how the late `03ec` should settle the already-completed initial request.
+
+### Physical-input ordering control
+
+`run_8210_pin_dcs_early_valid_01` passes the strict PIN and full DCS
+registration/release/paging/EF_LOCI checks with `--pin-start 7`. Its captured
+screen shows the PIN editor before the first key; VERIFY returns `9000`.
+At 12.262178 seconds, `2a0dc8` has queued `03ec`, and the publisher selects
+it at 12.550787; Location Updating is accepted at 12.890599. The MCU,
+PMM, card contents, radio peer and radio timing are unchanged. This proves
+an authenticated DCS path, not timing-independent PIN support: the default
+eight-second fixture remains failing and is not replaced by the favorable
+control. A four-second attempt captured a blank pre-editor screen and
+VERIFY `9804`; it is not evidence about registration recovery.
+
+Reproduce the valid control with
+`tools/run_noki8210_acceptance.py RUN --pin-enabled --dcs1800 --pin-start 7`.
+The option affects physical input only, is restricted to PIN registration,
+incoming-call, host call/SMS, phonebook or idle/call/SMS restoration fixtures,
+and is recorded in successful run manifests. Next decode recovery when
+`03ec` arrives after the serving acknowledgement, rather than adjust peer
+latency or choose an earlier default input.
+
+Early-PIN DCS also passes host-triggered incoming call signaling:
+`tools/run_noki8210_acceptance.py RUN --scenario host-incoming-call --pin-enabled --pin-start 7 --dcs1800`.
+`run_8210_early_pin_dcs_host_incoming_03` verifies PIN, own DCS registration,
+persisted EF_LOCI, physical Answer/End and CC/RR release. The host waits for
+the registered-idle capture before calling; a fixed automatic call can collide
+with security-code input and is not an equivalent fixture. Host registration
+validation selects the DCS823 contract rather than the GSM900 ARFCN4 contract.
+This is an early-PIN signaling result, not speech or the separate late-PIN
+acceptance documented at the start of this contract.
+The corresponding standard target is
+`make verify-8210-dcs-early-pin-host-incoming-call RUN_DIR=NEW_DIRECTORY`.
+Outgoing DCS host signaling separately passes without PIN and with early
+PIN entry: `run_8210_dcs_host_outgoing_call_01` and
+`run_8210_early_pin_dcs_host_outgoing_call_01`. Both require physical
+`1234567` dialing, reviewed number/connected/idle crops, own DCS traffic
+and release parameters, correlated host Connect, physical End, registration
+and persisted EF_LOCI. Use `verify-8210-dcs-host-outgoing-call` or
+`verify-8210-dcs-early-pin-host-outgoing-call`; speech is not tested.
+Early-PIN DCS idle, active-call and delivered-SMS restoration also pass
+(`run_8210_early_pin_dcs_idle_state_02`, `run_8210_early_pin_dcs_call_state_01`,
+`run_8210_early_pin_dcs_sms_state_01`). They require the correlated
+measurement/VERIFY/registration sequence, exact CPU/RAM/time restoration,
+ordered protocol replay, reviewed pixels and physical Menu/End/Read
+continuation. Standard targets are `verify-8210-dcs-early-pin-state-idle`,
+`verify-8210-dcs-early-pin-state-call` and
+`verify-8210-dcs-early-pin-state-sms`. These do not establish late-PIN recovery.
+Early-PIN DCS contact persistence separately passes a two-process Save and
+cold readback (`run_8210_early_pin_dcs_phonebook_01`). Both processes require
+own-ROM/base-record boot and authentication. The cold process also requires
+own carrier-823 registration, unchanged persisted SIM bytes, the retained
+EF_LOCI in its location-update request with DCS capability `30`, no invalidation
+write, and reviewed contact pixels after physical Search/Detail.
+Use `verify-8210-dcs-early-pin-phonebook` with a fresh `RUN_DIR`.
+Paired `run_8210_pin_dcs_{late,early}_queue_result_01` confirms the late
+request is not lost: `21f5aa` calls `2a1eaa`, which copies `03ec` into
+context `+0c`. Both physical timings then return 4 from the argument-3
+selector, retaining current `03eb` and queued `03ec`, and continue through
+`21b8ea` rather than the result-3 path. The distinction is the next event:
+early PIN still receives the serving acknowledgement, whose argument-0
+selector returns 3 and promotes `03ec`; late PIN already consumed it with
+result 0 and an empty queue. Replaying the acknowledgement is not a fix.
+Determine the ordinary post-acknowledgement recovery event/continuation.
+The result-4 continuation itself is passive: `21b8ea` logs
+`PH_9000_ENTER`, branches directly to `21bb8c`, disposes the consumed
+message through `288e44`, and receives again through `2886b0`. It does
+not issue a radio request or arm a retry on this path. Therefore trace
+subsequent receive events and their queued-request consumers; do not
+interpret the PH9000 label alone as an active recovery operation.
+One concrete subsequent-event candidate is decoded: the state-`0d`
+dispatch entry at `21bbe4 + 13*4` points to `21ef30`. Input `1802` with
+type `8b` takes `21ef44`, parses the measurement through `2a2250`, then
+calls `21f900`, which invokes the argument-0 queue selector. This is the
+same selector that promotes the early queued request. The late run's
+subsequent traffic contains `83` and `03f9`, not a later `8b` completion.
+The open transport question is whether an already-issued measurement
+command requires such a later completion; the consumer alone does not
+authorize unsolicited periodic `8b` packets.
+The existing peer has a specific cancellation boundary to audit. The
+updated type-`56` window at 5.542080 produces SCH (`80`) at 7.897080;
+firmware then sends type `02` at 7.898223. With one window report remaining,
+`handle_acquisition_packet` replaces the candidate-measurement phase and
+pending `8b` with the candidate-channel-change `8f`/`89` transaction.
+There is no late type-`57` request in the failing run. Thus the missing
+completion is not an unanswered late request: establish whether type `02`
+legitimately cancels the earlier window's terminal measurement or whether
+that measurement remains independently owed. Current passing early-PIN
+and no-PIN runs do not decide this contract, and must not be used as proof
+that cancellation is correct.
+Passive own-ROM serializer captures additionally rule out differing initial
+channel-config bytes as the early/late-PIN discriminator. Constructor
+`2b3910` serializes a 24-byte envelope (20-byte payload); source descriptor
+byte 1 becomes payload byte 7. Its high nibble selects payload byte 8:
+`50` becomes `50`, `10` becomes `60`. Both fresh DCS runs send identical
+initial payloads `0412020000000050500003370000000000296ff9` and
+`0412020900000010600003371000000000297000`. The passing PIN-at-7-second
+run subsequently sends descriptor subtypes `16` and `1a`; the failing
+PIN-at-8-second run does not reach those calls. These byte-level facts do
+not identify subtype semantics or prove cancellation of a type-`56`
+measurement. Raw descriptor/packet pairs are retained in
+`run_8210_channel_config_wire_pin7_20261009/error.log` and
+`run_8210_channel_config_wire_pin8_20261009/error.log`. Observation uses
+actual branch targets `2b3910` and `3052b2` (caller `2b39b5`), not a
+mid-routine fetch tap; no firmware or MMIO state is written.
+The retained passive instrument is `tools/noki8210_channel_config_observe.lua`;
+`tools/noki8210_channel_config_contract.py` pins the complete constructor/send
+instruction span and translates its descriptor bytes without interpreting
+DSP transaction lifetimes. All eight captured entry/send pairs match both
+the outgoing envelope and the constructor's descriptor-byte-A mutation.
+Six focused tests include exact-`50` versus high-nibble-`50` tail handling,
+unknown-nibble preservation, input bounds and the acquired-ROM pin.
+The first subtype-`50` configuration is now traced to its own producer:
+`21ed82 -> 287390 -> 2eb226 -> 2b3910`. The fresh late-PIN observation
+records helper caller `21ed87`, carrier record `119690`, and serializer
+caller `2eb265`. Helper `287390` copies record halfword `+6`, byte `+a`
+and word `+0`; constructor `2eb226` creates a zeroed 24-byte descriptor
+with bytes `04 50`, placing those values at `+8`, `+6` and `+c`.
+This exactly reconstructs both the live descriptor and its outgoing packet.
+The later subtype-`10` packet instead comes from serializer caller `2eb0d1`.
+Raw evidence: `run_8210_channel_config_origin_20261009/error.log`; the
+contract tool pins all three producer spans and tests the record copy.
+The shared helper `2eaf74` also updates firmware bookkeeping; its complete
+lifecycle is not captured by the byte-copy translation. In particular,
+this acquisition-owned configuration still does not establish whether
+the DSP must cancel or finish the outstanding measurement window.
+Configuration completion itself is settled in both runs. Shared helper
+`2eaf74` saves a 12-byte descriptor copy at pointer `137dc4` when no copy
+exists. The type-`89` handler calls it with argument zero (`2df290`, return
+`2df295`); it copies the saved descriptor into controller record `137968`,
+frees the saved copy, clears `137dc4`, and calls controller dispatcher
+`305228`. The observed subtype-`50` completion sees controller word zero
+and state `10`, selecting the `10 -> 11` branch; subtype-`10` completion
+sees state `11`, selecting the other zero-word branch. Both configurations
+complete in both boots, so neither saved-descriptor ownership nor its
+type-`89` acknowledgement is the early/late-PIN discriminator. This helper
+does not contain an explicit measurement-stop packet construction; that
+absence is local, not a proof about all downstream controller behavior.
+`verify_bookkeeping_trace` checks complete ordered save/consume/release
+transactions against the ROM-derived field copies: six completions in
+the passing run and two in the failing run. Raw paired observations:
+`run_8210_channel_config_bookkeeping_pin{7,8}_20261009/error.log`.
+The unresolved boundary remains DSP-side type-`56` measurement lifetime
+when subtype-`50` channel configuration arrives, not an unanswered
+configuration or malformed serializer.
+Reference scope: the recovered NHM-5 trace-name catalogue in the sibling
+project (`tools/symbols/trace-names-nhm5.txt`) labels `1855`, `1856`, and
+`1857` as `INVALID_MDI_MSG`. Its useful names for `188b` and `1802` do not
+specify the ROM6 type-`55`/`56`/`57` command lifetimes. Do not import a
+cancellation or periodic-measurement rule from that catalogue. Resolve
+the own-ROM request/control lifecycle or obtain a matching ROM6 trace.
+Own type-`56` construction is anchored at `2b2fe0`: it allocates `a4`
+bytes, sets payload length `a0`, message halfword 2 and type byte `56`,
+and initializes all 160 payload bytes to `ff`. Producer `286c48` calls
+this constructor, selects list population through `2869bc` or `286bc0`,
+then sends via `2b300e` to task 3. These are ROM-checked producer anchors,
+not a proof of measurement lifetime or cancellation semantics. Follow
+their caller's state/control transitions to settle that remaining question.
+Read-only caller-return taps in
+`run_8210_pin_dcs_candidate_owner_02` identify `21f390` as the initial
+publication (return `21f394`, 3.183910), and `21faaa` as the updated DCS
+publication (return `21faae`, 5.542089). The latter's receive loop tests
+`8b` at `21fb78`, parses it at `21fb86`, and invokes the argument-0
+selector at `21fba2`. Result zero branches back to `21fa68` to publish
+another list. This establishes an own-firmware consumer/retry contract
+for that window, but not whether channel configuration cancels it.
+The initial function-entry tap produced no observations despite the
+transport publications; caller-return taps replace it. No absence claim
+is based on the silent entry tap. The normal PIN run still fails the
+strict registration gate with the same empty-queue acknowledgement and
+later retained `03ec`.
+Own scan-control constructor `2b2db2` creates type `55` with four payload
+bytes and sends through task 3. Its first two bytes come from helper
+`2b2d52`: the first preserves selector 1..5; the second is indexed by a
+separate option in a selector-specific ROM table. Selector 3 uses the
+three-byte table `05 03 03` at `33e8a9`, so option 0 produces the observed
+`03 05`, while options 1/2 produce `03 03`. Direct caller candidates are
+`21f3d8` and `21fa52`. This mapping does not establish continuous versus
+one-shot measurement or an implicit cancellation command; those meanings
+remain unassigned pending lifecycle evidence.
+Both type-`55` callers select option 0 when the request object's byte
+`+9` is zero, otherwise option 2 (`21f3c4` and `21fa3a`). Type-`57`
+constructor `2b31a8` uses the same helper `2b2d52` at `2b31d6`; thus the
+option byte cannot by itself distinguish acquisition from background
+measurement. No explicit stop packet occurs between the updated list
+and channel configuration in the captured late-PIN run. Neither that
+absence nor the shared encoding proves that the DSP must keep measuring.
+Cancellation is not yet a direct late-PIN remedy: under the current peer
+cadence, the pending terminal follows the 7.897080 SCH on the next poll,
+before the 12.696057 readiness request. Retaining it would not itself
+supply a post-PIN event. An indirect cell-state effect remains possible
+and must be shown rather than assumed. A full-image aligned direct-BL
+candidate scan (950,270 offsets) finds only two calls to parser `2a2250`,
+at `21ef4c` and `21fb86`; both decoded consumers are above. This is not
+an indirect-call absence proof. The channel-acknowledgement loop forwards
+other events through `21bdc4`/`21f48a`, whose special `8b` branch at
+`21f504` leads to a flag setter (`21bb54`), not either parser call.
+That generic branch sets byte `137db0` to one. Its byte-zero consumer
+at `21d952` passes the value to `2865dc`, which uses outcome root
+`13722c` and, only when enabled, clears outcome 1 or 2 to zero. It leaves
+outcome 4 unchanged and publishes no event. The read-only write-watch in
+`run_8210_pin_dcs_measurement_flag_01` observes zero during RAM initialization
+and one at 7.908521 and 12.261757 (writer PC `2eafbc`, channel-acknowledgement
+times). The late request still returns 4. Thus a missing set of this byte
+is not the late-PIN defect. The address is shared by other offset-bearing
+consumers; it is not assigned a general subsystem name from this one use.
+Outcome 4 is not an empty-candidate diagnosis in this run. Read-only
+`run_8210_pin_dcs_outcome_terminal_01` observes terminal branch `287638`
+with object `11324c`, halfword counts at `+4/+6/+8` equal to `0,2,0`,
+skip flag `sl=0`, and final signed RSSI `fp=-127` (`ffffff81`). The
+parser's `sample + 104 < 0` test selects this branch; with no skipped
+entries it stores 4 at `287640`. With a skipped entry the same terminal
+branch stores 3. A separate route can also select 4, so do not generalize
+the enum name beyond this decoded branch. Here two entries were counted
+before the sentinel: the persistent outcome reflects this completed scan,
+not absence of radio candidates. Late readiness must be explained through
+the subsequent lifecycle rather than by synthesizing a stronger RSSI or
+changing the outcome value.
+The record storage is seven rows, not a three-row table. Accessor
+`286218` indexes `137248 + 9*index`, booleanizes its nine bytes, and
+derives returned byte `+9` as true exactly when source byte `+8` is
+nonzero. Helper `2a0eb8` examines only rows 0..2. The complementary
+helper `2a1170` examines rows 3..6; selector state 2 selects it when the
+**current** request is `03ec` (`2a15b2 -> 2a168e -> 2a1694`). These
+are structural row indices, not assigned band/subsystem names.
+Read-only `run_8210_pin_dcs_record_banks_01` observes identical rows at
+the serving acknowledgement and late readiness result: rows 0..4 are
+zero, row 5 is `000000000000000001`, and row 6 is
+`010000000100000000`. Thus the first-bank accessor sees no flagged
+record while a complementary row does satisfy its derived byte-9 test.
+The late call still has current `03eb`, queued `03ec`, and selector state
+5; it does not take state 2's current-`03ec` selection. Explain the
+firmware-owned promotion/continuation that changes request ownership;
+do not strengthen signal levels or rewrite either record bank.
+The full-image aligned direct-BL scan finds four candidate calls to queue
+promoter `2a0dc8`: `2a13d0`, `2a1484`, `2a193a`, `2a1988`. The last
+belongs to selector argument 2 (`2a187a -> 2a197c`), unlike argument 3's
+outcome/record predicates. Its sole direct selector caller is `21d886`.
+This is not an unconditional recovery entrance: `21fdd8` selects input
+`0413` through `220198`, requires timer-`81` remaining-duration query
+`287b38` to be nonzero,
+and proceeds only with nonzero context `138140` or stored request `03ed`
+at root `137f64`. It then enters `21d84a` unless controller byte
+`137968+8` is `1a`. Own diagnostic labels are `PH_2000a2`, `PH_2500`,
+and `PH_2500a2`. The failing cell-message trace does not observe input
+`0413`; that is not a static producer-absence proof. Trace the event's
+producer and timer/context lifecycle before treating it as a late-`03ec`
+recovery contract.
+The timer query returns a duration halfword, not a boolean armed flag.
+Its descriptor array starts at `11174c` with 12-byte entries, placing
+timer `81` at `111d58`. Descriptor state byte `+8` selects the queued
+calculation; the other branch reads duration halfword `+4`. The queued
+calculation accumulates timer deltas and subtracts elapsed ticks with a
+zero floor before returning the halfword. The static contract checker
+pins the descriptor roots, stride, state/duration reads and return.
+An expired timer and an absent event are therefore separate questions;
+neither justifies injecting `0413`.
+Two explicit setup candidates are `21bca6` and `21bcf6`; both pass
+timer `81` and duration `075a` from pool `21c018`. The first only starts
+it when the preceding remaining-duration query returns zero. Adjacent
+`2d5ae8` calls format diagnostic output; they are not event producers.
+In `run_8210_pin_dcs_recovery_timer_02`, a direct write-watch covering
+all 12 descriptor bytes sees cold clearing at 0.004714s and initialization
+at 1.117176..1.117178s, but no later descriptor writes. Initialization
+sets duration zero, byte `+6=0c`, byte `+7=03`, state byte `+8=01`,
+and timer id halfword `+a=0081`. Neither setup return tap is observed.
+The physical-PIN DCS registration check still fails as expected. This
+does not close indirect setup/event producers, but it establishes that
+the observed boot never changes this descriptor after initialization.
+Find the lifecycle selecting the setup sites before treating timer
+expiry as a missing late-request recovery event.
+The receive-state table at `21bbe4` selects state 23 at `21e93a`
+and state 24 at `21e786`. State 23 calls the conditional timer setup
+helper `21bc88` at `21e94a`, only after its message-word comparison
+and class-byte `89` test succeed. State 24 calls the unconditional
+helper `21bcec` at `21e906`, after four comparisons of stored fields
+against extracted incoming bit fields (`21e8d2..21e904`). These are
+state-owned continuations, not generic effects of every type-`89`
+acknowledgement. The aligned direct-call scan found these two helper
+callers; indirect entrances remain unclosed. Next establish the
+ordinary transitions selecting states 23/24 and the compared fields,
+rather than replaying `89` into the existing state.
+The receive-state context is `138038` (pool `21bbd4`), with its state
+halfword at `13803a`; helper `21bdc4` stores its argument there before
+entering `21f48a`. Direct write-watch run
+`run_8210_pin_dcs_receive_state_01` observes cold initialization to
+state 8, then `8 -> 11` at 7.903565s (caller `21ee0f`),
+`11 -> 17` at 8.408569s (caller `21ef61`), and `17 -> 13`
+at 12.553509s (caller `21ee3d`). All later writes retain state 13
+through the 46-second run, including the late readiness input.
+No state-23/24 write occurs in this observed lifecycle. This bounds
+the timer route without closing static/data-driven entrances: the
+current failure is in state 13's request continuation, not an observed
+state-23/24 timer transaction waiting for its reply.
+The paired control `run_8210_pin_dcs_receive_state_early_01`
+(`--pin-start 7`) passes the full registration/release/paging and
+persisted-EF_LOCI check with the same passive taps. It shares the
+initial `8 -> 11 -> 17` chronology, then enters state 15 at
+11.696859s (caller `21ef5b`) before the serving acknowledgement.
+That acknowledgement returns selector result 3 at 12.262718s with
+current `03ec` and an empty queue; subsequent receive states are
+`15 -> 2` at 12.557164s and `2 -> 7` at 12.888496s.
+State 15's handler `21f8e2` checks input `1802` and class byte `89`
+before entering `21f900`'s argument-zero selector. This is the
+observed successful promotion owner, distinct from timer states
+23/24. The standard late-PIN run reaches state 13 before readiness,
+and never observes this state-15 acknowledgement pairing. The
+control does not establish timing-independent PIN coverage or
+justify delaying/replaying the radio acknowledgement.
+Ordinary neighbour notifications `03f9` do not retry this queue in
+receive state 13. Its non-`1802/8b` route reaches `21ee30`, where
+only `0411` selects the special branch; other inputs re-store state
+13 through `21bdc4` and enter shared forwarding `21f48a`.
+That cascade has no `03f9` case and reaches default handler `21b954`.
+The default handler's selectors are `03fd`, `03fc` (constructed),
+`03fb`, `03fa`, `0422`, `041d`, and `0421`; unmatched `03f9` reaches
+`21b9ee -> 21b8ea`, the receive-loop tail. This explains the repeated
+state-13 writes accompanying observed neighbour notifications without
+queue promotion. It does not establish what a real DSP must publish:
+the remaining request-promotion candidate in this observed state is
+the separate `1802/8b -> 2a2250 -> 21f900` measurement continuation,
+whose post-acquisition production/lifetime contract is still unproved.
+Do not set that selector or inject `1587` to obtain authenticated DCS coverage.
+
+The bounded request-lifetime watches in `noki8210_security_input.lua` cover
+root `137f58..137f67` and the initially selected heap context `113264..11326b`.
+Paired current-build runs `run_8210_late_pin_lifetime_02` and
+`run_8210_early_pin_lifetime_02` reproduce failure at eight-second PIN entry
+and full registration at seven seconds, respectively. Both initialize selector
+`03` at `2a1e78` and alternate pointer zero at `2a1e7c`, at 3.181635s.
+In the successful run, queued pointer `1135f4` arrives at 11.696917s;
+`2a0df4/2a0df8` promote it to current and clear the queue at 12.262181s,
+before ordinary teardown clears the context roots at 12.557286s. In the
+late run, the same queue pointer arrives at 12.696127s, after the serving
+acknowledgement; no subsequent promotion store occurs in the 46-second window.
+These observations support an unclosed request-lifetime/continuation contract,
+not selector corruption or an unanswered late type-57 request. The next
+static target is the promotion call at `2a1484` and its event ownership
+(`2a1489` is its Thumb return address, not a separate entrance).
+The initially watched heap address is recycled after successful teardown:
+later allocator and packet writes there are not measurement-context changes.
+Do not infer permanent object ownership from a fixed-address watch.
+The own selector table at `2a139c` maps states 4/5/6 to
+`2a1468/2a1456/2a1444`. Each requires argument zero to reach shared
+`2a1474`; byte `13721e` must be nonzero before `2a1484` calls the
+current/queued helper `2a0dc8`. State 5 with argument 3 instead branches
+through `2a1464 -> 2a1872` and the previously decoded rejection checks.
+Thus late readiness itself is not a queue-promotion trigger. These branches,
+table entries, pool pointer and call boundary are checked by
+`noki8210_radio_contract.py`. The unresolved producer question is which
+ordinary post-acquisition event invokes argument zero after late readiness;
+the known state-13 measurement continuation is eligible, but its production
+and request lifetime remain unproved. No repeat measurement is justified by
+the existence of this consumer alone.
+The aligned direct-BL census over the complete acquired image finds selector
+sites `21d886`, `21f356`, `21f5ca`, `21f90a`, `21fba2`, `2a1e28`,
+`2a1e62`, `2a224a`, and wrapper site `21ef50`. The three setup/teardown
+sites in the `2a` region use argument 1, while `21d886` uses 2 and
+`21f5ca` uses 3. Direct argument-zero sites are `21f356`, `21f90a`
+and `21fba2`; the latter follows the candidate-window measurement parser.
+This is direct-call candidate coverage, not exhaustive event ownership:
+receive state 10 additionally reaches wrapper `21f900` by tail branch
+`21f2c0`, after its message comparison and class-`89` predicate. The observed
+late lifecycle remains state 13, so that state-10 entrance is not established
+as its recovery. Tail/data-driven/indirect entrances require separate closure;
+a missing BL cannot prove absence of a producer. The alternate
+argument-zero owner at `21f356` is bounded to receive state 21: table entry
+`21bbe4 + 21*4` selects `21fc40`, which treats `03ed` specially and otherwise
+calls `21f2ec`. Its literal comparisons select `03eb`, `03ec` (`fb<<2`)
+and `03ea` for `21f314`; after the selected-object predicate, `21f348`
+queues the incoming request and `21f354/21f356` invoke argument zero.
+State 13's shared forwarding selects `03ec` through `21f542/21f54c`,
+then `21f552 -> 21f5aa`: it queues the request but evaluates argument 3
+at `21f5c8`, not this alternate path. Thus the argument-zero readiness owner
+exists, but is not selected by the observed late-PIN receive state.
+The next unresolved contract is the ordinary transition into state 21
+or a post-readiness state-13 measurement continuation; neither can be replaced
+by changing the callback/state selector in the emulator.
+An aligned direct-BL scan finds 19 candidates calling state setter `21bdc4`.
+Only one is immediately preceded by literal `movs r0,#21`:
+`21f30a -> 21f30c`, the unmatched-input tail of this same alternate handler.
+This is not an independent boot entrance. The scan does not cover computed
+arguments, tail branches, direct stores or indirect calls, and therefore does
+not prove state 21 unreachable. Resolve those entrance classes before claiming
+complete state ownership.
+The complete aligned direct-BL candidate scan also finds only `21fc4a`
+calling the alternate handler `21f2ec`, from receive state 21 itself;
+there are no four-byte-aligned ARM/Thumb literal pointer candidates to that
+handler. Complete aligned 16-bit unconditional and conditional branch
+candidate scans also find no target of `21f2ec`. Its `03eb/03ec/03ea` comparisons and unmatched-input state-21
+assignment are machine-checked. Thus this route has no independently
+identified direct or short-branch entrance from state 13. Computed calls,
+aliases and other instruction modes remain outside this negative result; it is not a total
+producer-absence proof or justification for forcing state 21.
+All 19 direct setter candidates have an immediate literal predecessor;
+the argument sequence in address order is
+`7,5,26,4,6,2,23,24,25,11,13,15,17,12,9,10,21,28,20`, now checked
+against the image. No aligned 16-bit unconditional branch or aligned literal
+pointer (ARM/Thumb forms) targets `21bdc4`. These negative scans do not close
+direct stores: an inline `movs r0,#1` at `21bdc2` shares the same store, and
+raw store-opcode scans also match embedded data. Context aliases `138038`
+have literal loads at `21b8b8` and `21f484`; direct-state ownership requires
+boundary-aware control flow from these roots, not counting every apparent
+`strh [r4,#2]` in the task interval as executable.
+Boundary-aware branch decoding establishes additional inline state-store
+continuations at `21f482`: `21f39e` supplies 22, `21f424` supplies 19,
+`21f45c` supplies 14, `21f46a` supplies 16, and `21f480` supplies 18.
+The shared setter's preceding `21bdc2` supplies state 1. These exact
+instructions are machine-checked; none supplies 21. Runtime initialization
+to state 8 occurs through generic copy code `2001a4`, not this setter.
+This bounds the known direct/inline routes without proving arbitrary aliases
+absent. In the failing run none of the alternate state routes is observed
+after state 13; the strongest current completion boundary remains its
+`1802/8b` measurement continuation and the unanswered lifetime of the
+original scan, rather than an assumed missing transition to state 21.
+State 13's special `0411` path is also an eligible argument-zero entrance.
+At `21ee52..21ee5e` it reads the measurement outcome from the object rooted
+at `13722c`, excluding outcomes 0/1/2. The observed outcome 4 satisfies
+that first predicate. It then performs candidate bookkeeping through
+`287272`, clears context byte `+2`, and calls `21fb8c` at `21ee84`,
+which reaches the existing argument-zero selector at `21fba0`.
+This does not establish that `0411` should arrive or that later predicates
+will succeed. Producer ownership is unclosed: aligned four-byte `00000411`
+values occur at ten image locations, including non-task-12 candidates
+`275e90`, `2ff570`, `30a12c` and data `33f0c6`. Decode their consumers
+and any constructed/data-driven producer before treating `0411` as a missing
+peer event. Do not inject it as a recovery shortcut.
+The `275e90` literal is a return producer, not a posting site:
+decoder `275ac0` reads two message bytes, and its `275b42` branch returns
+`0411`. Caller `275dc8` retains that result in `r5`; dispatcher `275c6c`
+selects this call for internal input `03f7` (base `03ea`, subtract 5,
+table slot 8). Passive input/return/consumer taps in
+`run_8210_late_pin_special_status_03` observe none of these three boundaries
+through 46 seconds; the registration check still fails. This is a bounded
+runtime observation, not global producer absence.
+The `03f7` literal at `306048` is used by constructor `305ec4`: if its
+flag argument is not 1, message byte `+4` is not `b0`, the tracked byte
+comparison succeeds, and message byte `+5` is not 1, `305ef4/305ef6`
+replace the message ID with `03f7` and `305efc` posts it to task 24.
+There are no aligned direct-BL candidates to `305ec4`; Thumb pointer
+`305ec5` is a callback literal at `2e1150`, loaded by `2e0fae` and registered
+through `2b98e4` at `2e0fb0`. It is not an indexed dispatch-table entry.
+The registrar stores the callback at RAM root `12bab4`. Consumer
+`2ba054..2ba078` loads it and invokes it with `r1` pointing to the packet,
+`r0=packet[2]+4`, and `r2=packet[5]&1`. This is a transport callback; its
+upstream packet family and forwarding ownership remain unclosed.
+The other non-task-12 `0411` references
+at `2ff402` and `30a086` are comparisons, not direct literal producers.
+Resolve the registered transport-callback family before assigning GSM semantics
+to `03f7` or synthesizing a peer message.
+The upstream packet family is DSP RX **9c**: dispatcher `306fae` subtracts
+`80`, then 3 at `306fb6`; after the `83..8f` table range, `306fbc`
+subtracts `17` (selecting 9a), then `306fc2` subtracts 2 (selecting 9c).
+The latter branch reaches `307008 -> 2ba010`, the sole aligned direct caller
+of the registered packet worker. The dispatch arithmetic and worker call are
+machine-checked. The no-completion late-PIN control has no type-9c publication.
+This establishes `9c -> registered callback -> 03f7 -> decoder -> 0411`
+as an eligible chain, not that ordinary DCS camping requires it or that it
+has a particular GSM message meaning. Packet lifetime, payload meaning and
+task-24 forwarding remain evidence requirements before implementing it.
+The callback has a separate marker/data lifecycle. Its tracked tag is byte
+`136caf` (root `136cac + 3`). A changed packet byte `+4` updates that tag,
+posts the descriptor at `33ea20` (ID `03fa`) to task 24, and disposes the
+original packet; a failed post restores the previous tag. A callback flag
+of 1 (`packet[5]&1`), tag `b0`, or exact packet byte `+5 == 1` instead posts
+the descriptor at `33ea14` (ID `03f8`) and disposes the packet. Only the
+stable-tag, non-marker route writes ID `03f7` into the original packet and
+forwards that packet. These predicates, marker IDs, tag root, rollback and
+disposal instructions are checked against the acquired image by
+`noki8210_radio_contract.py`. Thus the first packet of a changed-tag sequence
+does not reach the `03f7` decoder as data. This bounds the forwarding grammar;
+it does not name either marker's GSM meaning, authorize a `9c` publication,
+or prove that this sequence supplies late-PIN recovery. The legitimate sender
+remains to be identified before any peer implementation. The shared
+consumer `275c6c` uses a ten-entry table at `275cdc`, with input origin
+`03f1`: `03f7 -> 275da8`, `03f8 -> 275d7a`, `03f9 -> 275e82` (return),
+and `03fa -> 275d04`. This origin is derived from the complete subtract
+cascade, not from the table's location alone. The `03f8` arm calls `2b9a18`,
+clears context bytes `+24/+25`, and sets `+26=1`; the `03fa` arm updates
+tracked context and conditionally enters the same constructor. Constructor
+`2b9a18` creates internal message halfword 2, payload length byte `+2`,
+type `50` at `+3`, and copies its supplied context bytes after the header.
+The table, flag mutations and constructor header are own-ROM checked.
+Thus markers can have an outbound transaction effect; they are not
+interchangeable with the forwarded data packet. No type-`50` or type-`9c`
+publication is recorded in the retained 46-second late-PIN forwarding run.
+That is a bounded observation, not proof of a universal request/response
+pairing or justification for publishing either packet unsolicited. The
+constructor's payload semantics and legitimate activation remain open.
+The expanded passive run `run_8210_late_pin_status_forward_04` also watches
+constructor `305ec4`, its `03f7` store at `305ef4`, and the six shared-decoder
+returns `2ff4d4`, `303cb6`, `30511c`, `30951a`, `30a0d8`, `30a576`.
+None is observed through the completed 46-second failing run. This lowers
+the route's priority for the current lifecycle but does not prove its GSM
+semantics or global irrelevance. Task numbers/aliases from the 3210 map must
+not be imported to identify this NSM-3 task-24 callback. The primary remaining
+boundary is still post-acquisition measurement/request lifetime; synthesizing
+9c solely to reach an eligible software continuation is unsupported.
+
+## Evidence needed for native DSP completion
+
+The post-acquisition type-`11` instruction independently carries a full
+16-bit carrier. Own constructor `2b304a..2b3052` serializes descriptor
+halfword `+4` into message bytes `+0a/+0b` (payload `+6/+7`). The mode-4
+DCS request `040000000000033800000000` therefore targets ARFCN 824, not
+56. The product-selected peer decoder now preserves both bytes; other
+products retain their own encoding. Static constructor checks and fresh
+early/late PIN runs verify the correction. Early PIN still registers;
+late PIN still fails, and the corrected request is rejected by the separate
+neighbour-list eligibility predicate. This does not establish that mode 4
+must populate that list or which reply it requires.
+The peer's eligibility trace distinguishes the individual predicates:
+the observed late-PIN request has `mode=4 candidate=1 listed=0
+bsic_matches=1 receivable=1`. Thus the rejection is list membership,
+not an absent laboratory cell, band exclusion, or BSIC mismatch. This
+does not establish whether that predicate applies to mode 4; changing
+it still requires a recovered DSP consumer or independent protocol evidence.
+
+The original constructor bypasses timing/BSIC serialization for mode 4.
+An aligned direct-BL scan identifies nine constructor candidates: six
+literal-argument sites (`21c320`, `21c96e`, `21cc1e`, `21d236`, `21d41a`,
+`21de2e`) and three stack-descriptor sites (`286d04`, `286d42`, `286d88`).
+This is direct-call candidate coverage, not closure of indirect/data-driven
+entrances. Helper `286d4a` selects modes 4/2/3 from context bits 16..19
+equal to 2/3/4 respectively; mode 4 takes carrier halfword `+6` only.
+The verifier also pins the complete selector dispatch: selector 3 calls
+`286d0c` (stack mode 2), selector 4 calls `286cd2` (stack mode 3), and
+other selectors return without constructing this instruction. These are
+MCU construction facts, not DSP acknowledgement or cancellation semantics.
+Passive runtime capture observes caller `21ef07`, argument zero, context
+`1196a0`, carrier `0338`, control `ffc22664` at 12.262144s, then constructor
+caller `286d8d` at 12.262148s. This precedes the late `03ec` queue arrival.
+Unused stack bytes do not become packet timing or BSIC fields: the constructor
+zeroes its allocated message before taking the mode-4 shortcut. This bounds
+the observed packet's provenance but does not name it as an acknowledged
+measurement, cancellation or recovery request. Decode the mode-4 DSP consumer
+or an independent protocol trace before changing eligibility or supplying a
+reply. The queued-request continuation remains the boot frontier.
+
+All six literal-argument sites load the same mutable RAM descriptor `132b18`,
+not ROM templates. Their pools are `21c65c`, `21ccac` (two users), `21d5e0`
+(two users) and `21e190`. `noki8210_radio_contract.py` derives each literal
+address from the Thumb PC-relative load, verifies the shared RAM pointer, and
+does not index that pointer into the ROM image. This is six checked direct
+literal sites, not closure of RAM writers, indirect constructors or runtime
+mode values. The shared descriptor's writer/content is a separate predecessor
+to inspect; no constant mode or DSP reply follows from these callers alone.
+One positively decoded writer loads this base at `248a9c` from pool `248df8`.
+At `248aba..248ace` it writes carrier `+4`, signed timing `+2`, BSIC `+1`,
+frame offset `+6` and mode **2** at `+0`; it then clears bit 5 of `+8`.
+The contract verifier pins those stores. This identifies a populated mode-2
+source for the shared descriptor, not a mode-4 response contract or a complete
+writer census: computed aliases and other lifecycles remain possible.
+
+Paired 46-second cold registration observations with physical PIN at 8 seconds
+see only three full-word clears of this descriptor at `200168`, at 0.009891s,
+in both bands. No later descriptor population or constructor using `132b18`
+is observed. GSM registers with zero neighbour-constructor calls; DCS emits
+one stack-built mode-4 call (`13ac98`, caller `286d8d`, carrier `0338`) at
+12.262148s and still fails the unchanged registration checker. The serialized
+request is `040000000000033800000000`; unused stack bytes are not its fields.
+`noki8210_radio_contract.py --descriptor-trace ... [--dcs1800]` checks the
+bounded observation and rejects missing/duplicate initialization, later writes,
+shared-descriptor calls, changed carriers or nonzero bypassed wire fields.
+It requires a transport observation at 46 seconds; a startup-only or
+truncated trace cannot support the absence result.
+This rules out an active shared-descriptor alternate in these two recipes,
+not all firmware lifecycles or a missing mode-4 reply.
+Retained logs: `tmp/8210-descriptor-watch-gsm/error.log` SHA-256
+`90b432d293f0f3fe20640b173c5355ffb83d44b2cb90e7339291261613720719`;
+`tmp/8210-descriptor-watch-dcs/error.log` SHA-256
+`b251bb5d7d3ee7bcfcaf703d0fbd642fb485e1a4209e1cc59e8c390509ba4c52`.
+
+The observed caller's own eligibility is narrower than the helper's full
+mode selection: `21eee2..21ef06` invokes `286d4a(0)` only for context
+selectors 2 or 3. Other selectors bypass this invocation. Consequently this
+entrance can emit mode 4 (selector 2) or mode 2 (selector 3), not the helper's
+mode-3 branch (selector 4). The hash-pinned radio contract verifier checks
+both comparisons and the helper call. This is an MCU lifecycle distinction,
+not a recovered DSP cancellation or acknowledgement contract.
+
+There is an explicit timing-result entrance to this common path:
+`21ee2c` compares class88 and branches to `21ee8c`; `21eec0` calls
+`286e9a` with the received object. The receiver assembles the complete
+carrier from object bytes8/9 and looks up its record through `285c0a`.
+Updater `286e58` tests object byte4 as an error field. A nonzero value
+increments the record's byte-b counter and selects low control nibble1
+unless that counter wraps to zero; the upper nibble is preserved. These
+instructions are pinned by `noki8210_radio_contract.py`. This is a valid
+consumer-side failure entrance, not proof that every type11 mode requests it.
+
+The independent [ROM6 HLE reference at2b4c10f](https://github.com/djr-747/nokia-dct3-emulator/blob/2b4c10ffd6b22a2d021c7f515f27ceb2fb6c78cd/src/mad2/dsp/dsp_rom6.c#L1903)
+answers type11 with type88 without a mode or neighbour-list test. Its
+ten-byte payload begins with1 and carries the requested full carrier at
+payload4/5, structurally consistent with the own consumer's error/carrier
+positions after a four-byte broker header. Source SHA-256:
+`7af094376d14d87a9854a0f06eee1580ccda02d623d57fd0c1ad7f80201c7969`.
+This is an independent HLE policy, not a raw DSP capture, a proved mode-4
+specification or evidence for its calibrated response delay. No source is
+transplanted. It motivates a bounded request-derived failure-response test,
+after verifying the own transport/dispatch representation, rather than
+inventing a successful neighbour measurement or dropping an unsuccessful
+directed request indefinitely. The live NSM-3 lab composition now supplies
+that negative completion for an unlisted mode-4 request; other product and
+listed-neighbour rules remain unchanged. Accepted transport, own record
+update and subsequent late-PIN registration are summarized at the start of
+this contract.
+
+Immediately before this selection, the caller runs shared result helper
+`286e9a`, which calls updater `286e58`. That updater dereferences pointer
+slot `137224`, whereas mode-selection helper `286d4a` dereferences `137228`.
+The updater tests received-block payload error byte `+4`: zero selects the
+record's control nibble 3; a nonzero error selects nibble 1 when its byte
+`+b` counter remains nonzero. Neither branch directly selects nibble 2.
+Passive paired observation in `run_8210_context_pair_20261009` resolves
+aliasing at the failing call: selected record `1196a0` carries ARFCN 824 and
+control `ffc22664`; updated record `119690` carries ARFCN 823 and control
+`00c5c60c`, at 12.262144s. They are different records. Thus the received-block
+update must not be attributed to the mode-4 target. The independent
+seven-second-PIN control `run_8210_context_pair_early_20261009` registers
+organically at 12.890600s and never invokes this selector; the eight-second
+case retains the registration failure. The late request lifecycle remains
+the next target, not pointer aliasing. The own-ROM contract verifier pins
+the roots and update instructions; the harness observation changes no state.
+
+Bounded write watches in `run_8210_context_writer_late_20261009` and
+`run_8210_context_writer_early_20261009` establish the record's history.
+Initialization writes its control byte `a0` at 3.181773s; RSSI parser
+`2875e4..2875ee` preserves the upper nibble and assigns selector 2 at
+5.540584s. Writer `286798` changes upper metadata to `c2` at 9.905260s
+while preserving the low five bits. Both runs share these writes. The
+passing early-PIN case additionally rewrites the control word through
+`287790` at 12.262220s and updates its byte to `a2` at 12.262347s;
+the failing late-PIN case instead reaches the mode-4 selector and retains
+`c2`. Thus selector 2 is an organic RSSI-candidate state, not a late-PIN
+injection or a direct received-block success state. The `287790` rewrite
+is not selector cleanup: helper `28776a` replaces only control bits 21..23
+across its candidate-list range, preserving selector bits 16..19. An aligned
+direct-BL scan finds two call candidates, `2a1026` and `2a10ba`; both pass
+tag 5. Thus the passing rewrite belongs to request-lifecycle list tagging,
+not a new RSSI completion. The static contract pins the bit mask and both
+callers. Paired `run_8210_list_tag_{early,late}_20261009` resolves observed
+ordering: early PIN enters promoter `2a0dc8` with current `03eb` and queued
+`03ec` at 12.262178s, then calls the tag helper from `2a1026` at
+12.262213s with `03ec` already current and the queue empty. Late PIN enters
+the promoter at 12.262021s with current `03eb` and no replacement, and
+never calls the tag helper through the complete failing run. Tag 5 is
+downstream of replacement promotion in the passing lifecycle, not an
+independent missing hardware event. The metadata difference therefore adds
+no justification for a DSP reply; the frontier remains legitimate
+reevaluation of the later queued request. Runtime watches are observation-only.
+The hash-pinned image additionally contains no full-width big-endian pointers
+to promoter `2a0dc8` or selector `2a1380`, with either ARM/even or Thumb/odd
+address encoding. The census checks all 1,900,541 possible four-byte windows,
+not only aligned literal pools. Together with the four direct BL callers,
+this excludes an overlooked stored absolute callback pointer, not computed
+addresses, relative tables or MCU-generated events. It provides no evidence
+for retaining/replaying the peer's cancelled measurement report.
+The pinned static checker additionally verifies the immediately preceding
+literal argument at all eight selector sites listed in the ownership census.
+In `run_8210_list_tag_late_20261009`, the final argument-zero entry is
+`21f90a` at 12.262007s; the subsequent selector entry at 12.696148s is
+`21f5ca` with argument 3. Thus the post-arrival handler runs, but not through
+the argument-zero promotion branch. This is an observed lifecycle gap, not
+proof of an owed radio completion or a justification for forcing argument 0.
+
+Public-reference coverage is bounded. Gammu's
+[NHM-5 v5.87 trace catalogue](https://github.com/gammu/gammu/blob/master/gammu/depend/nokia/dct3trac/nhm5_587.txt)
+names `1811` as `NMEAS_INSTRUCTIONS`, but its
+[passive MDI decoder](https://github.com/gammu/gammu/blob/master/gammu/depend/nokia/dct3trac/wmx.c)
+hex-dumps this packet rather than interpreting modes. The catalogue's `48xx`
+family distinguishes measurement-request discard, neighbour initialization,
+synchronization selection and system-parameter selection. These labels are
+cross-product search clues, not NSM-3 state identities or proof that mode 4
+expects a reply. Neither this decoder nor the Osmocom decoder establishes
+that missing contract. The remaining software route is to correlate these
+lifecycle distinctions with the own-ROM mode-4 producer and its consumers;
+do not promote an NHM-5 trace label into an NSM-3 semantic claim.
+
+Physical Network Selection does not establish late-PIN recovery in the
+tested composition. Fresh own-PMM DCS fixtures with PIN entry starting at
+eight seconds reproduce the queued `03ec`/result-4 boundary, accept phone
+security and navigate Menu -> Settings -> Phone settings -> Network
+selection (`4-5-6`) through ordinary keypad inputs. Selecting the already
+active Automatic choice returns `Done`; selecting Manual displays
+`Searching`. Neither bounded run observes another `2a0dc8` promotion
+after the original 12.262-second call (Automatic through 65 seconds,
+Manual through 68 seconds). Periodic peer broadcasts and the live
+`PH_9000` receive loop continue in the Manual run. These observations do
+not prove absence of a later retry or that the UI initiated a new RF
+request; do not label either frame registration or a recovered lifecycle.
+The continuation/request-ownership boundary remains unresolved, rather
+than being bypassed by a physical menu operation.
+The Manual run's transport log contains 37 MCU-to-DSP TX commits, the
+last at 12.262565s, and none after physical navigation begins at 26s.
+Thus `Searching` does not establish submission of a fresh DSP scan request.
+The next tracing boundary is the firmware-owned Network Selection request
+and its delivery to the radio manager, before considering a peer response.
+The retained log is `/tmp/noki8210_network_retry_manual/error.log`, SHA-256
+`4e0e7221229399ec48d8cd4eb8fe26aa082ad2f9f6940a39ce09a7cc73c164b9`;
+these counts describe this bounded composition, not every possible retry.
+
+A fresh receive-breakpoint control resolves the UI submission question:
+Manual selection delivers internal `03ea` to the radio manager at
+39.972869s, with receive state 13 and bytes
+`03eaf9d50011329406000608`. The unchanged-state publication follows at
+39.972882s, then the `21f552` continuation logs `PH_9000b1` before returning
+to the receive loop. No new selector/promotion invocation accompanies this
+request. Thus the UI sends a request, but this observed lifecycle does not
+turn it into a DSP transmission. Follow the state-13 `03ea` handling and
+common continuation before positing a missing radio response. This is a
+research-HLE observation, not native RF evidence. The complete run is
+`tmp/noki8210_manual_receive_disk/error.log`, SHA-256
+`94fff0e863e29020ae452faf4afaa887237384f474051ccb4ec453862c0f888e`;
+the earlier `/tmp` receive-tap run had quota errors and is not an acceptance
+control.
+
+The pinned continuation distinguishes Manual Selection from registration
+readiness. At `21f5aa` it passes the received object to queue helper
+`2a1eaa`, then `21f5b0..21f5be` compares the input with `03ec` (`fb<<2`).
+Only `03ec` reaches the argument-3 selector; `03ea` instead calls
+`21b8ea`, which branches directly to the receive loop. The own-ROM checker
+now verifies this complete comparison and branch sequence. Consequently
+the Manual request does not independently exercise the selector's readiness
+gate. The static helper call alone does not establish queue acceptance;
+the separate runtime control below resolves that boundary. The later
+drain trigger remains unresolved.
+
+A queue-store breakpoint resolves acceptance in the same fresh composition.
+Immediately after `2a1ec2`, context `137f58` retains current pointer `1135c4`
+and queued pointer `1135f4`, whose ID is now `03ea`; the incoming object is
+`1154c0`, caller `21f5b1`. The helper's pinned `2a1eb0..2a1ebc` sequence
+reuses a nonzero queue pointer and allocates only for an empty slot. Thus
+Manual Selection changes the pending request rather than completing the
+current one; it still does not establish a drain trigger. Evidence:
+`tmp/noki8210_manual_queue_corrected/error.log`, SHA-256
+`e881d8de031014695b321457a6bbf907c97611287150c06013304bc6e09d9277`.
+The preceding exploratory queue log used debugger expression `+12`
+(hexadecimal 0x12, not decimal 12) and is excluded; the corrected observer
+uses explicit `+0xc`.
+
+The constructor also completes its `03ea`-specific initialization before
+returning: queued `1135f4` has byte `+2=20`, `+3=00`, `+8=00`, and
+`+10=00` (hex offsets). These match the pinned `2a1f72..2a1f82` stores;
+the dispatch base literal is `03ea` at `2a2274`. This is not an incomplete
+request rewrite. The bytes' broader protocol meanings are not established
+by these stores. Fresh completion evidence:
+`tmp/noki8210_manual_queue_fields/error.log`, SHA-256
+`262cff505f7b459bdc28e718751965f41585136fa94bacc230b2f7b5c6795755`.
+
+The initial-request completion publisher has a separate phase dispatch.
+Continuation `21c41c` reads its caller context word `+0c`:
+2 branches to `21c5e0`, 5 to `21c5be`, 3 to `21c4ee`, and 4 to
+`21c434`; other values branch to `21bf86`. There, only zero proceeds
+through helper `2a1d44` toward the already observed `21bffa -> 2a21a4`
+publication; nonzero branches to `21c01c`. The pinned checker verifies
+both dispatch and zero gate, common store `21c348` and both ROM literals
+selecting root `138038`. Its phase word is `138044`, not the request queue's
+`137f58+0c` pointer.
+
+Paired DCS/PIN controls without timing-failure completion establish a bounded
+negative result for this gate. Physical PIN begins at seven/eight seconds;
+both accept VERIFY CHV. The seven-second control passes the full registration,
+release, paging and persisted-EF_LOCI check. Its first phase continuation has
+receive state 15, input `1802` and phase zero, then reaches `21bffa`. A later
+state-7 `1802` continuation stores phase `0a` and takes the nonzero exit.
+The eight-second run visits none of these five observed boundaries through
+46.016667 seconds. It finishes in receive state 13 with phase **already zero**.
+Thus a wrong value at this phase gate is not the observed late-PIN blocker:
+the continuation is not entered. These are site-bounded observations, not
+closure over every writer of the phase word or proof of late-PIN recovery.
+
+`noki8210_phase_check.py` verifies per-site ordinal/cap/horizon integrity,
+continued late receive-loop activity near the horizon and the paired physical
+PIN timings; it also independently requires the early
+registration contract. Its observer uses `temp0,temp2..temp5`, leaving
+`temp1,temp6..temp9` to the existing startup/physical fixture. Shared-counter
+or short-horizon captures are rejected. `--phase-observe` does not relax the
+ordinary registration checker, so the late run is still an expected failure,
+not a promoted acceptance profile:
+
+```sh
+.venv/bin/python tools/run_noki8210_acceptance.py EARLY --scenario registration \
+  --pin-enabled --pin-start 7 --dcs1800 --phase-observe
+.venv/bin/python tools/run_noki8210_acceptance.py LATE --scenario registration \
+  --pin-enabled --pin-start 8 --dcs1800 --phase-observe
+# LATE currently returns nonzero after preserving the completed capture.
+.venv/bin/python tools/noki8210_phase_check.py \
+  roms/noki8210/8210_5.31ppm_c.fls EARLY LATE
+```
+
+The open boundary remains state 13's post-acquisition measurement/request
+continuation lifetime, not an available phase-gate entrance. Do not write
+phase zero, replay the successful state-15 acknowledgement or adjust peer
+timing to manufacture that transition.
+
+The paired runtime control resolves that immediate question. With the
+acceptance runner's GSM ARFCN4/5 PIN topology, context `138038` enters
+`21c41c`, `21bf86` and `21bffa` with phase zero, receive state 17, and
+message ID `1802`. It later enters the first two sites in state 7 with
+phase `0a`, taking the nonzero alternative. The DCS PIN-eight-second
+control enters none of these three sites through 46 seconds. Thus a wrong
+phase at this gate is not observed in DCS: the divergence precedes entry.
+Receive-table entry 17 at `21bc28` selects `21f6fc`, but the observed
+completion uses a private receive loop rather than that table entry.
+GSM evidence is `tmp/noki8210_completion_phase_gsm_pin/error.log`, SHA-256
+`c12c67b714d81a49e810a698c1f66c3ea3aa56b638bd99a1b2497e780ea6a05b`;
+DCS evidence is `tmp/noki8210_completion_phase_dcs/error.log`, SHA-256
+`06c3002ba3130a39f8544aab57a9c2030c37f1e3b4ab10311a000c1d2e8833c5`.
+The exploratory GSM run without `configure_pin_topology` is not the
+passing-topology control. No phase, selector or packet was injected.
+
+At the first GSM completion, selector result 3 precedes `PH_1300` and
+the private receive loop `21f602..21f61c`. It receives bytes
+`180208890000000000000000` at 10.791743s. The pinned `21f624..21f644`
+predicate requires both ID `1802` and class `89`; periodic ID `1802` with
+class `83` is not interchangeable. It additionally dereferences `137f5c`
+and requires result-record byte `+2 == 1`. The successful branch calls
+`21bc58`, selects phase zero at `21bc5e`, stores it at `21c348`, and
+reaches the completion gate. Consequently the next predecessor is the
+selector-result-3 entrance and its record publication, not the mere
+presence of periodic `1802` packets or the state-17 dispatch table.
+
+The current-`03eb` branch of argument-zero selection calls `2a1110`, a
+column-first scan of the seven nine-byte rows at `137248`. It scans
+columns 0..8, then rows 0..6 within each column. A first hit in column 0
+returns 1 and retains the row index as record kind; a hit in another
+column returns that column and sets kind 7. No hit returns 8 with kind 7.
+The checker pins scan stride/order and normalization; its separate pure
+projection tests cover all 63 single-flag positions and the observed tables.
+These tests establish the decoded projection, not native DSP behavior.
+
+Fresh GSM observation returns 4 with kind 7, flag `+4=1`, then compares
+candidate pointers `119690 == 119690` at `2a1676`, selecting result 3.
+DCS returns 1 with kind 6 at the serving acknowledgement; it skips that
+kind-7 equality route, reaches flag `+4=1`, clears the flag and selects
+result 0 through `2a16f4..2a1700`. GSM's table first hits column 4, row 5;
+DCS's first hit is column 0, row 6. The actionable predecessor is the
+writer/meaning of row 6 column 0 (`13727e`), not an injected completion.
+Evidence: `tmp/noki8210_initial_scan_{gsm,dcs}/error.log`, respective SHA-256
+`cc0c3295aef7fbdeb84254d3f78a0c2a9d3b64ad1bda52824531ad176e3d24f1`
+and `c68dc4f95465d761ae7adab6b6ec27252861f9bb98f340105d0593909ac84cf2`.
+
+The seven-row storage contains candidate counts, not merely boolean flags.
+Writer `285d9e` clears 63 bytes at `13721c+2c`, classifies each candidate
+through `285ca0`, derives its row from candidate byte `+0d >> 5`, and
+increments `row*9 + column`. Incremental updater `285e30` adjusts the same
+count by +1 or -1. Consumers may booleanize counts, but raw writes need
+not be 0/1. Paired watches of `13727e` observe DCS increments 0 -> 1 -> 2
+at `285de0` (9.905357..9.905370s), then decrement 2 -> 1 at `285e6c`
+(9.905417s). GSM only clears this byte. Column zero is a classifier result
+for control-nibble values 2, 3 or 4; these are not assigned GSM meanings by
+the count arithmetic. The next useful evidence is the contributing
+candidate objects and their classifier/control transitions, rather than
+clearing this count or treating it as an independently missing latch.
+Logs: `tmp/noki8210_row6_writer_{gsm,dcs}/error.log`, SHA-256 respectively
+`637b58dad757b644844238e93c69e87ce352996c8c80b15dfc00468edcb742ce`
+and `08506a0b848730f13e67d1d003c9eaa21eb16647a76d60659da2b66ab6cc7c04`.
+
+Object-qualified writes identify those count contributions. At 9.905357s,
+candidate `119690` (ARFCN 823) has control `ffc4c60c`; at 9.905370s,
+`1196a0` (ARFCN 824) has `ffc22664`. Both classify into row 6, column 0.
+The 9.905417s decrement applies to `119690`, leaving the 824 contribution.
+Its nibble 2 agrees with the independently observed post-acquisition mode-4
+target. Thus the count split and rejected type-11 instruction converge on
+the same secondary candidate, not a corrupt serving-record alias. The
+peer still rejects that instruction because it has no accepted neighbour
+list entry for 824; this does not establish whether mode 4 should require
+that list or what response it owes. Resolve the mode/candidate lifecycle
+contract before loosening eligibility or synthesizing a completion.
+Evidence: `tmp/noki8210_row6_candidates_dcs/error.log`, SHA-256
+`2bd81fa95fcfec2be631271b4fbf09108fd26c6d5efbd61b0fd742dd16524a1c`.
+
+A passive control-word watch separates acquisition state from the later
+count-row update. Both candidates receive nibble 2 through the own-ROM
+initializer `2875e4..2875ee` at 5.54056s. Only ARFCN 823 changes to nibble 4
+through the `285f26..285f4c` branch at 7.89752s; 824 retains nibble 2.
+At 9.90525s, `28678c..286798` updates the high row bits while retaining
+the low five bits: 823 becomes `ffc4c60c`, 824 `ffc22664`. The contract
+checker pins the initializer and row-preserving update. The mode-4 request
+therefore follows retained acquisition state, not a nibble manufactured
+by the count update. This does not establish the peer reply contract.
+These addresses were reused for unrelated arithmetic before candidate
+initialization; those earlier writes are not candidate-lifecycle evidence.
+The next predecessor is why the secondary candidate does not take the
+acquisition-update branch, and what its mode-4 instruction expects.
+Evidence: `tmp/noki8210_candidate_control_dcs/error.log`, SHA-256
+`f69b9c7e5bd15c3cc98b249028f223c65e7fae9c1cb4a85a5e4827477a43deda`.
+
+The own-ROM acquisition updater `285f04` targets the current pointer at
+`137224`, not every candidate in the table. Incoming byte `+6 == 0` takes
+the branch that sets its target's nibble to 4 and clears byte `+0b`;
+nonzero increments that byte and, unless it wraps, sets nibble 1 instead.
+The verifier pins the target literal, byte selector and success branch.
+A linear aligned Thumb scan finds one direct `bl` candidate at `286194`,
+bracketed by decrement/increment calls to the candidate-count updater.
+That scan does not close indirect entrances or establish runtime caller
+ownership.
+No secondary-candidate response contract follows from this static decode.
+
+Runtime entry observation confirms caller `286199` and two incoming
+class-`80` records: `18020e804012010004b0000400000000` at 5.53925s and
+`18020e804012000006af033700004800` at 7.89743s. The second has success byte
+`+6=0` and carrier `+a=0337`, immediately preceding the observed ARFCN 823
+nibble-4 update. At 12.26214s the mode-4 constructor instead uses the
+distinct ARFCN 824 candidate. The successful serving-candidate update is
+therefore positively observed; a missing call for 824 is not evidence that
+mode 4 owes this same record. The next contract remains its response family
+and eligibility, not a fabricated repetition of the serving response.
+Evidence: `tmp/noki8210_acquisition_update_r14/error.log`, SHA-256
+`3930b753d4ebdd19aad443dc6345a05c5998a90f0afcff2c47662a4ad1a086bd`.
+
+The current-candidate pointer is not a permanent serving-record owner.
+Receiver `28612c` assembles the full response carrier from bytes `+a/+b`,
+looks it up through `285c0a`, and stores the result at `13721c+8` before
+calling the updater. The common fallback reached by state 13 accepts
+class `80` with channel byte `+4=40` at `21ebc4..21ebd2`, then invokes
+this receiver at `21ebf6` with argument 1. Thus an independently established
+synchronization result for 824 has a compatible MCU route; the previously
+observed 823 pointer does not exclude it. The own-ROM verifier pins the
+class/channel predicate, full-carrier reselection and receiver invocation.
+This closes a consumer-side possibility, not the missing mode-4 producer
+contract: it does not prove that the instruction owes SCH, establish its
+timing/eligibility, or justify replaying the serving-cell response.
+
+The official [NokiX release archive](https://sourceforge.net/projects/nokix/files/)
+does not close this mode-4 contract in the three inspected packages:
+
+- `NokiX-SDK-doc-0.95.zip`: 201 files; its firmware menu links to the
+  separately hosted Blacksphere documentation rather than bundling it.
+  SHA-256 `bd88df4ec72acd7b94dc07a49dc09934bcd352e232922cc8b62e834c5ea268ee`.
+- `NokiX-SDK-2011.04.14.zip`: 155 extracted files; a case-insensitive search
+  for `NMEAS`, `BSIC` and neighbour/neighbor measurement found no matching
+  definitions. SHA-256
+  `f35b8a198a495c49017570e860746e2f359856f7e6ab793fa5bb607e456de5a1`.
+- `NokiX-libs-4.7.1.zip`: four Windows runtime DLLs (Qt and MSVC), not a
+  handset L1/protocol library. SHA-256
+  `1e428b2f86b459bdd5540f23b519177bc123b4d509c921da49499b2a4a94db4e`.
+
+The archives and extracted references are retained under ignored `tmp/`;
+no bundled executable was run or source transplanted. This is bounded
+archive coverage, not proof that a preserved Blacksphere/nlib specification
+or an independent mode-4 trace does not exist elsewhere.
+
+The original wumpus/Blacksphere
+[NMEAS page](https://web.archive.org/web/20160119223852/http://nokix.sourceforge.net/help/blacksphere/sub_100hardware/sub_dsp/sub_mdi/sub_typestxd/sub_11.htm)
+is recovered separately from those SDK archives. It corroborates the
+12-byte instruction layout, including the two-byte carrier at payload
+`+6`, but lists modes 1 through 5 without defining their semantics. It
+does not establish mode-4 eligibility, cancellation, response family or
+cadence. The recovered receive index names `8b` as an RSSI-results family
+but gives neither a schedule nor request pairing. These are historical
+cross-product descriptions, not an NSM-3 protocol specification.
+
+The original HTML references are retained under
+`roms/reference-docs/blacksphere-mdi/` (not shipped emulator assets):
+
+| File | SHA-256 |
+| --- | --- |
+| `blacksphere-nmeas-20160119.html` | `e38d37b913004b9d1061758cee7728386dadfd50051d7118623692f661570ee1` |
+| `blacksphere-typestxd-20160119.html` | `d58f713139ee3009c2c3961a2e58e03e19d902399b0e92c116a6f34db61e7230` |
+| `blacksphere-typesrxd-20160119.html` | `433c797df1a0403f8a877dbcb10a92861d8ef8f792b117f7008802a385fd6e7b` |
+| `blacksphere-config-20160119.html` | `e0a1eba4f084dd1adca6ee98a01d051256ca9b0b6a314b163c6c1e6dfb3bdb5a` |
+| `blacksphere-neighbour-20160119.html` | `085b8344ac5ecd8ce3bcc0351f053056a4e1e978b3faa611860e330c09d67e18` |
+| `blacksphere-dsp-20160119.html` | `84c2bac599ad90dbe2a9f7070f92c88ab11baec4ba200dc22de2d7452455489a` |
+| `blacksphere-dsp-memmap-20160119.html` | `c412e6e8fffb6bbf8bc3460eaa5dab6001705dc16769e0bdbee1d227ba85e391` |
+
+The sibling transmit pages (`sub_typestxd/sub_02.htm` and `sub_0F.htm`)
+describe channel-change confirmation and a 32-halfword neighbour list,
+respectively, but not cancellation of pending measurements on channel
+change or mode-4 list-membership requirements. The DSP overview and its
+explicitly partial memory map do not define RF sample-port encoding or
+SCU tuning. Thus these recovered pages do not authorize the currently
+unvalidated measurement cancellation or resolve the native RF boundary.
+
+The original [Osmocom DCT3-GSMTAP decoder](https://github.com/osmocom/dct3-gsmtap/blob/dcbe73ad77b67a09ac0b88775efb8fc84e9c4615/src/main.c)
+at commit `dcbe73ad77b67a09ac0b88775efb8fc84e9c4615` supplied the exact
+historical page paths. Its transmit decoder handles RACH and GSM L2, not
+type `11`; its receive decoder handles type `80`, not `8b`. It therefore
+does not fill the missing measurement lifecycle contract. No reference
+source was transplanted or executable run. An independent mode-4 exchange
+or its DSP implementation remains the discriminating evidence, rather
+than substituting the available mode-3 examples.
 
 The software-accessible stock upload, operand decoding, existing COBBA model
 and explicit memory-input comparisons do not establish the final silicon
@@ -504,5 +2336,7 @@ publication. A useful physical or independently captured reference must include:
 
 A matching raw capture can justify a narrowly declared HLE bootstrap contract;
 a ROM6 memory image/map can support core execution. Neither is currently
-available in the acquired collection. UI, SIM, network, call/audio and
-handset save/load acceptance remain unvalidated behind this boundary.
+available in the acquired collection. Native UI, SIM, network, call/audio and
+handset save/load acceptance remain unvalidated behind this boundary. The
+separate research-HLE profile has the product-local acceptance listed above;
+those results do not establish the missing native silicon publication.

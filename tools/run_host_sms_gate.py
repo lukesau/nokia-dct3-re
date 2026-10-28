@@ -4,11 +4,31 @@
 import argparse
 import asyncio
 import json
+import math
+from websockets.exceptions import ConnectionClosed
 
 try:
     from tools.run_host_call_adapter_gate import connect
 except ModuleNotFoundError:
     from run_host_call_adapter_gate import connect
+
+
+def positive_seconds(value):
+    seconds = float(value)
+    if not math.isfinite(seconds) or seconds <= 0:
+        raise argparse.ArgumentTypeError('completion timeout must be finite and positive')
+    return seconds
+
+
+async def wait_for_sms_end(websocket, epoch, timeout):
+    # One wall-clock budget: unrelated notifications cannot extend the wait.
+    async with asyncio.timeout(timeout):
+        while True:
+            event = json.loads(await websocket.recv())
+            if (event.get('type') == 'outgoing_sms_state' and
+                    event.get('request_id') == 1 and event.get('epoch') == epoch and
+                    event.get('phase') == 'ended'):
+                return
 
 
 async def run(args: argparse.Namespace) -> None:
@@ -41,8 +61,8 @@ async def run(args: argparse.Namespace) -> None:
                 "epoch": request.get("epoch"),
                 "recipient": "5551234",
                 "alphabet": "gsm7",
-                "user_data_length": 2,
-                "user_data": "c824",
+                "user_data_length": args.user_data_length,
+                "user_data": args.user_data,
             }
             if request != expected:
                 raise RuntimeError(
@@ -69,18 +89,12 @@ async def run(args: argparse.Namespace) -> None:
             }
             await websocket.send(json.dumps(decision))
             await websocket.send(json.dumps(decision))
-            ended = False
-            while not ended:
-                event = json.loads(await asyncio.wait_for(websocket.recv(), 30))
-                ended = (
-                    event.get("type") == "outgoing_sms_state"
-                    and event.get("request_id") == 1
-                    and event.get("epoch") == epoch
-                    and event.get("phase") == "ended"
-                )
+            await wait_for_sms_end(websocket, epoch, args.completion_timeout)
         result = await asyncio.wait_for(process.wait(), 90)
         if result:
             raise RuntimeError(f"MAME exited with status {result}")
+    except ConnectionClosed as error:
+        raise RuntimeError('host SMS connection closed before lifecycle completion') from error
     finally:
         if process.returncode is None:
             process.terminate()
@@ -95,10 +109,15 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, required=True)
     parser.add_argument("--cwd")
+    parser.add_argument("--user-data", default="c824", help="expected packed GSM7 hex bytes")
+    parser.add_argument("--user-data-length", type=int, default=2,
+                        help="expected number of GSM7 septets")
     parser.add_argument(
         "--decision", choices=("accept", "rp_error", "rp_silence"),
         default="accept")
     parser.add_argument("--require-restore", action="store_true")
+    parser.add_argument('--completion-timeout', type=positive_seconds, default=180,
+                        help='total wall-clock seconds after the host decision (default: 180)')
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     if args.command[:1] == ["--"]:

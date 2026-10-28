@@ -11,14 +11,283 @@ a physical row-1/column-1 press as raw key `06`. The research composition now
 enables the existing SIMI/card boundary: ATR, PPS and file reads run through
 the firmware, and a settled physical press opens the Messages menu. Ordinary
 fresh and preserved-location network registration and `DCT3 LAB` presentation
-are verified in the declared radio HLE. Physical incoming/outgoing call
+are verified in the declared radio HLE. A separately configured ARFCN19/20
+cell now verifies fresh registration with matching SCH, MCU and host carrier;
+the older default-cell gates are bounded signaling comparisons, not this
+coherence proof. Physical incoming/outgoing call
 signaling and complete release are verified, but speech/audio is not.
+Slow physical SIM-PIN entry now also reaches coherent registration through
+a request-derived background DSP measurement with verified RX delivery.
 SMS delivery, reading, deletion and reply submission are verified. An organic
 phonebook save and cold-start retrieval from SIM NVRAM are verified below. Normal `noki6250`
 retains the fail-closed final publication wait at `429842`; the research
 composition is not promoted to supported default boot.
 
+Research idle, active-call and delivered-SMS save/load separately verify exact CPU/RAM/time
+restoration, ordered radio/SIM replay, identical 96x60 pixels and post-load
+physical continuation. Idle uses Menu/Messages; the established call uses
+End and complete CC/RR release back to registered idle. Neither resolves the
+original PMM or native DSP boundaries below.
+
+Physical `*123#` and Send also complete a laboratory USSD exchange on the
+existing derived-PMM research fixture. `verify-6250-ussd` checks ordered
+physical inputs, exact request/correlated success/RR release, the reviewed
+`Service reply / Nokia test network` frame and the independently captured
+6250 registered-idle frame after physical Back. The registration checker
+continues to require SIM location persistence. This default-cell signaling
+comparison is not an ARFCN19/20 coherence, native DSP or speech claim.
+`verify-6250-call-divert` separately drives physical `*#21#` and Send,
+checks exact service-`21` interrogation/inactive response/RR release, the
+reviewed `Service not active` pixels and registered idle after Back.
+Forwarding activation, save-state retention and delivery are not established
+on NHM-3 by this interrogation gate.
+
+`verify-6250-call-divert-lifecycle` separately covers physical registration
+for `5551234`, active interrogation, deactivation and inactive interrogation
+within one coherent laboratory session. Protocol transitions and all four
+reviewed result frames plus product-local idle are checked independently.
+The active query renders `Done`, not a reviewed forwarding-number frame.
+This scenario does not establish save-state or cold-process persistence.
+`verify-6250-state-divert` separately saves active forwarding after ordinary
+registration, restores exact CPU/RAM/time, one-second protocol and pixel
+replay, then resumes physical query/deactivate/query and checks the same
+reviewed results/idle. It rejects an active query before restore as evidence
+of retained state. Save-state and cold-process acceptance are separate.
+`verify-6250-call-divert-cold` independently registers through physical input,
+exits normally, and interrogates active forwarding in a second process using
+only its own retained storage. An external incoming call forwards without
+handset paging; a third fresh-storage process reports inactive. The
+network-owned subscription NVRAM remains unchanged by the read-only query.
+This retains the declared research PMM comparison and does not promote native
+DSP execution or speech.
+The optional `--check-corrupt-storage` control copies only retained own
+handset state and damages the network subscription checksum. MAME rejects the
+store and a physical query returns inactive. The retained handset still draws
+its forwarding arrow; this reviewed frame differs from fresh storage and does
+not establish active network forwarding. The damaged input is retained beside
+the process logs rather than replacing the original subscription evidence.
+
+`verify-6250-sim-toolkit` independently exercises a Phase-2+ card: the own
+firmware submits a nine-byte TERMINAL PROFILE, STATUS returns `91 16`, FETCH
+retrieves DISPLAY TEXT, and physical OK produces the successful 12-byte
+TERMINAL RESPONSE. Exact `DCT3 SAT`/registered-idle frames and ordinary
+registration/SIM persistence are checked. This does not establish other
+proactive commands, native DSP or factory-PMM provisioning.
+
+`verify-6250-coherent-idle-state` additionally runs idle restoration with the
+explicit ARFCN19/20 host-enabled cell. It requires own native uploads and HLE
+isolation, carrier-coherent registration and persistent EF_LOCI alongside
+exact CPU/RAM/time, ordered protocol replay, identical restored pixels and
+physical Menu continuation. This does not restore an external SIP dialog or
+promote coherent active-call/delivered-SMS restoration without separate runs.
+
+`verify-6250-sip-idle-restore` repeats exact idle CPU/RAM/time restoration,
+ordered protocol replay and identical restored pixels before admitting a new
+real SIP INVITE. It then requires the ordinary unanswered CANCEL/487 outcome,
+own CC/RR release, physical missed-call Exit and registered idle pixels.
+The observer begins after post-load replay: MAME cancels pending Lua waits on
+load, so creating its coroutine before loading would prevent call admission.
+This is a fresh dialog after handset restoration, never SIP-dialog restoration
+or answered-media/native-speech proof.
+
+### Physical power-cycle acceptance
+
+An isolated initial-record PMM comparison with the explicit ARFCN19/20
+configuration observes a four-second physical Power hold at 25 s, CCONT
+rail-off at 31.665598 s, and a physical PWRONX restart at 43 s with cause
+`02`. The off display is uniformly white (96x60); RTC seconds continue from
+12:00:32 through 12:00:42 with day 0. No known powered DSP/radio endpoint
+events occur between rail-off and wake. The firmware had set day 0 before
+shutdown; this is not a claim of a valid calendar or complete clock gating.
+
+After restart, the own native verifier/loaders and declared runtime-HLE
+checks pass again. A second Location Updating Accept is acknowledged at
+53.576663 s and the 75 s capture presents `DCT3 LAB`.
+`make verify-6250-power-cycle RUN_DIR=NEW_DIRECTORY` repeats this sequence
+with second-boot NV-fault observations at 60 and 75 s. It requires native
+uploads/HLE isolation in both boots, fresh coherent registration before
+shutdown and the existing preserved-location registration contract after
+wake. The warm transaction reads retained EF_LOCI before its request,
+refreshes LAI and does not rewrite the already-valid location status.
+Reviewed idle pixels match before and after restart; the off frame is blank.
+The fresh-registration contract remains unchanged. Normal `noki6250`, native
+speech and acquired PMM validity remain unchanged.
+
 ## Inputs
+
+### SIM PIN and late-initialization recovery
+
+`make verify-6250-slow-pin-registration RUN_DIR=NEW_DIRECTORY` creates a
+fresh PIN-enabled laboratory card (CHV1 1234) and the declared acquired-PMM
+initial-record comparison. Physical digits 1/2/3/4 and Confirm use matrix
+cells (2,1)/(3,1)/(4,1)/(2,2)/(1,1), beginning at 8 s with 150 ms presses
+and 850 ms releases. No firmware state or internal message is injected.
+
+The gate requires own native uploads/HLE isolation, a request-derived
+background measurement reaching the own-ROM consumer, successful
+`A0 20 00 01 08` verification with `9000` and unchanged retries 3/3,
+carrier-coherent ARFCN19 registration after verification, and persistent
+EF_LOCI. The verified run routes the measurement at 10.365085 s, invokes
+completion `3cbe14` at 10.365198 s, verifies CHV1 near 12.024 s and
+registers at 13.120000 s. Prompt and settled idle snapshots are retained
+in the isolated run. This proves late-PIN registration in research HLE,
+not native DSP behavior, native speech or authenticated factory PMM.
+
+`verify-6250-pin-host-incoming-call` and
+`verify-6250-pin-host-incoming-sms` repeat that fresh slow-PIN proof before
+requiring the existing coherent host-service acceptance. The call gate
+requires host-originated ringing, physical Answer/End, CC/RR release and
+registered idle. The SMS gate requires host-originated delivery, complete
+CP/RP closure, physical Read, exact persistent SIM content/read status and
+the unchanged reviewed message-body pixel hash. Late SIM initialization
+reaches that body after the 22-second Read press (24-second capture),
+rather than the PIN-disabled fixture's 20-second capture; the oracle is
+not weakened or re-banked. This adds incoming signaling/SMS coverage after
+PIN, not speech or media proof.
+
+`verify-6250-pin-host-outgoing-call` and
+`verify-6250-pin-host-outgoing-sms` require the same slow-PIN proof before
+physical dialing or SMS reply composition. Outgoing call requires the
+exact dialed number 123, the host connect decision, CC/RR release and the
+reviewed dialing/connected/idle crops. Outgoing SMS requires the exact Hi
+SMS-SUBMIT to 5551234, host acceptance, complete CP/RP release and the
+unchanged Message sent pixels. Their physical actions and captures begin
+six seconds later than the PIN-disabled fixtures to allow SIM/phonebook
+initialization to settle; emulation clocks and peer timing are unchanged.
+
+`verify-6250-pin-host-rejected-sms` and `verify-6250-pin-host-silent-sms`
+also require slow PIN verification and coherent ARFCN19/20 registration
+before the respective host RP-error or full firmware-timeout lifecycle.
+They retain the distinct reviewed failure text and physical End/End/Menu
+recovery. The observer inherits the composer's six-second input delay, so
+recovery cannot collide with late submission; no-PIN timing stays unchanged.
+Fresh evidence is `run_6250_pin_host_rejected_sms_01` and
+`run_6250_pin_host_silent_sms_01`. No protocol timer is shortened.
+
+`verify-6250-pin-phonebook` physically saves A/123 after slow PIN entry,
+then starts a new MAME process using the same persistent card. The second
+process enters the PIN again and physically retrieves the contact. Both
+save/detail frames match the existing exact oracles, and the complete
+persisted card remains byte-for-byte unchanged during readback. The cold
+process independently requires successful VERIFY with the original PIN
+still enabled and strict carrier-coherent preserved-location registration.
+It does not reuse session authorization or a machine save state. Its
+physical actions/captures also start six seconds later than the ordinary
+phonebook fixture; the no-PIN save/readback path remains unchanged.
+
+The runner's `--pin-enabled` option is deliberately limited to the four
+coherent host call/SMS scenarios above and coherent phonebook acceptance.
+The reusable physical-input module
+does not load another copy of the runtime observer, and the runner clears
+its harness-only input flag for ordinary runs. Every run uses private
+storage, configuration, logs and host admission evidence.
+
+#### Request and completion contract
+
+The common sender `4f610a..4f6112` passes queued payload bytes through
+`4295bc`. Type-57 constructor `3f9d88` allocates an eight-byte object,
+sets envelope halfword 2 and payload length 4, and stores opcode 57 at
+`3f9da8`. Helper `3f9932` encodes arguments (3,0) as `03050000`;
+the two remaining bytes are zero. Type 55 shares this encoder, which
+alone does not establish reply equivalence. The aligned Thumb-BL census
+finds type-57 constructor calls at `2d1dbe/2d36b6` among 98,084
+BL-shaped pairs; it does not cover ARM/computed calls.
+
+For the evidenced NHM-3 request only, the HLE queues an independent
+166-byte `8b` measurement, preserving the serving receiver and acquisition
+state. Its two-byte header and forty four-byte ARFCN/RSSI records come
+from receivable laboratory cells; unused records use ARFCN ffff and
+RSSI -127. The transaction is backpressure-aware, pending state is saved
+and reset, and successful publication explicitly raises FIQ0. Other
+products and unknown request bodies do not acquire this behavior.
+
+The own-ROM RX dispatcher subtracts 80 and then 03 before indexing the
+thirteen-entry big-endian table at `504598` for types 83..8f. Entry 8b
+selects `5045ec -> 4649ac`, not adjacent type-8a handler `4646c0`.
+Handler `4649ac` forwards its envelope to task 14 through `3c348c`
+only when byte `1721e0` equals 1; otherwise it frees it through
+`3c3c34`. Initializer `2d1538` clears the byte through `4649cc`
+and sets it to 1 at `2d1590` using base `1721dc + 4`. A slow-PIN
+write-watch confirms it remains enabled through 16 s.
+
+Task 14's receive continuation `2d2101` checks ID 1802 and class 8b
+before calling `3cbe14`. That helper selects `38fdca` when the args
+record's word +4 is zero, otherwise `38fed0`. The former reads up to
+forty records, big-endian ARFCN from message +6/+7 and signed RSSI from
++9, rejecting values below -104 dBm. The permanent gate correlates the
+same envelope through raw handler, task-14 post and completion consumer.
+
+#### Firmware lifecycle distinctions
+
+Selector `3caf2c` uses signed state at `172a0a`; literal `3cb264`
+names structure base `172a08`, not a pointer. Context pointers at
++4/+8/+12/+20 address separate records; constructor arguments come from
+the record at `172a1c`, not context field +6.
+
+Without the background transaction, late PIN initialization leaves
+selector state 6 after state-4 zero-input selection. Fast PIN entry
+(150 ms press / 50 ms release) precedes that selection and registers,
+but is not an acceptable substitute for recovery. Cached EF_LOCI/BCCH
+alone does not restore slow-entry registration.
+
+Nonzero selector inputs do not stop at `3cb41e`: the shared tail
+processes input 3 at `3cb468`, refreshes derived status via `3caa64`
+and checks completion. Retained state 6 is not proof of ignored input.
+Groups at `16f92c` are counts of classified firmware records, not
+direct SIM/network flags. Classifier `38e50c` uses packed record bits
+16..19 plus identity predicate `38e4ee/4af4e0`; the latter compares
+three bytes exactly. The status divergence reflects whether SIM-derived
+identity arrived before the selection, not a missing SIM notification.
+
+The real late notification `03ec` reaches cache updater `3cba56`,
+which owns detail pointer `172a14` and accepts 03ea..03ed. The caller
+then invokes selector input 3. The serving peer continues BCCH delivery:
+receiver state 1 routes SI through `3bca84` as task-14 messages 03f9,
+whereas state 2 routes it through `3bc5e0` as 03f8 transitions. A
+silent `3bc5e0` after PIN is not evidence that the peer stopped sending
+SI or that the alternate path drops it.
+
+#### Experiment acceptance discipline
+
+`tools/noki6250_measurement_delivery_check.py LOG` requires enqueue,
+matching RX notification, consumer advance, enabled raw handler and
+task-14 dispatch for one isolated candidate. Later packets cannot supply
+evidence for an earlier one. Its PASS proves delivery only; the slow-PIN
+checker additionally requires completion, verification and registration.
+
+The ledger entry
+`nhm3_late_pin_type57_accepts_background_type55_measurements` rejects
+the earlier implementation, not the reply layout: that run enqueued a
+packet but had no subsequent logged FIQ0 notification or consumer advance.
+It therefore never established delivery. The independently rejected
+NHM-2 alias is not a substitute for NHM-3 evidence. No generic type-57
+acknowledgement or firmware-state forcing is installed.
+
+### Coherent laboratory registration
+
+`make verify-6250-coherent-registration RUN_DIR=NEW_DIRECTORY` uses the
+declared initial-record PMM comparison, private fresh storage and
+`fixtures/noki6250_host_gsm900/nhm3hle.cfg`. `NEIGHBORCFG` bit 9 selects the
+external lab network's GSM900 pair 19/20; defaults remain 1/2 and no firmware
+state or product acquisition outcome is overridden.
+
+The gate checks the own 223-word verifier, 126-word loader, 124 selector-1
+requests and 613-word second loader before exclusive HLE handoff at absent
+resident `2c75`, then the initial-record compact self-test. Radio acceptance
+requires SCH `4012........0013000048`, candidate
+`041202000000005050000013`, complete Location Updating and release
+`041202000000001a600000130000000f00000000`, followed by paging. The host must
+report `registered=1 arfcn=19`, and SIM NVRAM must contain laboratory LAI
+`00f1100001` with updated location status.
+
+The older default-cell runs receive SCH for carrier 19 and publish zero-header
+candidate/release words while the host network reports carrier 1. Their
+signaling/UI evidence remains useful, but cannot be promoted to coherent RF
+selection. The coherent host-call and host-SMS gates below independently
+validate both directions and SMS error/timeout recovery. The separate
+unanswered SIP cancellation gate below also passes on that cell. Native DSP,
+physical RF and speech are not established by
+this registration gate.
 
 ### Remaining goal boundary
 
@@ -34,12 +303,13 @@ The product's uploaded verifier/loaders have been executed and compared;
 they do not contain that mask routine. Runtime HLE is explicitly exclusive
 after suspension, not proof that the missing instructions are emulated.
 
-Speech command ownership is recovered, but the product PCM clock/framing
-and codec route are not. The available original-manual text preview loses
-numeric fields; checked public download links return HTML instead of the
-archive, and the alternate PDF host was inaccessible. These results do not
-justify donor bus settings. An intact product source or independently
-evidenced firmware contract is required to resume that work.
+Speech command ownership is recovered, but product PCM clock/framing and
+selected codec controls remain unproved. The complete own service archive is
+acquired; source-pinned font-aware extraction and rendered-page review recover
+its analogue audio levels and gain conditions. Those are not a speech serial
+format or a command-to-codec mapping. The documented 13 MHz RFI clock and 8-bit
+Tx/12-bit Rx I/Q samples must not be repurposed as a speech PCM profile. Product-owned
+initialization or explicit speech timing/control evidence is still required.
 
 Reproducible research acceptance covers physical menus/calculator, SIM
 phonebook save and cold retrieval, fresh/preserved network registration,
@@ -55,6 +325,243 @@ boundaries above. Existing `verify` and `verify-frontier` gates also pass.
   `57c29c8387caf864603d94a22bfb63ace427b7f9`.
 - Legacy uniform-fill DSP audit members satisfy ROM declarations only; the
   HLE does not execute them. The missing boot mask is not fabricated.
+  The isolated acceptance runner now stages the declared shared members from
+  `roms/noki3210` into its private ROM directory and records source/hash plus
+  `native_6250_evidence: false`. These files are not recovered NHM-3 masks or
+  donor provisioning; the PMM comparison still comes only from the acquired
+  6250 input.
+
+### Idle Restoration Acceptance
+
+Run `tools/run_noki6250_acceptance.py RUN --scenario idle-state` in a new
+directory. `noki6250_state_idle.lua` saves registered research idle at 25
+seconds, records a one-second reference interval, restores it and then
+presses the physical left softkey. `noki6250_state_check.py LOG SNAP` requires
+exact PC/SP/mapped-RAM digest/emulated-time restoration, nonempty ordered
+protocol replay with identical payloads, identical full idle pixels, reviewed
+`DCT3 LAB` text and Messages title, plus raw matrix key `06` after load.
+The initial-record PMM remains a diagnostic external-input comparison.
+Active-call and delivered-SMS restoration are not established by the idle gate.
+
+`--scenario call-state` uses the same roundtrip harness after physical
+`123`/Send. Connect Acknowledge precedes the save at 25 seconds, with no
+Disconnect yet; the physical call fixture schedules no End while the state
+fixture owns continuation. Exact state/protocol/pixel replay and reviewed
+Call 1 presentation are required. After load, a physical End press completes
+the own outgoing release grammar, including request-derived confirmation and
+idle PCH, and returns to reviewed `DCT3 LAB`. Check with
+`noki6250_state_check.py LOG SNAP --call`. This is restored call signaling/UI,
+not speech, native DSP runtime or delivered-SMS restoration.
+
+`--scenario sms-state` saves at 17 seconds, after the incoming `hello`
+message has been stored in EF_SMS and SDCCH released. The same exact state,
+nonempty ordered protocol replay and full-screen pixel checks apply. After
+load, physical Read scans matrix key `06`, displays sender `5551234` and
+`hello`, and persists read status `01`. The checker requires one delivery
+and exactly two record writes (delivery and read status), preventing silent
+redelivery. Run `noki6250_state_check.py LOG SNAP --sms --storage SIM_NVRAM`.
+This proves delivered-message restoration, not an unfinished SMS transaction,
+authentic original-PMM boot or native DSP execution.
+
+### Host Incoming Call Acceptance
+
+Run `tools/run_noki6250_acceptance.py RUN --scenario host-incoming-call`
+with a fresh directory and an unused HTTP port (`--port`, default 16250).
+The private configuration enables `CALLHOST`; no automatic incoming-call
+fixture is enabled. After the physical observer captures registered idle at
+32 seconds, the WebSocket runner requests caller `5551234` with the current
+adapter epoch and request ID. It requires queued, paging, alerting, connected
+and ended phases in order. Physical Send at 38 seconds and End at 46 seconds
+must satisfy the handset CC/RR release checker and return to idle PCH.
+`6250_call_1.png` captures the caller before answer. This verifies host-backed
+HLE call signaling, not speech or an authentic original-PMM/native boot.
+
+### Host Outgoing Call Acceptance
+
+`--scenario host-outgoing-call` physically dials `123` and presses Send/End
+with only `CALLHOST` enabled. The external runner requires those exact digits,
+while the handset checker independently verifies its own outgoing CC/RR
+connection and release grammar. Wrong request ID and duplicate decisions are
+rejected; one correlated connect is accepted and connected/ended phases are
+required. The initial-record PMM comparison remains explicit, and neither
+native DSP nor speech is established by this signaling test.
+
+### Coherent Host Calls
+
+`verify-6250-coherent-host-incoming-call` and
+`verify-6250-coherent-host-outgoing-call` run those physical workflows with
+`--coherent-cell` and the explicit ARFCN19/20 fixture. Each independently
+requires the own native-upload/HLE and compact self-test contract, exact
+configured SCH/candidate/release, host registration on carrier 19 and durable
+SIM location. Call traffic is exactly
+`041202000271012fc10000130000000400000000`; release is exactly
+`041202001117001a600000130000001400000001`. Legacy zero-header payloads do not
+satisfy the configured-cell matcher.
+
+Incoming caller `5551234`, physical Answer, connected Call 1 and physical End
+back to operator idle are checked. Outgoing physical `123`, Send, a correlated
+host connection and physical End are independently checked; wrong request ID
+and duplicate decisions remain rejected. Reviewed 96x60 caller/digits,
+connected-call and operator-idle crops are mandatory. The interim outgoing
+Calling screen is not mistaken for the connected frame. These are host-backed
+CC/RR signaling and presentation tests, not speech, native DSP, factory PMM
+provisioning or answered SIP evidence.
+
+### Host SMS Acceptance
+
+`--scenario host-incoming-sms` enables only `CALLHOST`, waits for adapter
+readiness and laboratory registration, then sends host-originated `hello`
+from `5551234`. The host runner requires correlated queued/delivered phases;
+the handset checker independently requires CP/RP closure, EF_SMS storage,
+physical Read, persistent status `01` and the reviewed full message frame.
+No automatic incoming-SMS fixture is enabled in this scenario.
+
+`--scenario host-outgoing-sms` retains the declared incoming-message fixture
+as the physical Reply target and enables `CALLHOST` for submission decisions.
+Physical input writes `Hi` and sends it to `5551234`. The host must receive
+exact packed GSM7 `c834` (two septets); wrong request ID and duplicate decisions
+must be rejected. The handset must complete CP/RP, release the channel and
+show the reviewed Message sent frame. These are research-HLE SMS contracts,
+not native DSP or live-network evidence. Both use fresh private NVRAM and
+record the host command and provisioning provenance in `acceptance.json`.
+
+`--scenario host-rejected-sms` uses the same physical `Hi` reply with a host
+RP-error decision. Wrong request ID and duplicate error decisions are rejected;
+firmware acknowledges the RP error, releases SDCCH and paints `Message not
+sent this time`. Two physical End presses unwind the reply/message views,
+then Menu opens Messages. `noki6250_sms_failure_check.py LOG SNAP` requires
+that protocol/key order and reviewed failure/menu pixels, forbidding a success
+RP-ACK. This establishes explicit rejection recovery, not RP-silence timeout.
+
+`--scenario host-silent-sms` instead requests CP acknowledgment without any
+RP result. The unchanged firmware reports `Message sending failed`, initiates
+main-link DISC, receives UA, deconfigures the channel and closes the correlated
+host request (observed near 110.6 seconds). The checker requires resumed paging,
+no RP success/error, the distinct reviewed timeout text and the same physical
+End/End/Menu recovery. The run lasts 135 emulated seconds; no firmware timeout
+is shortened. This is a separate failure contract from RP rejection.
+
+### Coherent Host SMS
+
+The four `verify-6250-coherent-host-*-sms` gates repeat incoming `hello`,
+physical `Hi` submission, RP-error and RP-silence recovery with
+`--coherent-cell`. Each requires the full own-upload/HLE/self-test,
+SCH/candidate/release, host carrier-19 and persistent `EF_LOCI` contract.
+The configuration overlay preserves the automatic incoming message only
+where it is the declared physical Reply target; host incoming SMS has no
+automatic delivery fixture.
+
+Incoming acceptance checks exact SIM payload/read status and reviewed
+message pixels. Outgoing success checks exact GSM7 `c834` for `5551234`,
+CP/RP closure and Message sent. Rejection and silence separately require
+their existing distinct failure frames, unchanged firmware timeout and
+decoded physical End/End/Menu recovery. Independent host checks require
+correlated decisions/outcomes and reject wrong IDs and duplicates. The
+default-cell gates remain available as comparisons; no native speech or
+factory provisioning is inferred from any of these HLE SMS tests.
+
+### Real SIP Cancellation
+
+`verify-6250-sip-cancel` uses the optional local PJSIP stack with the same
+private initial-record comparison and coherent ARFCN19/20 cell. It waits for
+a fresh registered-idle frame at 32 seconds before the real caller sends
+INVITE. The caller cancels only after alerting; acceptance requires actual
+CANCEL/487, exactly one correlated GSM termination, complete CC/RR release
+and zero media. Own carrier-19 deconfiguration and firmware confirmation
+are checked independently before resumed paging.
+
+The reviewed 96x60 `1 missed call` screen must appear, followed by physical
+Names/C Exit decoded as own raw matrix value `15` and the reviewed operator
+idle frame. The generic SIP runner rejects media fixtures for this profile;
+only the independently verified
+incoming/outgoing SIP-200 signaling fixtures below are admitted. The own idle-restore runner admits a
+fresh dialog only after handset restoration. This proves an unanswered external SIP
+lifecycle, not speech, native DSP, live RF or authentic factory PMM repair.
+The normal `noki6250` machine remains fail-closed.
+
+`verify-6250-sip-alerting-incoming-restore` separately saves the ringing
+handset at 40 s and restores exact architectural R15/R13, full-RAM digest
+and time. The external INVITE is rejected and one cause-41 clear completes
+CC/RR release under epoch 2. Own release grammar, resumed paging, the same
+missed-call frame and decoded physical Exit to reviewed idle are required.
+Answer, CONNECT and media remain forbidden. The external dialog is cleared,
+not saved; no passive replay interval is asserted during its invalidation.
+Lua waits cancelled by loading return normally, while the restore notifier
+explicitly starts the post-load physical cleanup schedule.
+
+`verify-6250-sip-pending-outgoing-restore` separately uses physical `123`/Send,
+real SIP 180 and a snapshot at 24 s. Exact R15/R13/RAM/time must restore,
+then CANCEL/487 and one cause-41 clear must close the request without redial
+or CONNECT/media. Own carrier-19 release uses
+`041202001117001a600000130000001400000001` with confirmation
+`body=00 input=0409 expected=00 pending=00`, followed by resumed paging and
+the reviewed registered-idle frame. The fixture's hold control omits its
+scheduled physical End; it never writes firmware state or supplies a
+handset completion event. This pending fixture does not prove connected
+restoration or native speech.
+
+`verify-6250-sip-outgoing-busy` independently verifies physical `123`/Send
+against real local PJSIP 486 on the same declared initial-record composition.
+The checker decodes the product's SETUP digits, requires a correlated busy
+decision, complete CC/RR release and zero media. Because busy precedes traffic
+assignment, the release body is `041202000000001a600000130000000f00000000`,
+with firmware confirmation `body=00 input=0409 expected=01 pending=00`;
+the answered-call deconfiguration is not applicable. Repeated confirmation
+tuples are retained in outgoing fixtures to distinguish this release from
+registration. Resumed paging and reviewed registered-idle pixels are required.
+This failure fixture establishes neither answered SIP nor speech.
+
+`verify-6250-sip-connected-signaling` physically dials `123`/Send against a
+real local SIP-200 endpoint, then physically ends the dialog. The unchanged
+initial-record comparison must still register and persist SIM location.
+The own-product checker requires SETUP digits, CONNECT/acknowledgement,
+carrier-19 traffic assignment, physical End, complete CC/RR release with
+the own deconfiguration body and confirmation, and resumed paging. Reviewed
+registered-idle pixels must return. Bridge uplink must be zero and no HLE
+codec tick may run; the result explicitly excludes speech and native DSP
+completion. Remote PCM reception is not handset playback. Recording remains
+excluded; connected restoration has separate gates below.
+
+`verify-6250-sip-incoming-connected-signaling` separately admits caller
+`5551234` after a fresh registered-idle artifact. Physical Answer and End
+must drive the own paging, SETUP, carrier-19 assignment, CONNECT/acknowledgement
+and complete CC/RR release lifecycle. The original SIP identity's Answer
+must precede confirmation; duplicates and wrong epochs are rejected.
+Own release confirmation and resumed paging, persistent SIM location and
+reviewed pre/post idle pixels are mandatory. Zero uplink and no HLE codec
+ticks keep this explicitly signaling-only, not native or audible speech.
+
+`verify-6250-sip-connected-outgoing-restore` physically dials `123` into a
+real SIP-200 dialog and saves at 24 seconds with the scheduled End omitted.
+R15/R13, full-RAM digest and emulated time restore exactly. The connected
+handset state must precede save; epoch change clears the external dialog
+with BYE rather than redialing it. One cause-41 termination, complete CC/RR
+release, the own carrier-19 deconfiguration and confirmation, resumed
+paging and reviewed idle pixels are required. The bridge reports zero
+uplink before old-epoch counters are discarded, and no HLE codec tick may
+run. This is signaling-only restoration, not external dialog resurrection,
+native DSP completion or speech.
+
+`verify-6250-sip-connected-incoming-restore` admits a fresh caller only
+after registered idle and physically answers through own raw matrix value
+`0a`. It saves at 41 seconds after connection and requires exact R15/R13,
+full-RAM digest and time restoration. The original identity's Answer and
+SIP confirmation must precede the epoch change; BYE clears the external
+dialog, and one cause-41 termination clears the restored handset call.
+The own carrier-19 traffic/release contract, firmware confirmation, resumed
+paging and reviewed pre/post idle pixels are checked. Zero old-epoch
+uplink and no HLE codec tick remain mandatory. No dialog replay, native
+speech or audible call is claimed.
+
+`verify-6250-sip-outgoing-unavailable` independently verifies the same physical
+`123`/Send against real local PJSIP 480. Unlike busy, the no-answer decision
+enters traffic assignment before the correlated cause-18 termination is
+consumed. The checker requires carrier-19 traffic body
+`041202000271012fc10000130000000400000000`, then traffic deconfiguration
+`041202001117001a600000130000001400000001` and confirmation
+`body=00 input=0409 expected=00 pending=00`. Complete CC/RR clearing,
+resumed paging and reviewed registered-idle pixels pass without CONNECT or
+bridge media. Assignment is not evidence of an answered call or speech.
 
 ## Recovered hardware contracts
 
@@ -80,6 +587,377 @@ parked DSP identity values are inherited from another product.
 
 ## Reproduction
 
+### SIM security
+
+`make verify-6250-pin-retry` cold-starts the declared own initial-record PMM
+comparison with an ordinary PIN-enabled synthetic SIM and coherent carrier19.
+Physical9999/OK returns `9804`, reduces PIN1 retries3->2 and renders Code error.
+Physical1234/OK then returns `9000`, restores retries3 and completes laboratory
+registration. Physical Menu remains responsive. The checker pins all press/
+release contacts, two CHV1 selectors, APDU result ordering, the complete final
+card image and three96x60 RGB frames (error, registered idle and Messages).
+Capture: `tmp/nhm3-pin-retry-banked`. No credential/configuration/record writes
+are permitted; the only lasting card change is the normal location update.
+This proves same-process retry recovery, not retry persistence across a cold
+restart, PIN exhaustion/PUK recovery, factory provisioning or native speech.
+
+`make verify-6250-pin-retry-cold` separately proves durable retry loss in two
+independent processes. The first submits only9999, retains two attempts and
+exits without registration; its complete serialized card includes the ordinary
+default extension but no credential or unrelated-field change. The second
+copies every NVRAM file byte-for-byte, physically submits1234 and recovers three
+attempts, coherent registration and the reviewed idle/Messages frames. Both
+processes require their own native-upload/initial-record checks, console health,
+exact CHV1 selectors, press/release contacts and complete card transitions.
+All predecessor artifacts remain hash-identical after the cold run. Each launch
+has a distinct invocation ID, command, initial-storage hashes and executable/
+script hashes. Capture: `tmp/nhm3-pin-retry-cold-banked2`. The error, idle and menu
+frame hashes equal the same-process control. PIN exhaustion and PUK recovery
+remain outside this gate.
+
+`make verify-6250-puk-recovery` separately runs three cold processes. The first
+physically submits9999 three times, observes `9804/9804/9840` with retries
+`2/1/0`, and retains the complete blocked card without registration. The
+second inherits that storage and physically supplies PUK12345678, new PIN2468
+and confirmation. Exactly one UNBLOCK CHV1 (`A0 2C 00 00 10`) succeeds;
+no VERIFY or unrelated credential/configuration/record write occurs in that
+phase. The new PIN, reset retry allowance and ordinary registration location
+are the only card changes. The third cold process verifies2468 through CHV1
+and performs the preserved-location registration lifecycle without modifying
+the complete card again. Physical Menu works after both successful phases.
+
+All11 stage frames, exact contacts, APDU selectors/results/order, full card
+transitions, inherited NVRAM, native upload/initial-record checks, console
+health and unchanged predecessor artifacts pass. The PUK-stage result frame
+includes a transient blank repaint; registered idle is checked separately at50s.
+Capture: `tmp/nhm3-puk-recovery-banked`. Wrong-PUK handling, PUK exhaustion,
+permanent card rejection and PIN2/PUK2 are not promoted by this gate.
+
+`make verify-6250-wrong-puk-recovery` adds an independent wrong-PUK process
+between exhaustion and recovery. Physical99999999 plus proposed PIN2468 and
+confirmation sends UNBLOCK CHV1, returns `9804` and renders SIM blocked. Only
+PUK1 retries change10->9: PIN1 stays blocked at zero, the stored PIN remains1234
+and every unrelated card byte is preserved. The following cold process must
+inherit that exact nine-attempt card, not a repaired default. Correct PUK/new
+PIN/confirmation resets allowances and registers; another cold process verifies
+the installed2468 with the complete card unchanged. All15 frames, input/APDU
+ordering, full-card transitions, own upload/initial-record and predecessor
+integrity checks pass. Capture: `tmp/nhm3-wrong-puk-banked`.
+
+The post-rejection recovery's34s result is exactly Code accepted, unlike the
+blank repaint at that time in the no-rejection control. The gate pins this
+path-specific image separately; both require the same later registered idle
+and Messages frames. One wrong PUK and its durable retry loss are qualified,
+not PUK exhaustion or permanent rejection.
+
+`make verify-6250-permanent-puk-loss` physically exhausts PIN1, then consumes
+all ten PUK1 allowances in separate cold processes and tests the resulting
+card in a twelfth process. Each failed UNBLOCK preserves the stored PIN1234,
+PIN2/PUK2 and every unrelated card byte, consuming exactly one PUK1 attempt.
+The first nine return9804; the tenth returns9840 with PIN1/PUK1 allowances0/0.
+All eleven transitions are complete-card comparisons with inherited NVRAM,
+not synthesized blocked-card inputs. No failed phase registers.
+
+The final cold process retains the entire zero-allowance card. Its screen says
+SIM blocked, not SIM card rejected. A delayed credential-shaped physical input
+sequence enters an unlabelled numeric context, never the qualified PUK/new-PIN
+editors, and produces no VERIFY/UNBLOCK, registration or outgoing call. End
+returns to SIM blocked. This is the observed bounded refusal of that input
+sequence, not a claim that every possible UI path is disabled. Fixture filenames
+`new_pin`/`confirm` describe capture stages, not semantic ownership in this phase.
+The tenth failed transaction's early frame still shows masked new-PIN confirmation;
+its9840 status and the separate cold card/UI checks establish permanent loss.
+
+All48 frame hashes, exact contacts/selectors/result ordering, complete card
+transitions, launch provenance, native-upload/initial-record checks, console
+health and unchanged predecessor artifacts pass. Capture:
+`tmp/nhm3-permanent-puk-banked`. That capture was explicitly resumed after
+checker corrections: completed phases were revalidated, not re-entered or
+replaced. `--resume` requires matching commands, executable/script hashes,
+unique launch IDs, complete predecessor-storage hashes and the retained
+initial-card hash before rerunning every protocol/card/frame check; missing
+phases alone launch new MAME processes. Ordinary named gates still require a
+new directory. Raw MMIO remains in each error.log but is excluded from the
+security checker's query text; protocol, native boundary and error lines remain.
+No PIN2/PUK2, factory-provisioning or native-speech support is implied.
+
+#### Fixed dialling
+
+Validity, protected records and listed/unlisted/Off permissions are qualified
+on the explicit laboratory card. Allowed calls use the isolated automatic
+laboratory peer; these are research-HLE signaling results, not native speech.
+
+`make verify-6250-fdn-cycle` qualifies the own fixed-dialling validity lifecycle
+on the explicit extended laboratory SIM, not factory subscriber data. Settings4
+-> Security settings5 -> Fixed dialling3 opens the On/Off/Number list menu.
+Physical On and PIN25678 invalidate EF_ADN (`A0 04`, selected6f3a) and display
+Fixed dialling on. A cold process inherits that exact card and displays On;
+firmware rehabilitates EF_LOCI/EF_IMSI during bring-up. Physical Off and PIN2
+rehabilitate EF_ADN (`A0 44`, selected6f3a); another cold process displays Off
+without the active-FDN identity rehabilitation.
+
+All four processes authenticate PIN1 and register. Only toggles VERIFY CHV2,
+and all ten FDN records are read and preserved. Complete-card comparisons allow
+only the expected initial registration and ADN-validity transitions; credentials,
+retry allowances and record contents remain unchanged. Thirty reviewed own
+route/options/PIN2/result/idle/menu frames, physical contacts, file targets,
+selectors/results/order, full NVRAM inheritance, native/initial-record/console
+checks and immutable predecessor artifacts pass. Capture:
+`tmp/nhm3-fdn-banked`. This validity-only gate does not qualify record writes
+or dial permissions; neither connected calls nor native speech follow from it.
+
+`make verify-6250-fdn-record-cold` adds physical protected Save and independent
+cold Search/Details to that complete validity regression. The record branch
+copies the complete organically activated On-phase NVRAM, not the later Off
+state with a rewritten flag; each launch records its source phase. Number list
+-> Add requires PIN25678, then number12345 and nameA. Final physical Save sends
+one UPDATE RECORD (`A0 DC 01 04 20`, selected6f3b), returns9000, rereads record1
+and displays Saved to SIM card. The cold process reads all ten FDN records,
+shows A/12345 through ordinary Search/Details and performs no PIN2 VERIFY or
+record write.
+
+The entire Save card differs only in the six encoded bytes of FDN record1;
+cold retrieval preserves it byte-for-byte. FDN validity, credentials, retries,
+ordinary ADN and the other nine FDN records stay unchanged. Six independent
+processes,42 reviewed validity/Save/detail/idle/menu frames, exact physical
+contacts, APDU targets/results/order, full inherited NVRAM, native/initial-record/
+registration/console-health checks and immutable predecessor artifacts pass.
+Capture: `tmp/nhm3-fdn-record-banked`. Editing/deletion, rejected Add and dialing
+have separate gates below.
+
+`make verify-6250-fdn-record-lifecycle` extends the validity/Save/cold-read
+regression through protected Edit, cold edited Details, erase cancellation,
+confirmed erase and cold empty Search. Edit requires PIN2 and asks for name
+before number, unlike Add. Physical Clear/6/Save changes12345->12346 by exactly
+one encoded record byte; cold Details displays12346. Cancel authenticates PIN2
+and reaches Erase A?, but physical Back sends no UPDATE and preserves the
+complete edited card. Confirmed erase updates only record1 to32 erased bytes;
+the next cold process shows Fixed dialling list empty with FDN still On.
+
+Eleven independent processes and70 reviewed frames pass, including both smaller
+FDN gate paths. Whole-card/NVRAM/source/predecessor checks preserve credentials,
+retry allowances, ADN validity and all unrelated records. Every process retains
+its own native/initial-record, registration and console-health checks. The
+runner uses an explicit typed source/operation/timing plan, with tests protecting
+the original four-/six-process paths and the full cold-storage graph. Capture:
+`tmp/nhm3-fdn-record-lifecycle-banked`. Wrong-PIN2 activation/Add and dialing have
+separate gates below; call acceptance is not inferred from storage tests.
+
+`make verify-6250-fdn-rejections` qualifies wrong-PIN2 activation and protected
+Add, each followed by independent cold recovery of the actual lost allowance.
+Activation with physical5675 returns9804/Code error, leaves FDN Off and sends
+no ADN invalidation or identity rehabilitation. Only PIN2 attempts3->2 and
+ordinary initial registration change the complete card. The next cold process
+must inherit that registered two-attempt card; correct PIN2 activates FDN and
+restores three attempts.
+
+The protected-Add branch inherits the organically activated On card. Wrong5675
+again returns9804/Code error, changes only PIN2 attempts3->2 and sends no UPDATE
+or validity command. Cold correct Save must inherit that exact failed card,
+report its two attempts during startup PIN1 verification, then authenticate
+PIN2 and save A/12345. A final cold process retrieves the exact contact.
+All eight independent processes,56 reviewed frames, exact contacts/selectors/
+results/order, complete card/NVRAM/source links, native/initial-record/
+registration/console-health and immutable predecessor checks pass. Capture:
+`tmp/nhm3-fdn-rejections-banked`. No completed credential phase was repeated.
+These are activation/Add rejection controls, not a claim about every editor.
+
+`make verify-6250-fdn-dial-controls` composes fresh validity and physical
+Save/cold Details with three independent dial controls. With FDN On and saved
+A/12345, physical12345/Send reaches the complete outgoing laboratory CC/RR
+lifecycle. Physical12346/Send on the same saved-On card displays Call not
+allowed and emits no CM Service Request, SETUP, traffic assignment, Connect
+or outgoing call-control message. A separate physical PIN2-protected Off
+preserves the contact; the next cold process dials12346 successfully through
+the complete outgoing lifecycle.
+
+Allowed cases check the actual SETUP digits, carrier19 traffic/release grammar,
+Connect/Acknowledge, physical End, clean release confirmation and returned
+paging. Every dial preserves the complete card, uses only startup PIN1 VERIFY,
+reads the ten FDN records and returns to Messages. Ten processes,60 reviewed
+frames and complete NVRAM/source/predecessor/native/initial-record/registration/
+console checks pass. Dial phases explicitly set only private `CALLHOST=0` to
+select the automatic lab peer, including when MAME omits that default port
+from saved config; other inputs and handset NVRAM are preserved. Capture:
+`tmp/nhm3-fdn-dial-banked`. This is not SIP, external RF or native speech
+acceptance, nor exhaustive prefix/wildcard/international-number coverage.
+
+#### PIN settings
+
+`make verify-6250-pin-request` qualifies physical Off/On persistence across
+three independent cold processes. The own route is Settings4 -> Security
+settings5 -> PIN code request1, then PIN1234, the On/Off list and confirmation.
+Off sends one successful DISABLE CHV1 (`A0 26 00 01 08`); the next cold boot
+registers without startup VERIFY and physically re-enables the request through
+one successful ENABLE CHV1 (`A0 28 00 01 08`). The final cold boot displays
+Enter PIN code before any input, physically authenticates1234 and opens Messages.
+
+The first card has only the expected registration changes and disabled flag;
+thereafter the enable byte is the only card change, and final authentication
+preserves the entire card. Exact contacts, selectors, results and ordering,
+25 reviewed boot/startup/setting/result/idle/menu frames, full inherited NVRAM,
+own native/initial-record/console-health checks and immutable predecessor
+artifacts pass. The enabled-card startup graphic is not an idle oracle; the
+disabled cold boot independently reaches registered idle without PIN input.
+Capture: `tmp/nhm3-pin-request-banked3`. This is own acquired-PMM research-HLE
+qualification, not factory provisioning or native speech.
+
+`make verify-6250-pin-change-cold` qualifies ordinary PIN1 replacement, not
+PUK-based recovery. The own route is Settings4 -> Security settings5 -> Change
+access codes5 -> Change PIN code2. Physical current1234/new2468/confirmation
+sends one successful CHANGE CHV1 (`A0 24 00 01 10`) after confirmation and
+displays PIN code changed. No UNBLOCK, enable/disable or record command is
+permitted. The complete card preserves PIN2, both PUKs and all retry allowances,
+with only PIN1 and the expected registration data changed.
+
+A second independent cold process inherits every NVRAM file, physically
+authenticates2468, registers through the retained-location contract and opens
+Messages with the entire rotated card unchanged. All13 own route/editor/result/
+idle/menu frames, contacts, selectors/results/order, native/initial-record and
+console-health checks pass; predecessor artifacts remain hash-identical.
+Capture: `tmp/nhm3-pin-change-banked`. Wrong-current-PIN rejection is not
+qualified by this successful-change gate. Factory provisioning and native
+speech remain outside its scope.
+
+`make verify-6250-pin2-change` independently qualifies the ordinary physical
+PIN2 change on the PIN-enabled, non-FDN card. After PIN1 authentication and
+coherent registration, the own English menu route is Settings4 -> Security
+settings5 -> Change access codes5 -> Change PIN2 code3. From the first Settings
+item Security needs four Down presses; five selects Restore factory settings,
+so the6210 sequence must not be copied verbatim. Exact contacts and eleven
+96x60 RGB frames pin the route, old/new/confirmation editors, PIN2 code changed,
+registered idle and Messages.
+
+Physical5678/new8765/confirmation sends exactly one successful CHANGE CHV2
+(`A0 24 00 02 10`) after the final confirmation, with no separate CHV2 VERIFY.
+The initial CHV1 VERIFY is independently required. Both CHV/PUK allowances stay
+3/10, and complete-card comparison permits only installed PIN2=8765 and the
+normal location update; PIN1 and all unrelated fields remain unchanged. Native
+upload/initial-record, console-health and coherent registration checks pass.
+Capture: `tmp/nhm3-pin2-change-banked`. This is not cold authentication of the
+installed PIN2, wrong-PIN2 handling, exhaustion or PUK2 recovery.
+
+`make verify-6250-pin2-change-cold` separately runs the installation gate and an
+independent cold Settings change. Every NVRAM/config/local-ROM file is copied
+from the completed installation; the entire cold card must equal its saved
+predecessor with PIN2=8765. Physical PIN1 authentication precedes the retained-
+location registration lifecycle. The same own menu route then uses8765 as the
+current PIN2 and successfully changes it to2468. No standalone CHV2 VERIFY is
+claimed: acceptance of the installed credential is through CHANGE CHV2.
+
+Both processes require all eleven own-product frames, exact contacts/selectors/
+result ordering and complete-card preservation. Only PIN2 changes in the cold
+process; both CHV/PUK allowances remain3/10, and the already-valid location stays
+unchanged. All predecessor artifacts remain hash-identical. Distinct launch
+identities, actual commands, MAME/base-fixture/wrapper hashes and complete cold
+input-storage hashes are recorded. Capture: `tmp/nhm3-pin2-cold-banked`.
+That two-process gate excludes rejection, exhaustion and PUK2 recovery.
+
+`make verify-6250-pin2-retry-cold` inserts an independent rejected-change process
+between installation and cold recovery. After installing8765, physical current
+PIN2=8764/proposed2468/confirmation returns9804 and Code error. Exactly one PIN2
+attempt is consumed3->2; the stored PIN2 remains8765 and every unrelated card
+byte, including PIN1 and PUK allowances, stays unchanged. The proposed2468 is
+not installed. The next process must inherit that entire two-attempt card.
+Its initial successful PIN1 VERIFY still reports PIN2 retries2, proving startup
+did not repair them. Physical8765/new2468/confirmation then succeeds, resetting
+PIN2 retries3 and changing only PIN2; registration follows the retained-location
+contract in both cold phases. No standalone CHV2 VERIFY is claimed.
+
+All33 route/editor/result/idle/Menu frames, exact contacts/selectors/order,
+complete initial/final-card transitions, copied NVRAM and immutable predecessor
+artifacts pass. Both the binary and shared physical fixture must retain their
+recorded hashes between phases. Capture: `tmp/nhm3-pin2-reject-banked2`.
+This qualifies one rejected CHANGE CHV2 and cold recovery, not PIN2 exhaustion,
+PUK2 or permanent loss.
+
+`make verify-6250-pin2-exhaustion` independently installs8765, then submits
+three wrong current-PIN2 changes in separate inherited-state cold processes.
+Each authenticates PIN1 and registers before physical Settings input.
+CHANGE CHV2 returns9804/9804/9840 while PIN2 retries fall3->2->1->0. Every
+full-card transition preserves the installed8765, PIN1 and both PUK allowances;
+the proposed2468 is never installed. The final image says PIN2 code blocked,
+and physical End/Menu still recovers Messages. All44 exact frames, contacts,
+selectors/result order, inherited NVRAM and predecessor-artifact hashes pass.
+Capture: `tmp/nhm3-pin2-exhaustion-probe`.
+
+`make verify-6250-puk2-recovery` extends the physical exhaustion chain with a
+fifth cold process for recovery and a sixth for new-PIN2 reuse. The complete
+blocked card is inherited unchanged. PIN1 authentication and retained-location
+registration still work with PIN2 retries0. Selecting Change PIN2 on the same
+own Settings route opens Enter PUK2 code. Physical87654321/new2468/confirmation
+sends one successful UNBLOCK CHV2 (`A0 2C 00 02 10`); firmware then VERIFYs the
+new PIN2 through CHV2. Exactly those operations, their selectors and their order
+after physical confirmation are required. PIN2 retries reset3 and both PUK
+allowances remain10, with only PIN2 changed in the complete registered card.
+
+The sixth process inherits that exact recovered card and accepts2468 as current
+PIN2 in a physical change to1357. This cold credential proof is through CHANGE,
+not another standalone VERIFY. All66 frame hashes cover the own menu route,
+PUK2/new/confirmation editors, Code accepted, idle/Menu and ordinary change
+results. Exact contacts/APDUs, complete card/NVRAM links, native upload/initial-
+record, console-health and predecessor-integrity checks pass. Capture:
+`tmp/nhm3-puk2-recovery-banked`. That successful-recovery gate excludes rejected
+PUK2 and permanent loss; native speech and factory provisioning are not promoted.
+
+`make verify-6250-wrong-puk2-recovery` adds an independent wrong-PUK2 process
+before recovery. Physical99999999/proposed2468/confirmation returns9804 and
+Code error, consumes PUK2 attempts10->9 and leaves PIN2 blocked at0 with its
+stored value8765 unchanged. PIN1 and all unrelated card fields are preserved;
+no replacement PIN2 VERIFY is sent after the rejection. The next cold process
+must inherit that exact nine-attempt card, including the lost allowance in its
+initial PIN1 VERIFY status. Correct PUK2 recovery resets allowances, installs2468
+and firmware VERIFYs it; another cold process changes2468->1357 physically.
+
+All77 exact frames, physical contacts, CHV selectors/results/order, complete
+card/NVRAM links, registration, native/initial-record and console-health checks
+pass across seven processes. Every predecessor artifact remains unchanged.
+Capture: `tmp/nhm3-wrong-puk2-probe`. This proves one wrong-PUK2 rejection and
+durable retry loss, not PUK2 exhaustion or permanent rejection.
+
+`make verify-6250-puk2-permanent` qualifies the full retry-loss chain in fifteen
+independent processes: PIN2 installation, three rejected PIN2 changes, ten
+wrong-PUK2 transactions and a cold inspection of the permanently blocked card.
+Each complete PUK2/new-PIN2/confirmation transaction consumes exactly one saved
+PUK2 allowance; nine `9804` replies precede `9840` at zero. Stored PIN2 remains
+8765 and the rejected replacement is never verified. PIN1 retains three
+attempts, PUK1 ten, and every unrelated card byte is preserved.
+
+The final rejection displays **PIN2 code rejected**. Its immediate post-End
+frames are blank input-like screens, not registered-idle or Menu proof. The
+subsequent cold process independently authenticates PIN1 and registers with
+both PIN2/PUK2 allowances still zero. Selecting the PIN2 setting gives an
+unlabelled notice without a credential APDU; no editor ownership or general
+UI-disable claim is inferred. End then returns to registered idle and Menu
+opens Messages. All162 reviewed frames, physical contacts, selectors/results,
+whole-card/NVRAM links, native/initial-record/console-health checks and immutable
+predecessor checks pass. Capture: `tmp/nhm3-puk2-exhaustion`. Completed phases
+were revalidated through explicit resume after review of the distinct final
+rejection frames; no credential input was repeated. This establishes the
+research-HLE card-security lifecycle, not native speech or factory provisioning.
+
+The PIN2 cold runner accepts explicit `--resume`; without it, existing output
+directories are rejected. Retained phases must match their original commands,
+executable, shared fixture and phase-script hashes, unique launch identities,
+complete predecessor NVRAM hashes and initial card. All protocol, registration,
+console, frame and predecessor-integrity checks run again; retained phases do
+not repeat credential input or count as new emulator processes.
+
+New phases record `process_exit.json` only after their subprocess succeeds.
+An incomplete capture without that record fails closed. Older captures lacking
+exit records are reusable only when their launch identities belong to an
+already completed acceptance manifest. The seven-process wrong-PUK2 capture
+passes an integration replay with subprocess launch forbidden: original launch
+identities and every phase artifact remain unchanged. Evidence:
+`tmp/nhm3-puk2-resume-hardened.log`. This is harness qualification, not another
+SIM-security or native-DSP milestone.
+
+A fresh two-process PIN2 change/cold-change capture also passes with successful
+exit records. Removing only its top-level acceptance summary and resuming
+revalidates both retained phases using those records, without credential input.
+Capture: `tmp/nhm3-pin2-resume-fresh`; replay evidence:
+`tmp/nhm3-pin2-resume-partial.log`.
+
 Run `noki6250` with private working/NVRAM/config directories, the acquired
 product ROMs, `-noreadconfig -log -video none -sound none -nothrottle`,
 `-autoboot_delay 0 -seconds_to_run 9` and
@@ -100,9 +978,18 @@ flags have already fallen to zero at the observer's half-second snapshot.
 The isolated `nhm3verify` core fixture consumes this product's 232 sparse
 flash blocks (stride `20`, final two words `ffff`) and stops honestly at
 peripheral read `002d`, PC `0f9f`. Explicit COBBA and PROM-version
-sensitivity fixtures complete at `0f64`, with computed fingerprint
+sensitivity fixtures publish before the `0f64/0f65` idle/branch loop, with computed fingerprint
 `c62d430c` and PMST `ffa8`. These inputs are comparisons, not measured
 6250 silicon identity or an accepted phone self-test result.
+
+The live staged observer samples the published result periodically, rather
+than synchronously at its store. Independent cold runs observe either IDLE1
+at `0f64` or its following branch at `0f65`. The hash-pinned upload has publication words
+`7cf8/0801/ff87` at `0f61..0f63`, IDLE1 `f4e1` at `0f64` and branch
+`f073/0f64` at `0f65..0f66`. The live acceptance check permits only these two
+observed post-store instruction PCs, exactly one `0000/0006/0006/0006`
+publication and the unchanged complete loader stream. It rejects `0f66`,
+which is the branch operand, not another accepted instruction boundary.
 
 Reproduce with `tools/nsm3_verifier_check.py mame/mame
 roms/noki6250/6250-503mcuppmc.fls /tmp/6250-verifier --product 6250`.
@@ -289,14 +1176,11 @@ fault-array scan `304382..3043a8` clear it on failures (ignoring sentinel
 `47f354` clears pending bit `80` at `47f370` at 3.734 s; the provisioned run
 retains `40` afterward. Do not target that bit for clearing.
 
-Passive LCD payload counts distinguish this frontier from invisible rendered
-content: five 768-byte transfers occur by 3.001 s. Transfers 1/2/4/5 are all
-zero; transfer 3 has 768 nonzero bytes (576 are `ff`) at 2.010 s. No further
-LCD data arrives through 20 s. Thus the endpoint blank frame agrees with
-the firmware's final zero payload, rather than proving that a menu is drawn
-but hidden by the LCD model. Controller identity/command fidelity remain
-separate unknowns. The next investigation is the post-self-test UI lifecycle
-and organic physical-input handling, not another self-test completion reply.
+Before the channel-2 input correction, the final LCD payload was zero and
+the keypad remained suppressed. That was a readiness failure, not hidden
+rendered content or an outstanding self-test reply. The nominal-input
+research composition now reaches interactive idle; its physical menu,
+storage, Calendar and alarm gates below are the current acceptance boundary.
 
 ### Keypad boundary
 
@@ -315,17 +1199,15 @@ the first 25 entries are:
 10 1a 0c 0a 0b
 ```
 
-Inherited NHM-5 input labels do not describe this matrix. The physical probe
-`noki6250_key_observe.lua` presses/releases column 1, row 1 (own logical
-key `19`) at 6/6.15 s without writing MMIO or RAM. It observes no subsequent
-scan or display transfer. At both edges the firmware keeps all columns
-masked (`3f`), row `e0`, direction `1f`, MAD2 IRQ mask `8e`.
-The mask is set by suppression routine `508462`, called from `3b197e`
-at 2.011 s, and retained by subsequent scans. Follow that caller's lifecycle
-and the corresponding re-enable contract; do not bypass the column mask to
-manufacture interactivity. Scanner output is observed at RAM `174050`.
+Column 1, row 1 maps to logical key `19`; row 4 on that column is the
+right softkey. Own physical acceptance routes must use this matrix rather
+than infer keys from another product's menu layout. Scanner output is
+observed at RAM `174050`. Startup suppression routine `508462`, called
+from `3b197e`, keeps columns masked until the readiness contract below
+settles. No acceptance fixture bypasses that mask or manufactures input
+messages.
 
-### Missing readiness report
+### Analog readiness contract
 
 Suppression is part of startup engine `3b1848`, not an isolated input bug.
 The ordinary re-enable tails at `3b1a5a`/`3b1af6` clear the low five column
@@ -344,8 +1226,8 @@ dispatch continuation at `+4`; its counter value `04` is not a boot mode.
 The literal report-14 publisher is `4e966c`, posting value `14` to task 1
 via `3c3588`. An aligned Thumb direct-call scan identifies caller `30bf3c`.
 Its surrounding lifecycle includes firmware strings "VBAT Checks" and
-"Start limited fast VBAT reads"; therefore the next investigation is this
-analog/power readiness path and its inputs, not an invented DSP packet.
+"Start limited fast VBAT reads", identifying the analog/power readiness
+path rather than a DSP-packet response contract.
 This direct-call observation is not an exhaustive exclusion of indirect or
 data-driven producers. The default ADC tuple is still conservative for
 NHM-3. The full-scale comparison below identifies the corrected channel-2 input.
@@ -425,13 +1307,76 @@ exchanges. The controller's existing FIQ route is sufficient for these
 firmware-owned exchanges. This is runtime validation of the path, not a
 complete static census of all SIM faults or electrical timing.
 
-The initial-record fixture reaches a `Headset` idle-style frame with Menu
-and Names at 20 seconds without late input. The literal label is an
-observation; its accessory/profile ownership is not yet decoded. The physical
+The initial-record fixture reaches a registered idle-style frame with Menu
+and Names at 20 seconds without late input. Grounding accessory ADC input 0
+produces `Headset` through the selector-0 path described below. The physical
 probe at 16/16.15 seconds opens the Messages menu (Select/Exit), captured
 at 20 seconds by `noki6250_key_observe.lua`. The probe contains physical
 input only; it does not select callbacks, write RAM, or post UI messages.
 The first 6-second press occurs during SIM reads and is not the menu proof.
+
+### Accessory input boundary
+
+Own reader `4ae33e` selects ADC input 0 through `511ee0` and stores its
+sample. Consumer `3b2790` reads it into the halfword addressed by `r5`;
+the state byte loaded through the literal at `3b2938` is `172d70`.
+The threshold comparison at `3b27d4` uses the literal `0312` at `3b2b48`.
+The state-`10` setter at `3b1e4c/3b1e4e` reaches UI publisher `40fde2`
+with argument 1 through `3b28aa`. This is the accessory indication path,
+not a network/operator label.
+
+`noki6250_accessory_contract.py` hash-pins and checks these own-ROM
+instructions and literals. The acceptance runner records its result.
+Read-only observation at the branch target `3b27c0` on an unchanged
+initial-record research boot records `state=0f sample=0000` at 2.709 s,
+then `state=10 sample=0000` at 3.577 s. Location Updating still completes.
+Thus the existing zero board input induces the observed indication;
+neither a UI-state override nor altered provisioning is required to explain it.
+
+Nokia's [NHM-3 SM4v15 schematics](https://altehandys.de/downloads/ser-no-6250-schematics.pdf)
+(Original 11/00) independently establish the board polarity. Sheet A-2
+connects `HEADDET` to CCONT N102's EAD input (A2); sheet A-6 connects
+`HEADDET` through R211 (220 kOhm) to the external-microphone network,
+which is pulled toward VBB by R213 (47 kOhm) through R212 (2.2 kOhm).
+The unloaded connector is high, not grounded. The archived PDF is
+`roms/research/nhm3/nhm3-sm4v15-schematics.pdf`, 903,711 bytes,
+SHA-256 `8f4c58ca5eb3d44229396f55a5a4c5e52a9579b14ca2b87d72ffe98497c6a62c`.
+
+`PRODUCT_6250` therefore supplies nominal open-input `03ff` on selector 0.
+The own firmware observes `state=0f sample=03ff` and retains that state at
+the 20-second endpoint; the reviewed idle accessory-label area is empty.
+This is an evidenced polarity correction with an explicitly nominal ADC
+value, not a measured transfer curve. It changes neither firmware nor PMM.
+The `accessory` acceptance scenario requires the own-ROM contract, runtime
+decision, settled state, reviewed label-area pixels and Location Updating:
+
+```sh
+.venv/bin/python tools/run_noki6250_acceptance.py run_6250_accessory --scenario accessory
+```
+
+The same board profile passes `idle-state`, `call-state`, `sms-state`,
+`host-outgoing-call`, `host-incoming-sms` and `host-outgoing-sms` acceptance.
+The save/load gates retain exact architecture, ordered protocol replay and
+screen-pixel equality. These are research-HLE signaling/storage regressions,
+not native DSP or headset audio validation.
+
+The separate `host-incoming-sms-text` scenario additionally proves the host
+GSM alphabet boundary with `@_{}`: six encoded septets persist exactly in
+EF_SMS and physical Read renders the four characters. Its reviewed frame
+and storage check do not replace the existing `hello` SMS oracle.
+
+Attached-accessory identification, microphone bias switching, headset
+buttons and calibrated voltage/ADC units remain unvalidated. Do not infer
+those contracts from this unattached-input regression.
+
+The own state-`0f` reader also has a separate inclusive raw window
+`012c..01f4` (`3b279e..3b27b4`). With MAD2 external status `2000e` bit 2 clear,
+this branches to `3b28f8` before the ordinary high-threshold decision.
+The contract checker pins the comparisons and shift/carry guard. This
+window is not an identified accessory resistance or button voltage:
+its physical meaning and the external status pin ownership remain unresolved. A dynamic
+HEADDET model must account for that branch rather than treating every
+non-high value as the same attachment.
 
 ### Input layout and phonebook save
 
@@ -446,7 +1391,7 @@ measured.
 `tools/noki6250_phonebook_observe.lua` uses only physical cells to open
 Names, select Add name, enter `A`, enter `123`, and confirm. Captures show
 the Name editor, Phone number editor and `Saved to SIM card`. After normal
-MAME exit, `nvram/nhm3hle/sim_card` contains a 3524-byte card image whose
+MAME exit, `nvram/nhm3hle/sim_card` contains a card image whose
 first 32-byte ADN record is `41`, 17 erased bytes, `03 81 21 f3`, then ten
 erased bytes; the remaining 49 ADN records are erased. Thus the save reaches
 durable card storage, not just a UI acknowledgment.
@@ -465,6 +1410,64 @@ by `tools/noki6250_phonebook_check.py STAGE NVRAM FRAME`, where STAGE is
 96x60 luminance pixels and validates the exact persistent record plus all
 49 erased records. Keep save/readback as separate processes: an in-process
 UI reread is not this persistence test.
+
+### Handset-memory persistence
+
+`.venv/bin/python tools/run_dct3_phone_memory.py RUN_DIR --product 6250`
+independently qualifies the Phone bank. Three isolated processes use the
+existing own initial-record PMM comparison, not factory provisioning or a donor
+PMM. Fresh physical Names / Options / Memory in use / Phone selection and a
+search render **Selected memory empty** in the control. A separate fresh
+selection enters A / 123 and renders **Saved to phone**. The cold process
+inherits the writer's complete NVRAM and physically opens A / 123.
+
+The shared physical sequence has product-owned runtime observers and an
+independently reviewed 6250 save-frame hash; it does not inherit acceptance
+from6210. Both selections, empty, save and cold detail are exact pixel oracles.
+All complete SIM files must match and no UPDATE RECORD is allowed. The
+writer's4MiB flash differs from the empty control. Own native upload/HLE
+ownership and initial-record checks run on every leg. Native mask execution,
+factory PMM provenance, capacity and copying remain unproved.
+Capture: `tmp/nhm3-shared-phone-memory-final`.
+
+The independently executed `--product 6250 --lifecycle` extension covers nine
+isolated processes. Physical Options / Edit number changes123 to124; cold
+Details must display A / 124. Physical Names / Erase / One by one presents
+**Erase all details?** for A. Back cancels and another cold Details must still
+display A / 124. Confirming the same dialog later displays **Phone book
+erased**, followed by a cold **Selected memory empty** search. Seven additional
+product-qualified pixel oracles cover both dialogs, edit/save, erase and the
+three cold outcomes. The 6250 reader uses its own four-contact timing and
+frame names, not the 6210 reader. Every successor inherits complete predecessor
+NVRAM; all nine complete SIM files match and no UPDATE RECORD occurs.
+The own upload/HLE and PMM checks remain mandatory on every leg. Capture:
+`tmp/nhm3-phone-memory-lifecycle`. This qualifies one numeric edit and
+cancel/confirmed erase, not multiple numbers, capacity, bulk
+erase, copying or native DSP. Menu positions remain harness policy.
+
+The separately executed `--product 6250 --rename` variant starts with its own
+empty control, fresh A / 123 save and cold retrieval, then physically selects
+Options / Edit name, changes A to D and cold-reads D / 123. All five processes
+retain the own upload/HLE and initial-record PMM checks. Name-editor,
+product-specific save confirmation and cold-detail pixel hashes are required;
+complete SIM files remain identical and no UPDATE RECORD is allowed.
+Persistent handset flash changes without external contact mutation. This
+qualifies one single-letter rename with an unchanged number, not arbitrary
+name encodings or a decoded flash-record grammar. Capture:
+`tmp/nhm3-phone-rename-qualified`.
+
+The independent `--product 6250 --numbers` variant uses seven isolated
+processes with own boot/upload/HLE and initial-record PMM checks throughout.
+After the empty control and fresh A / 123 save/cold retrieval, physical
+Options / Add number / General adds789. Cold detail navigation must show
+123,789,A. Selecting789 and confirming **Erase? 789** must leave the next
+cold process navigating123,A,123. Exact pixel oracles check both retained
+fields, the added field, confirmation and post-erase wraparound. Complete
+SIM files remain identical, no UPDATE RECORD occurs, and each field mutation
+changes persistent handset flash. This qualifies two General numbers and
+selective deletion on one contact, not capacity, arbitrary field types,
+factory provenance, record encoding or native DSP. Capture:
+`tmp/nhm3-phone-numbers-qualified`.
 
 ## Radio acquisition comparison
 
@@ -537,7 +1540,81 @@ The firmware publishes CM Service Request and SETUP containing number
 Validate with `noki6250_call_check.py LOG --outgoing --number 123`.
 This uses the same evidenced channel contracts, not a new speech backend.
 
+### Coherent A5/1 host calls
+
+`verify-6250-a51-host-incoming-call-signaling` and
+`verify-6250-a51-host-outgoing-call-signaling` independently require fresh
+own-upload/PMM-comparison boots, coherent ARFCN19 registration, organic cipher
+control and bidirectional encrypted xCCH. Incoming acceptance checks caller
+`5551234`, physical Answer/End, connected presentation and returned idle.
+The pre-answer crop is deliberately re-banked for completion-before-MM
+ordering: independently captured A5/0 and A5/1 crops match exactly, while
+connected and idle crops retain the existing expectations. Outgoing acceptance checks
+physical `123` dialing, the host-owned decision, assignment, connection and
+complete release. These are research-HLE signaling gates, not native DSP,
+6250 PCM, TCH waveform, microphone or earpiece acceptance.
+
+[TS 24.008 V8.6.0 section 4.5.1.1](https://www.etsi.org/deliver/etsi_ts/124000_124099/124008/08.06.00_60/ts_124008v080600p.pdf)
+defines cipher completion as an MM service-acceptance indication. The
+ciphered mobile-originated call therefore becomes ready for SETUP after
+MM Information acknowledgement, without waiting for an additional explicit
+CM Service Accept. SETUP can itself carry that acknowledgement. The shared
+outgoing-call checker requires the ordered Cipher Mode Command, Complete
+and activation after the service request before accepting this alternative.
+The unciphered explicit-acceptance path remains separately required.
+For a pending A5/0 no-cipher command, the exact clear-mode Complete also
+advances to MM Information, without key validation or cipher activation.
+Treating all completion as A5/1 activation would strand clear-mode incoming
+calls after their valid completion; both modes therefore require runtime
+acceptance rather than inheriting one another's result.
+
 ## Incoming SMS
+
+### Coherent A5/1 host signaling
+
+`verify-6250-a51-host-incoming-sms-signaling` starts with fresh storage on
+the coherent ARFCN19 laboratory cell and enables the existing cipher option
+through machine configuration. It requires organic authentication, Cipher
+Mode Command, redacted MCU type-14 key publication, Cipher Mode Complete,
+and bidirectional A5/1 xCCH, alongside the ordinary host-SMS protocol,
+SIM-storage and physical Read/pixel checks. This is signaling acceptance,
+not TCH, native DSP, PCM or audible speech validation. The initial-record
+PMM comparison and runtime HLE remain explicit prerequisites.
+
+`verify-6250-a51-host-outgoing-sms-signaling` independently follows the
+received message with physical Reply, recipient confirmation and exact
+`Hi` SMS-SUBMIT to `5551234`. It requires the second cipher procedure,
+MM Information, CM Service Accept, host-owned submission decision, CP/RP
+closure and RR release with N(R)=4. The reviewed ciphered `Message sent`
+frame retains its own envelope-animation phase; the A5/0 oracle is unchanged.
+The available-key CM Service Request carries `04`, not the A5/0 fixture's
+no-key `74`; both have SMS service type 4.
+
+The session waits for validated Cipher Mode Complete before queuing MM
+Information. An earlier LAPDm acknowledgement only retires the command's
+link transaction. After MM Information is acknowledged, mobile-originated
+SMS and supplementary requests use the explicit CM Service Accept path;
+leaving that message pending would repeat it indefinitely. Ciphered outgoing
+calls instead use the implicit-acceptance contract above.
+The A5 trace checker rejects premature MM Information for every observed
+cipher procedure, not only the first one.
+[ETSI TS 144 018 V4.7.0 section 3.4.7.2](https://www.etsi.org/deliver/etsi_ts/144000_144099/144018/04.07.00_60/ts_144018v040700p.pdf)
+defines the network transmit-mode change at receipt of Cipher Mode Complete
+or another correct layer-2 frame sent in the new mode. An acknowledgement
+alone is not evidence of RR procedure completion in this session model.
+
+Authentication consumes an additional LAPDm I-frame: this path acknowledges
+Location Updating Accept with N(R)=2 and Channel Release with N(R)=3, and
+commits the LAI before the release acknowledgement. The checker requires
+the preceding Authentication Request/Response before accepting that sequence;
+the unauthenticated 1/2 sequence remains independently checked.
+
+Complete transport TX traces redact key-bearing type-14 packets at pending,
+HLE-consumed and native-DSP-consumed boundaries. Raw MCU low-word logging
+that overlaps the TX ring is omitted; this is not a promise that arbitrary
+RAM dumps or save states contain no key material.
+
+### Ordinary delivery and storage
 
 The network SMS fixture produces an organic `1 message received` screen.
 Firmware acknowledges segmented SAPI-3 CP-DATA, writes the ordinary `hello`
@@ -666,10 +1743,14 @@ speech requests on field `0200`; no physical bit meaning is assigned.
 `noki6250_audio_observe.lua` passively traces helper calls, field selection
 and writes during the incoming physical Answer/End fixture. Validate the
 own ROM plus a 35-second run using `noki6250_speech_control_check.py ROM LOG`.
+The static check pins the big-endian Thumb keep-mask, selector-indexed OR/store
+and command-8 encoding instructions as well as their literal/table values;
+matching constants alone cannot qualify a changed consumer. Runtime acceptance
+separately requires the ordered Answer/End control publications.
 The normal call-signaling checker also passes after this configuration.
 
 This does not establish working audio. The conservative 6250 profile has
-no independently evidenced PCM bus clock/shape or COBBA analog route; its
+no independently evidenced PCM bus clock/shape or selected COBBA analog route; its
 zero frame clock leaves the HLE speech cadence disabled. Recover those
 contracts from product documentation/firmware before supplying a donor
 profile or claiming audible voice. Native mask execution remains a separate
@@ -686,11 +1767,328 @@ to COBBA under MAD2 control; the audio sections describe the speaker and
 microphone attachments. This supports the existing transport/codec boundary,
 not a particular PCM configuration.
 
-The preview has damaged font extraction: much prose is recoverable from
-the embedded character mapping, but numeric values are missing. It therefore
-does not establish PCM clock rates, sample framing, codec gains, or the
-internal microphone selector. The archive download-start endpoint returned
-an HTML landing page rather than its advertised RAR in the checked request.
-An intact PDF or product-owned register initialization remains necessary
-before enabling the 6250 speech cadence. Do not treat recoverable prose as
-evidence for absent numbers or substitute a sibling handset's configuration.
+The complete six-volume archive is now acquired and passes `unrar t`.
+Extracted documents live under the ignored
+`roms/research/nhm3/service-manual/` collection. The system-module PDF has
+SHA256 `be8080882c1014d885d5dd504167e59bd919d14fe3c1898081d458d3e9059414`.
+Use the public download-start flow for each file ID `26151..26156`, retaining
+its session cookie and following the advertised download link; the initial
+HTML is a landing page, not the archive. This retires the retrieval gap,
+not the audio contract gap. Ordinary extraction misinterprets the subset Nokia
+fonts and drops numeric control-code glyphs. The source-pinned manual instrument
+below recovers their reviewed ASCII mapping; this is not missing PDF content.
+
+```sh
+/usr/bin/python3 tools/nhm3_manual_text.py \
+  'roms/research/nhm3/service-manual/System ModuleOriginal.pdf' --json
+```
+
+The optional system-Python `pikepdf` parser reads actual font Differences and
+content operators, including nested Form resources and graphics-state font
+restores. Only the pinned source's Nokia `/G3`..`/G97` glyph numbers map to ASCII
+by adding 29 (`/G20` is `1`);
+ordinary fonts are not shifted and unreviewed glyphs remain explicit. The
+50-page capture contains 2,297 text-show spans and 64,123 glyphs, with 120 unmapped
+symbols/extended/Type3 glyphs. Output is content-order text, not table layout;
+it neither OCRs images nor proves coverage of image-only labels. Evidence:
+`tmp/nhm3-manual-text.json`; decoded values were checked against rendered
+printed pages 15 and 21, not inferred from concatenated table cells.
+
+Printed page 21's Audio Connections table specifies EAR N/P outputs at 14 mV
+typical and 220 mV maximum, with maximum volume specified at codec gain -11 dB. Its
+MICP/MICN rows identify MIC2P/N; their inputs are 2 mV typical and 12.5 mV maximum,
+with the maximum specified at 1 kHz/0 dBm0 and input gain 32 dB. These are documented
+analogue test conditions, not recovered programmable gain codes or a selected
+internal-microphone route.
+
+### Schematic PCM wiring
+
+The acquired `sm4v15.pdf` (Original 11/00; SHA256
+`13c35c4caed216d97f7c32f5482072e13de5ce463ae3210e289e643eea8640ea`)
+independently identifies the four-wire PCM connection. Printed sheets A-3
+(CPU) and A-6 (Audio) agree on these endpoints:
+
+| Net | MAD2 endpoint | COBBA endpoint |
+| --- | --- | --- |
+| PCM(0) | A9, PCMRxData | B5, PCMTx |
+| PCM(1) | B8, PCMDClk | C6, PCMDCLK |
+| PCM(2) | A8, PCMSClk | C5, PCMSCLK |
+| PCM(3) | B9, PCMTxData | D5, PCMRx |
+
+Thus the data directions are established by both endpoint names, not by a
+sibling handset profile. The schematic does not establish clock frequency,
+clock master, active edge, frame length, sample encoding or the selected
+firmware codec controls. Those remain prerequisites for a live PCM profile.
+
+On A-6, COBBA RFIClk D8 instead connects to the separate `COBBACLK` net and
+test point J200. The manual's 13 MHz RF-interface specification therefore
+does not specify either PCM clock. E299 on PCMSCLK is explicitly a solderpad
+that *can* be shorted to E199 on the Power sheet for MBUS connection; this is
+an optional diagnostic bridge, not evidence of a normally connected bus.
+
+The same Audio sheet connects EARN D2 and EARP D1 through R247 (2 x 22 ohm)
+to speaker B200. R248, the 22-ohm bridge across the speaker pair, is marked
+`Not Assembled`. This establishes the physical differential speaker path,
+not its runtime gain/mute selection or the internal microphone selection.
+
+A-6 also confirms the manual's connector-microphone mapping electrically:
+`MICP` passes through L204 and C237 (100 nF) to MIC2P B3; `MICN` passes
+through L204 and C238 (100 nF) to MIC2N A3. A-1 identifies those board nets
+at system connector X100 pins 18 and 17 respectively. Connector numbering is
+not settled across the sources: System Module page 9 instead lists MICP/MICN
+at FPC 17/18 and external SC 5/6, while page 21 says external SC 6/7.
+The tables also give different microphone maximum levels (100 mV on page 9,
+12.5 mV under the explicit gain condition on page 21). Preserve the named
+MIC2 connection, but do not choose a physical cable pinout or gain code from
+these conflicting summaries. Neither identifies a selected internal-microphone route. The UI
+sheet A-11 contains the buzzer, keypad, lighting and display circuitry, not
+an independently identified built-in microphone attachment. Do not promote
+the documented connector route to an internal-microphone profile by default.
+
+These are visual readings of the vector schematic: ordinary text extraction
+omits its custom-font net labels. Reproduce legible source renders with
+`pdftoppm -f 3 -l 3 -scale-to 6000 -png -singlefile sm4v15.pdf cpu` and the
+equivalent page-6 command; retained crops are
+`tmp/nhm3-sm4-mad2-pcm3.png` and `tmp/nhm3-sm4-cobba6.png`.
+The microphone trace is legible in `tmp/nhm3-sm4-inputnets6.png`, with the
+board connector in `tmp/nhm3-sm4-overview1.png`.
+The conflicting manual table is rendered in `tmp/nhm3-system-syscon9.png`;
+`tmp/nhm3-sm4-syscon1.png` gives the schematic connector at higher resolution.
+
+Printed page 15 separately labels a five-pin **Serial RF Interface**: RFIclk
+is 13 MHz, and Idata/Qdata transfer 8-bit Tx/12-bit Rx I/Q samples. That table is
+not speech PCM framing evidence. Product-owned speech initialization or explicit
+timing/control documentation remains required before enabling speech cadence;
+no sibling configuration is substituted and no emulation setting changes here.
+
+The same archive's `troubleOriginal.pdf` (Original 11/00, printed pages
+12–13; SHA256
+`e3695966cceaacb5801c8ac3f0bcd548eb9548f8890d25e7aaeb4acb9972d761`)
+identifies MAD2 `DSPXF` at test point **J314**. Its diagnostic diagrams
+associate flag transitions with DSP initialization, network synchronization,
+and registration completion. The detailed initialization diagram labels
+patch and constant downloads; the network diagrams label channel scanning,
+RACH and SDCCH stages. These are useful phase-level references for a future
+native DSP trace, not PCM framing evidence.
+
+The embedded oscilloscope captures are dated **4 September 1997**, earlier
+than this NHM-3 manual. Do not treat their timebases as measured 6250-specific
+latencies or transplant them into an HLE scheduler. The single-bit flag also
+cannot recover the missing native DSP `IMR` activation state. Review the
+rendered pages: damaged text extraction loses diagram labels and scope data.
+
+## Physical Calendar And Cold Storage
+
+`verify-6250-calendar-midnight` independently passes
+(`run_6250_midnight_acceptance_20261009`) with physical entry of 23:59 and
+Wednesday 7 October 2026. CCONT naturally reaches `00:00:00 day=1` at
+second 102. The open Calendar remains on the selected date; physical
+`Right Softkey / C` followed by Calendar re-entry renders Thursday
+8 October. Firmware reads day 1 and subsequently resets the day register
+to 0. Exact independently reviewed frames cover entry, the unchanged open
+Calendar and the refreshed next date. A separate cold process retaining only
+own-product NVRAM reproduces 8 October without new time/date input, reads
+00:00 and independently passes retained-location registration. The fixture
+is `tools/noki6250_calendar_midnight.lua`. This is research HLE, not native
+DSP evidence. Coordinate `(1,2)` is Scroll Up, not Back: using it can select
+the previous Calendar date and manufacture an apparent rollover regression.
+The original 13:47 Calendar/cold-retention path also reproduces after this
+runner extension (`run_6250_calendar_original_regression_20261009`), including
+both processes' independently checked registration and exact date pixels.
+
+`make verify-6250-calendar-cold RUN_DIR=NEW_RUN` uses the established NHM-3
+initial-record PMM comparison and otherwise fresh private storage. Physical
+Menu, seven Down presses and Select reach this product's Calendar (menu 8).
+Physical `1347` and `07102026` entries produce **7 October 2026, Wednesday**.
+Time confirmation organically writes CCONT alarm-register transport values
+`0b=2f`, then `0c=8d`; the running RTC subsequently reports 13:47.
+These register values describe the observed programming path, not a new
+interpretation of alarm ownership or physical RTC timing.
+
+A separate cold process receives only the first process's saved NVRAM and
+input configuration. It navigates to Calendar without time/date digits,
+reads CCONT hour `0d` and minute `2f`, and presents the identical reviewed
+96x60 grayscale frame (SHA-256
+`fcf0327cc0cc4edb952d0dc37621e467c0810b867738de6c91f39354a9c3a3b3`).
+Both processes independently pass laboratory registration; the second uses
+the preserved LAI/TMSI contract rather than requiring a fresh EF_LOCI write.
+The fixture checks exact physical action order, RTC programming/retention,
+absence of replacement cold input and exact pixels. This proves own-phone
+persistence and cold presentation in research HLE, not offline elapsed
+time, calendar rollover, native DSP execution or factory provisioning.
+
+## Physical Alarm
+
+`make verify-6250-alarm RUN_DIR=NEW_RUN` first executes the complete
+Calendar/cold gate above, then starts an independent process with only that
+handset's saved clock/date and storage. The own route is Clock menu **10-2**,
+not the 6210's Settings 4-1. Physical `1348` and confirmation program CCONT
+`0b=30`, `0c=0d`, both armed; End returns to the alarm-enabled idle frame.
+At the natural 13:48:00 deadline the device publishes status `b1`, mask `30`,
+and firmware acknowledges `81`. PUP buzzer programming starts afterwards.
+Physical left-softkey Stop disables buzzer output and returns to the reviewed
+registered idle frame. The gate requires exact action order, ordered
+hardware/output boundaries, no resumed buzzer after settled Stop and four
+reviewed 96x60 frames. The active-alarm frame is captured during the title's
+blink phase and shows Stop/Snooze; an absent title in that phase is not a
+missing alarm presentation. Fresh and preserved registration are checked
+independently in the three processes.
+
+This establishes natural RTC IRQ consumption and firmware output programming
+in research HLE. It does not establish audible samples,
+native DSP or physical clock accuracy. No alarm cause,
+time register or firmware state is injected.
+
+`verify-6250-alarm-off-no` and `verify-6250-alarm-off-yes` additionally
+hold the physical power input after arming. The LCD is blank while rails are
+off; natural RTC expiry wakes the phone with cause `80`. Stop presents
+`Switch the phone on?`. Physical No returns to rail-off; physical Yes
+activates the phone and completes preserved Location Updating. Alarm-only
+wake does not register before the activation choice. Both gates validate
+the initial and alarm-wake uploaded DSP stages separately, require silence
+of the named powered transport endpoints during the off interval, and check
+exact product-local off, alarm, question and final-choice frames. This is
+the own PMM research-HLE composition, not a native-DSP or speech claim.
+
+`verify-6250-alarm-snooze` separately exercises the awake alarm's physical
+right softkey. Firmware silences the buzzer and programs `0b=35`, `0c=0d`
+for 13:53. Natural RTC expiry at that deadline has status `b1`, mask `10`,
+and firmware acknowledgement `a1`; buzzer programming resumes before the
+second physical Stop. Exact additional frames show `Snooze active` and the
+recurring alarm. No deadline, status or firmware state is injected. This
+does not validate powered-off Snooze, nor does programmed buzzer activity
+establish audible/native audio.
+
+`verify-6250-alarm-off-snooze-no` independently proves powered-off Snooze
+through final physical No. The fresh run
+`run_6250_off_snooze_verified_20261009` enters rail-off at 41.673777s,
+wakes from RTC (`80`) at 60s, accepts physical Snooze, returns to rail-off
+at 85.876950s and wakes again at 360s. The second expiry has status `b1`,
+mask `50`, and acknowledgement `a1`. Physical Stop presents the activation
+question; No returns to rail-off at 403.874356s. Both off-rail intervals and
+the final declined interval require silence from named powered endpoints;
+each wake independently passes the native verifier/upload checks. Alarm-only
+wakes must not register. Exact frames cover the blank Snooze/off state,
+13:53 recurrence, activation question and final blank state. The 430-second
+window includes final settlement; the shorter probe did not. No device or
+firmware behavior changed. `verify-6250-alarm-off-snooze-yes` independently
+passes the same two-wake lifecycle in `run_6250_off_snooze_yes_20261009`:
+physical Yes subsequently registers and returns to the reviewed idle frame,
+without registration during either alarm-only wake. Powered-off Snooze
+restoration is independently covered by `verify-6250-alarm-off-snooze-restore`
+(`run_6250_off_snooze_restore_20261009`): the initial off-rail countdown
+restores all 37 exported ARM/banked registers, RAM digest and time at second
+49, reproduces the 1.25-second RTC/blank-frame window, and then completes
+both natural wakes, physical Snooze/Stop/No and final rail-off. This is not
+a save/load inside the later Snooze interval or an awake editor transaction.
+That initial Snooze countdown gate does not promote restored Yes;
+audible/native speech remains unpromoted.
+
+`verify-6250-alarm-snooze-countdown-restore` independently saves the later
+Snooze-induced rail-off state at second 100, after the first RTC wake and
+physical Snooze (`run_6250_snooze_countdown_restore_20261009`). All 37
+ARM/banked registers, RAM digest and time match on restoration; the
+100..101.25-second reference/restored RTC and blank-frame windows agree
+and contain no named powered-endpoint activity. The original 13:53 deadline
+still wakes naturally at second 360, followed by physical Stop/No and final
+rail-off. This separately validates state created by the wake/Snooze cycle,
+not just the initial countdown. It does not cover an awake alarm/editor
+save point or promote restored Yes.
+
+`verify-6250-alarm-snooze-countdown-restore-yes` independently checks the
+same second-100 restored Snooze countdown followed by recurrent RTC wake,
+physical Stop and Yes. The own firmware requests reset-control `05` after
+Yes; the subsequent native verifier, loaders and exclusive handoff at
+missing mask routine `2c75` are checked independently before laboratory
+registration and the reviewed registered-idle frame. Both alarm-only wakes
+must remain unregistered and both off-rail intervals must be silent.
+Raw acceptance: `run_6250_snooze_countdown_restore_yes_20261009`.
+All physical Yes alarm gates now require their post-Yes upload phase as
+well as registration. No reset, alarm cause or firmware state is injected;
+this remains the declared research-HLE PMM comparison, not native speech.
+
+`verify-6250-alarm-awake-restore` separately covers the sounding awake
+alarm at second 65, before physical Stop. The fresh own-product Calendar
+seed and unchanged research PMM comparison reach natural 13:48 expiry and
+CCONT acknowledgement. All 37 ARM/banked registers, SRAM digest and time
+match exactly immediately after load and after a 1.25-second replay;
+ordered RTC ticks, complete timed PUP buzzer programming and nonblank
+96x60 pixels also agree. Physical Stop then silences the buzzer, renders
+the reviewed stopped/registered-idle frame and preserves registration.
+Own uploads are independently checked. The strict checker rejects absent
+or altered snapshots, premature Stop/rail-off, and absent/inactive/divergent
+buzzer replay. Raw acceptance:
+`run_6250_alarm_awake_restore_verified_20261009`; runner option
+`tools/run_noki6250_alarm.py --restore-awake`. This does not cover alarm
+editor restoration, audible host output, native speech or offline time.
+
+`verify-6250-alarm-off-restore` and `-restore-yes` save the powered-off
+countdown at emulated second 49. All 37 exported ARM/banked registers,
+modeled RAM digest and emulated time must match exactly on load. The
+reference/restored 1.25-second off-rail windows must reproduce the same RTC
+tick and blank frame with no named powered-endpoint activity or early wake.
+The restored RTC deadline then drives the ordinary alarm boot and physical
+Stop/No or Stop/Yes lifecycle; only the abandoned reference interval is
+excluded from subsequent lifecycle checks. This does not establish offline
+clock advance or native-DSP state/audio correctness.
+
+`verify-6250-alarm-cold` physically arms 13:48 in an own Calendar-seeded
+process that exits at second 40, before expiry or Stop. A fresh process
+receives only that phase's NVRAM/config. Firmware reconstructs the same
+CCONT deadline during boot, naturally expires it at 13:48, acknowledges it
+and programs the buzzer; physical Stop returns to reviewed registered idle.
+Own uploaded-stage and preserved-registration checks run independently in
+both phases. Exact cold frames cover armed idle, active alarm and Stop.
+The cold input script contains no clock/alarm entry or memory/register writes.
+This proves retained firmware settings, not clock advancement while the
+emulator is closed.
+
+## Interactive SIM Toolkit commands
+
+`verify-6250-sim-toolkit-interactive` uses card profile 3 in fresh own
+research storage. After physical DISPLAY TEXT dismissal, the card signals
+GET INKEY (`9115`, FETCH length `15`); physical `5` returns successful
+command-2 TERMINAL RESPONSE with text TLV `0d020435`. The card then signals
+GET INPUT (`911a`, FETCH length `1a`); physical `4`, `2`, left-softkey
+confirmation returns successful command-3 response with `0d03043432` and
+status `9000`. No task messages, editor state or response bytes are injected.
+The shared protocol checker requires ordered commands, physical actions,
+APDU lengths and exact response payloads. Own 96x60 frame checks cover
+DISPLAY TEXT, INKEY, empty INPUT, entered `42` and registered idle; normal
+own upload/registration/storage checks remain independent.
+
+`verify-6250-sim-toolkit-menu` extends the same physical sequence with card
+profile 4. SET UP MENU is announced by `9128`, fetched with length `28` and
+accepted by TERMINAL RESPONSE `810304250002028281030100`. Physical Menu,
+Scroll Up and left-softkey inputs open the installed card menu and select
+item 1. Firmware emits ENVELOPE `d30702020181100101`, receiving `9000`;
+physical End returns to registered idle. Four additional own 96x60 frames
+cover the menu entry, item list, selection result and idle recovery. The
+fresh isolated acceptance also requires normal own upload, laboratory
+registration and persisted SIM location checks.
+
+`verify-6250-sim-toolkit-sms` uses card profile 5 on the same physical menu
+path. Item-1 ENVELOPE returns `9124`; firmware fetches the card-owned SEND
+SHORT MESSAGE command (length `24`) and submits exactly one 8-bit `SAT`
+message to `5551234` through laboratory GSM CP/RP. The checker pins observed
+CP identifier `39` and message reference `01`, the complete SMS payload,
+CP-ACK/RP-ACK, successful TERMINAL RESPONSE
+`810305130002028281030100`, final CP-ACK and RR release. Ten reviewed own
+frames cover input, menu, network completion and physical End to idle.
+This validates laboratory signaling, not public-network delivery.
+
+`verify-6250-sim-toolkit-call` uses card profile 6. The item-1 ENVELOPE
+announces SET UP CALL (`911c`, FETCH length `1c`), displaying the firmware's
+Call/Cancel prompt. Physical Call precedes the outgoing `5551234` request.
+The checker requires successful TERMINAL RESPONSE
+`810306100002028281030100`, SETUP, Call Proceeding, one traffic assignment,
+Assignment Complete, Alerting, Connect and Connect Acknowledge. Physical
+End must precede Disconnect, Release, Release Complete and RR release.
+Own prompt, connected-call and recovered idle frames are pinned separately.
+
+`verify-6250-sim-toolkit-call-decline` tests the same card request with physical
+Cancel. Firmware returns `810306100002028281030122` (user rejection), then
+recovers the menu and idle. Any outgoing request, SETUP, traffic assignment
+or Connect fails this negative gate. Both gates retain independent own
+upload, registration and SIM-location checks. These are HLE laboratory call
+signaling and consent tests, not native DSP speech or end-to-end audio.

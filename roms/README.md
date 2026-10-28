@@ -26,6 +26,28 @@ software; it was not downloaded indiscriminately as DCT3. Installers have not
 been executed. Some legacy self-extracting formats are not fully understood
 by 7-Zip, so matching an archive hash does not establish successful extraction.
 
+The separate ignored `roms/twister-dct3/` collection retains two selected
+members of the [Twister service collection](https://archive.org/details/Twister_Mobile_Phone_Flashing_Box):
+`nam1_511.exe` and `3350 virgin eeprom 005F0000.fls`. Its `manifest.json`
+records exact ZIP member names, sizes, CRCs and independently computed SHA-256s.
+Only bounded HTTP ranges were fetched; member CRCs were verified, not the
+whole 22 GB archive hash. The source metadata and full firmware/support-DVD
+member indexes are retained alongside them. Installers were not executed.
+The NAM-1 installer matches the existing v5.11 MCU/PPM-E but supplies no
+PMM record stream; see `tools/nam1_installer_audit.py`. The 3350 file's label
+does not establish pristine factory data or matching-version provenance.
+Neither acquisition is a new accepted handset input.
+
+The same collection's `New.zip` contains a nested UFS suite installer. A
+read-only InstallShield cabinet extraction retains five service-loader
+binaries under `roms/research/mad2-flash-loaders/DCTxBB5_TIA/`, with source
+chain in `provenance.json` and member hashes in `audit.json`.
+`tools/mad2_flash_loader_audit.py` verifies those identities and the two
+bootstrap files' self-checksum spans. They are service-tool inputs, not
+resident MAD2 ROM dumps or newly accepted handset configuration. The Windows
+installer was not executed; its complete 624-file cabinet listing is retained
+under `roms/twister-dct3/` separately from firmware admission.
+
 Six additional complete MAME firmware/PMM pairs are extracted in their
 `roms/noki*/` directories. All twelve members' sizes and SHA-1s match the
 current MAME ROM declarations, and all six ZIPs pass their internal CRC tests.
@@ -46,6 +68,64 @@ not external serial EEPROM or internal DSP ROM images. Their archival names
 and matching MAME hashes do not independently establish factory authenticity.
 No ROM5/ROM6 DSP mask dump was acquired, no missing MAD2 ROM is fabricated,
 and acquisition alone does not promote any handset's runtime coverage.
+
+### Nokia7110 intact public backups
+
+The [Cosconor preserved full-backup directory](https://www.cosconor.fr/GSM/Nokia/Netmonitor/DCT-3/Nokia%207110/Flash%20Files/)
+supplies additional inputs under `roms/research/nse5-cosconor/`:
+
+| File | Bytes | SHA256 |
+| --- | --- | --- |
+| [FuBu7110-v501-PPM-D.fls](https://www.cosconor.fr/GSM/Nokia/Netmonitor/DCT-3/Nokia%207110/Flash%20Files/FuBu7110%20v5.01%20%28PPM%20D%29.fls) | 4194304 | `da259e776feea05d905399a644f3e4f9ed2862f591e8f3cd8dbc8d05884a5deb` |
+| [My-7110-original-FuBu.zip](https://www.cosconor.fr/GSM/Nokia/Netmonitor/DCT-3/Nokia%207110/Flash%20Files/My%207110%20original%20FuBu.zip) | 2118257 | `4391f36226314808a6ffce4d38509e2879a51eff0839b75670b168b25e9bda77` |
+| Archive member `My 7110 v5.00.fls` | 4194304 | `4e0660c14e8e335380f963ae200bf2404d50e826b15f50355a68c9da0a78aecd` |
+
+The direct-download basename is normalized locally; file bytes are unchanged.
+The ZIP has exactly one member, extracted without executing anything.
+Research BIOS labels are separately normalized to `7110f501d_full.fls` and
+`7110f500_full.fls`. The acceptance tools copy the byte-identical acquired
+inputs under those labels into isolated run directories; collection files
+and archive members retain their provenance names. New capture metadata
+records the chosen label explicitly. Older retained captures remain readable
+without rewriting their original files or manifests.
+Both raw images include their own complete upper storage rather than a
+transplanted PMM tail. Each has a write-journal EEPROM sector at CPU5fc000;
+independent replay yields57/87 writes and distinct cache hashes. The entire
+310000-byte v5.01 MCU prefix matches the existing PPM-C acquisition.
+The source's version/full-backup labels do not prove original chip pairing
+or integrity of every stored record. In particular, the v5.01 low record
+fails its own decoded checksum predicate; no repair is supplied.
+The source files are preserved intact and private identity bytes are not
+copied into documentation or test fixtures.
+
+`tools/nse5_fullbackup_check.py` pins all input/archive hashes, validates the
+member, independently replays journals and supports isolated read-only native
+trials. Research `nse5r4t` BIOSes `501d-full`/`500-full` load the whole
+images; original default501 and normal `noki7110` remain unchanged.
+Observed boundaries and reproduction commands are in `docs/7110_bringup.md`.
+
+The acquired NSK-3 v5.61 package is additionally decoded into two own
+MCU/PPM-A pairs under ignored `roms/noki6130/`. Reproduce and qualify with
+`tools/nsk3_static_check.py`; `docs/6130_bringup.md` records member pairing,
+normalized hashes and the bootstrap's distinct3/4 identity writes. No external
+EEPROM or runtime support is implied by these extracted inputs.
+
+## Nokia 5110i NSE-2 v5.53
+
+`make verify-5110i-static` qualifies both acquired
+`archive-dct3-packages/nse2_553.zip` and `nse2_553.exe` without executing
+either installer. Both contain the exact same CPU-order raw members:
+
+| Member | Bytes | SHA-256 |
+| --- | --- | --- |
+| `5110i MCU-05.53.fls` | 1,638,400 | `21084d1546648364ff9d5ee38176ddca31c7b0862e46d4e14dd15c1aca13d628` |
+| `5110i PPM-05.53A.fls` | 458,752 | `a6502decf1a1e6dc3278530b745ce7088c865adcbf25c5a5a08df83d4e1020de` |
+
+The unchanged combined `noki5110i/5110i_5.53A.fls` is 2,097,152 bytes,
+SHA-256 `00ab7e062de9c89718eb81031528a646a79317ba0bad5a272a6d4d3b09c77781`.
+`noki5110i/manifest.json` retains both archive hashes and static contracts.
+No external EEPROM or DSP mask is supplied and no runtime support is implied.
+See [the NSE-2 boundary](../docs/5110i_bringup.md).
 
 ## Reference 3210 image
 
@@ -110,6 +190,83 @@ match the current declaration. Run `make audit-dsp-roms PHONE=noki3210` to
 classify the actual local regions before using them as evidence. A future real
 DSP dump must be identified by product and hash and must not silently replace
 these placeholders in a test baseline.
+
+### External EFR reference input
+
+The optional `--encoder-homing-fixture` generates locally pinned
+`homing_enc.inp`/`homing_enc.cod` from a 46-frame EHF/repeated-speech input.
+The installation-verified reference encoder runs twice from fresh process
+state; steady EHF and repeated post-reset speech must reproduce. Files remain
+private research inputs. See
+`docs/cobba_control_boundary.md#native-efr-encoder-homing`.
+
+The optional `--homing-fixture` derives a canonical DHF from the unmodified
+reference encoder's second EHF input frame. It generates a locally pinned
+46-frame decoder conversation with repeated speech between DHF pairs;
+two fresh interface/decoder sequences must agree. `homing.dec` and
+`homing.out` remain private research fixtures. The native acceptance and
+caller convention are documented in
+`docs/cobba_control_boundary.md#native-efr-decoder-homing`.
+
+The optional `--erasure-fixture` generates fixed active-speech BFI bursts
+of 1, 3, 8 and 16 frames from the verified installation decoder input.
+Payload and TAF are unchanged; two fresh decoder processes must reproduce
+the locally pinned `erasure.dec` and `erasure.out`. These generated files
+remain private research fixtures, not distributable MAME ROMs or published
+conformance vectors. Native recovery currently fails at frame 9; see
+`docs/cobba_control_boundary.md#native-efr-active-speech-erasures`.
+
+The ETSI EFR ANSI-C reference and installation vectors are separate research
+inputs, not MAME runtime code or handset ROMs. The locally acquired mirrored
+archive is retained at
+`roms/research/etsi-efr/original/ts_146053v080000p0.zip`, SHA-256
+`54f4bcba0fbcc3fe1e42e0fb8de2c7f8bb3ac811cf08f1db9b6e40d38c91894d`.
+Download provenance is [FreeCalypso's codec archive](https://www.freecalypso.org/pub/GSM/codecs/ts_146053v080000p0.zip);
+[ETSI TS 46.053](https://www.etsi.org/deliver/etsi_ts/146000_146099/146053/09.00.00_60/ts_146053v090000p.pdf)
+describes the reference distribution and installation checks. Direct ETSI
+archive retrieval was unavailable; the mirror hash is a local content pin,
+not a claimed publisher signature. Retain all original notices and keep source
+and speech vectors out of Git and the MAME overlay.
+
+`python3 tools/verify_etsi_efr_reference.py roms/research/etsi-efr/original/ts_146053v080000p0.zip`
+builds an isolated, unmodified extraction and compares encoder, interface and
+decoder output with the supplied installation vectors. It does not run the
+DSP or establish native EFR speech. See `docs/cobba_control_boundary.md` for
+the independent-reference acceptance boundary.
+
+The optional `--dtx-fixture` generates a separate 518-frame quiet-background/speech
+conversation after installation verification, with DTX enabled. Two fresh
+reference process sequences must reproduce the locally pinned `dtx.*` outputs,
+including nonzero comfort-noise output.
+These are generated research vectors, not published conformance files or
+handset ROMs. `--fixture-dir` exports them only into ignored private fixture
+storage; the native acceptance scope is documented in
+`docs/cobba_control_boundary.md#native-efr-dtx-conversation`.
+
+### Original ISO MPEG-2 AAC research input
+
+`roms/research/mpeg2-aac-conformance/` retains original `al09_44.adts` and
+its 24-bit mono `al09_44.wav` reference from the
+[ISO/IEC 13818-4:2004 AAC suite](https://standards.iso.org/ittf/PubliclyAvailableStandards/ISO_IEC_13818-4_2004_Conformance_Testing/AAC/).
+Both files match the separately acquired publisher MD5 files; the local
+`provenance.json` records URLs, byte sizes and SHA-256. The original README
+classifies compressed ADTS and reference waveforms as normative inputs.
+Keep these assets unmodified, ignored and subject to ISO's original terms;
+they are not project-licensed MAME ROMs. Acquisition and native packet
+acceptance do not establish audio conformance or handset playback. See
+`docs/aac_validation.md#original-mpeg-2-al09-input` for exact identities and
+the still-open alignment/end-buffer contract.
+
+`roms/research/mpeg2-aac-reference/` separately retains the original
+[ISO/IEC13818-5:2005 reference-software archive](https://standards.iso.org/ittf/PubliclyAvailableStandards/c039486_ISO_IEC_13818-5_2005_Reference_Software.zip)
+and [McGill AFsp6r8](https://www.mmsp.ece.mcgill.ca/Documents/Downloads/AFsp/AFsp-v6r8.tar.gz).
+Local provenance records the immutable hashes, retrieval and original licence
+notices. These are private research tools, never MAME dependencies or
+redistributed assets. `tools/aac_iso_reference_control.py` builds the original
+SSNRCD1.8 comparator and checks six synthetic equal-interval outcomes, explicitly
+retaining its strict peak-equality difference from the published at-most rule.
+No native-waveform alignment or codec-conformance promotion follows; see
+`docs/aac_validation.md#original-comparison-tool-controls`.
 
 ### Nokia 5110 DSP ROM4 research input
 
@@ -312,6 +469,44 @@ service images remain useful RE inputs, but their results must be labelled with 
 The local PPM E result is declared separately as BIOS `450e` with SHA-1
 `7e88caa4963c57ebbd4d919023e38103ff8b528a`; run it with `make smoke-3330e`.
 
+### Nokia 5190 NSB-1 v6.71
+
+`archive-dct3-packages/5190e671.zip` supplies own MCU and PPM A/B service
+streams, not a full handset dump. `tools/nsb1_package_check.py` creates
+`noki5190/5190f671a.fls` from qualified own records, with the unsupplied
+`2d2d00..2dffff` range explicitly erased. The normalized A SHA-1 is
+`27b8f0cb8640e5b423960b206e9aee065f32d726`. No provisioning or resident mask
+is supplied. Source hashes, exact spans and reproduction are authoritative
+in `docs/5190_bringup.md`. The separate MCU research configuration validates
+the own upload and supervisor boundary, not a graphical phone boot.
+
+### Nokia 3350 NHM-9 v5.30
+
+The retained `archive-dct3-packages/nhm9_05.30_install.EXE` (SHA-256
+`e9686c1c5171157b4308a0bdf96008ac040e866e6f5c31ca1ed993bac4e34acd`)
+contains one MCU and six matching PPM record streams, but no PMM stream.
+`nhm9_530.exe` has the same hash. The original acquisition URL and hashes
+are retained in that directory's `manifest.json`.
+
+```sh
+.venv/bin/python tools/nhm9_package_check.py \
+  roms/archive-dct3-packages/nhm9_05.30_install.EXE \
+  --ppm A --output roms/noki3350/3350f530a.fls
+```
+
+The normalized CPU-order file is `0x330000` bytes, SHA-1
+`3d0dce9c098bdd619c6f3684f739796f64b66169`, covering `0x200000..0x52ffff`.
+No erased or donor tail is appended. `make normalize-3350` prepares the same
+input for the fail-closed `noki3350` MCU fixture; this is not a phone-boot
+result. See `docs/3350_bringup.md` for its own-upload/first-wait acceptance.
+Own 247-word verifier-format code, the 638-word loader and the 104-word
+bootstrap fragment are additionally extracted into `roms/research/nhm9/` by
+`tools/extract_nsm3_verifier.py --product 3350` (and `--loader`/`--fragment`).
+Their source descriptors and hashes are in the bring-up contract. The fragment
+matches the acquired 8250 fragment, but this does not supply a complete ROM6
+mask or establish native execution. Nokia's combined product/system manuals
+are retained under `reference-docs/nhm9/` with hashes in that same contract.
+
 ### Nokia 3410 NHM-2 v5.46
 
 Place `NHM2NX05.460`, `NHM2NX05.46E`, and `3410 virgin eeprom.pmm` in
@@ -409,6 +604,64 @@ The alternative `nsm3_531.zip` service archive matches its published SHA-1
 validation. Use the clean self-extracting package above for normalization;
 do not treat the ZIP's damaged member as firmware evidence.
 
+### Nokia 6150 NSM-1 v5.23
+
+The acquired original package `archive-dct3-packages/nsm1_523.exe` has
+SHA-256 `69b882a55bbf8ed5fb81f7e52bd950ec631d619a0e141084d766a98860627904`.
+Its own `nsm-1.ini` selects `nsm1ny_5.230` and, for EURO_C,
+`nsm1ny_5.23c`; its declared erase range is `0x200000..0x3fffff`.
+The structured Wintesla decoder validates every record: MCU covers
+`0x200000..0x2e0eff`, PPM C covers `0x360000..0x3fffff`, and the
+intervening gap is filled with erased bytes, not donor firmware.
+
+Reproduce the ignored normalized input after extracting those members:
+
+```sh
+.venv/bin/python tools/extract_dct3_wintesla.py \
+  --mcu roms/research/nsm1-v523/nsm1ny_5.230 \
+  --ppm roms/research/nsm1-v523/nsm1ny_5.23c \
+  --flash-output roms/research/nsm1-v523/6150-v523-ppm-c.fls \
+  --expect-flash-sha1 ea877d2ec204d0771b77fba414575407ccbc99ad
+```
+
+The resulting 2,097,152-byte image has SHA-256
+`8180cbf7ed53f33551ca49f308dd01b4dc48e4fed4d18aae3ee320ae107f922f`.
+This establishes a usable flash input, not an executable product profile.
+Matching EEPROM contents, resident DSP compatibility and product-specific
+hardware configuration remain to be established; no sibling provisioning
+is accepted by this normalization.
+
+The [original NokiX scripts archive, 2011.07.24](https://sourceforge.net/projects/nokix/files/NokiX%20scripts/2011.07.24/NokiX-scripts.zip/download)
+was acquired as ignored `research/nsm1-v523/NokiX-scripts-2011.07.24.zip`
+(876,685 bytes; SHA-256
+`412244a6e03f803bacff4096216355f7f88d13e20d36987158e54fe92e298154`).
+Its data member `NokiX/scripts/scripts/misc/repair_external_eeprom/nsm-1.bin`
+is 16,384 bytes, SHA-1 `1035ee33849563abbeafe0889d5b5c695a817fb5`,
+SHA-256 `95d3326ab9bbcdb31838696c552f56295aac9b234cad53813aff7af9e0a73cbd`.
+This original NSM-1 repair template is retained unchanged, not treated as a
+factory handset dump. `verify-6150-static` reads the pinned ZIP member directly
+and audits its own-image record layout; no NokiX script is executed and no
+canonical EEPROM checksum or setting is modified. Boot compatibility remains unproved.
+The separately generated `research/nsm1-v523/nsm1-security-checksum-valid.bin`
+fixture corrects only bytes `0x03d2..0x03d3`, from `0x3124` to `0x034d`,
+using the own firmware's decoded identity and checksum rule. It has SHA-1
+`07335e492f72ba9da9c3436890c9eb4af67fd9a9`; original identity, settings and
+calibration are preserved. This derived fixture is explicitly not a factory
+handset dump. The static proof and remaining runtime boundary are in
+`docs/6150_bringup.md`.
+
+The acquired NSM-1 installers `nsm-1_v5.17.exe`, `nsm-1_v5.20.exe`,
+`nsm1_522.exe`, `nsm-1_v5.23up.exe` and `nsm1_523.exe` were inspected
+as ZIP archives, without execution. Their member inventories contain
+firmware and service/package configuration, but no standalone handset
+EEPROM dump. The `Nsm1.PDF` member of `nsm1_522.exe` is a one-page
+language-package table, not a hardware manual or provisioning specification.
+It is retained as ignored `research/nsm1-v523/reference/Nsm1.PDF`, SHA-256
+`d0e6587b27febec941939537f9415aaa808d21d7c28f7c66083ddee6b31cde1e`.
+The repair template remains the only acquired NSM-1 EEPROM artifact;
+its native record-validation failure is documented separately and must
+not be relabeled as a compatible factory dump.
+
 ### Nokia 6110 NSE-3
 
 The primary service manual specifies a 1 MiB Intel TE28F800 program flash and
@@ -469,3 +722,132 @@ bootstrap contract.
 Do not pad a later image, reuse a 3210 EEPROM, or declare a 2 MiB flash device.
 The hardware and staged acceptance requirements are in
 `docs/6110_bringup.md`.
+
+## NSE-6 system manual reference
+
+`reference-docs/nse6/03SYS-preview.html` is the downloaded eServiceInfo text
+preview of Nokia's NSE-6 System Module manual, Original08/98:
+<https://www.eserviceinfo.com/preview_html.php?fileid=5448&previewid=3000>.
+SHA-256: `91350eb0b42b650be11c43cb6be82596faae46a901af4fe1b6f2f5db6fbb507d`.
+This is an HTML/OCR reference, not a downloaded full PDF or schematic. Its
+accessory-interface description is product-specific corroboration, not a DSP
+port34/35/36 register specification. No ready-bit semantics are inferred.
+
+## NSB-7 v5.22 package
+
+The already acquired `archive-dct3-packages/nsb7_5.22.exe` contains its own
+MCU and PPM-A record streams, but no PMM. `tools/nsb7_package_check.py`
+qualifies the installer, restore manifest, record addresses and exact decoded
+hashes before writing `noki8290/8290f522a.fls` (CPU order, `0x1d0000` bytes,
+SHA1 `4dacc50f57fe295168a53d3e5855a81acf35ab96`). Full inputs and
+reproduction are in `docs/8290_bringup.md`. This is not boot acceptance.
+
+## NSK RF documentation references
+
+Indexed primary documents used by `docs/5130_bringup.md`; the PDF binaries
+were not acquired, so no local file identity or hash is asserted:
+
+- [NSK-3 System Module, issue 3, 01/2001](https://electronicsandbooks.com/edt/manual/Hardware/N/Nokia/Phone/6130/03sys%20%5B106%5D.pdf)
+- [NSK-3 UR9U block diagrams](https://electronicsandbooks.com/edt/manual/Hardware/N/Nokia/Phone/6130/sysa3u%20%5B26%5D.pdf)
+- [NSE/K-1/3 Repair Hints, version 2.0, 13 June 2001](https://files.elektroda.pl/44719,nokia%2B5110_5130_6110_6130_v20.html)
+
+## Acquired complete service manuals
+
+The public Mobile Collectors download forms supplied these single-PDF ZIP
+archives. Both original ZIP and extracted PDF are retained under the listed
+`research/` directory; binaries remain outside source control. The POST uses
+the ordinary page's session token and `legal_confirmation=1`, without an
+account. Archive integrity and PDF page counts were checked locally.
+
+| Product / source | Directory and basename | ZIP SHA256 | PDF SHA256 |
+| --- | --- | --- | --- |
+| [8890 NSB-6](https://mobilecollectors.net/documents/1546/download), 303 pages | `research/nsb6/nokia_8890_nsb-6_` | `447c049b702bbecf2a00291219ad64fc585dc17ef1f2cbbd7da5342923efcf4f` | `d725449db85e04d82f2f9e693428a8ea327b0228bbd6975cba40578841f41996` |
+| [6210 NPE-3](https://mobilecollectors.net/documents/1552/download), 240 pages | `research/npe3/nokia_6210_npe-3_` | `70fb153cbc94eb0e5047933ce89f69c526365489acf685ac488bcc6da71ee0d1` | `34b5bee7b3d66ed8f5ddc56522750bf84c05753174396f0f1ffd8f6d899e905d` |
+| [6250 NHM-3](https://mobilecollectors.net/documents/1551/download), 245 pages | `research/nhm3/nokia_6250_nhm-3_` | `ce33517f4f7d166e512657d38357ba401ff91fb71190be7c0c2682ca09246865` | `e1012c4dd46cf415db3ee7666880be29eb27c5ed8ae7c8de0c49d39c1a0819e7` |
+
+NSB-6 System Module printed page25, PDF page39, contains the acquired and
+visually reviewed PCM timing diagram; its implementation contract is in
+`docs/8xxx_bringup.md`. The NPE-3/NHM-3 bundles are independently retained
+references, not evidence for importing NSB-6 clocks or framing into those
+products. Some PDF fonts have broken text mappings; visual review remains
+necessary rather than treating a negative text search as document absence.
+
+The independently acquired [8290 NSB-7 service archive](https://mobilecollectors.net/documents/22198/download)
+contains two PDFs, retained outside source control in `research/nsb7/`:
+
+| File | SHA256 |
+| --- | --- |
+| `nokia_8290_nsb7_service.zip` | `993dbbedbef06d8e4790972123471627fd569adca7182a022df70ea963eaa809` |
+| `nsb7-schematics.pdf` (14 pages) | `c266fea3b7106a55a469eb0eccf0249d71aed2e4c69bc6013eb7de5f0daeba2e` |
+| `nsb7-service-manual.pdf` (308 pages) | `eee14565ada962e5458cb8227622bdd6f64ffe89a5a15ff38fbccd95fe428e6d` |
+
+The visually reviewed System Module page27 (PDF page41) supplies NSB-7's
+own PCM waveform; see `docs/8290_bringup.md`. It is independent evidence,
+not an imported NSB-6 timing assumption.
+
+## NSM-4 service regions (Nokia 8855)
+
+`tools/nsm4_archive.py` qualifies the already acquired
+`archive-dct3-packages/nsm4_518.zip` (SHA256
+`8ef5e4bf68b0b190ca31a51790a80fe13e3fc2aee0dd4fed45975149d9c5807d`).
+The normalized regions and per-member hashes are retained outside source control
+under `noki8855/v518/manifest.json`. Reproduce into a fresh directory with:
+
+```sh
+.venv/bin/python tools/nsm4_archive.py roms/archive-dct3-packages/nsm4_518.zip --output roms/noki8855/v518
+```
+
+The MCU occupies `0x200000..0x490000`; six alternative PPM packs P through U
+each occupy `0x490000..0x580000` (exclusive ends). These are contiguous service
+regions, **not a full-flash dump**: no PMM tail or resident DSP mask is supplied.
+No pack language, ASIC configuration or handset support follows from extraction.
+NSM-4's Nokia 8855 identity is independently listed in the
+[official NTC approval catalogue](https://ntc.gov.ph/wp-content/uploads/2024/TYPE%20APPROVED/CPE-1999-2021-Updated.pdf).
+The extractor pins the archive, checks its exact member set and decoded extents,
+and uses the shared strict Wintesla record decoder; unknown record-header
+checksum fields are not interpreted.
+
+## NSB-3 service regions (Nokia 6190)
+
+The already acquired `archive-dct3-packages/nsb3_613.exe` is a ZIP
+self-extractor (SHA256
+`d2e684dbef4dc74fd0233ed96c3a3c1f1bdbd9b0615f338aff28e18a20c63d85`).
+`tools/nsb3_archive.py` reads its ZIP structure without running the executable.
+It pins the source, exact member set, normalized hashes and record extents.
+Normalized regions and per-member hashes are retained outside source control
+in `noki6190/v613/manifest.json`. Reproduce into a fresh directory:
+
+```sh
+.venv/bin/python tools/nsb3_archive.py roms/archive-dct3-packages/nsb3_613.exe --output roms/noki6190/v613
+```
+
+MCU `nsb3___6.130` occupies `0x200000..0x2d6d00`; PPM A/B/C each occupy
+`0x2e0000..0x300000` (exclusive ends). The intervening `0x9300` bytes are
+not supplied and are not synthesized by region extraction. Optional `--image`
+fills that gap with `ff` under the own INI's explicit whole-image erase policy;
+it does not source those bytes from another product. No external EEPROM or
+resident DSP mask is supplied. The own MCU marker says `V  6.13`,
+`28-04-00`, `NSB-3`; PPM headers say `27-04-00`. The matched installer INI
+names these exact files and explicitly lists ROM4 file selections. Neither
+that configuration nor a product label proves mask compatibility or runtime
+support. The source URL/hash remains in the collection acquisition manifest.
+
+## Nokia 6190 owner manual
+
+The original Nokia 6190 owner's manual (NSB-3NX, issue 5) is independently
+retained as `reference-docs/nsb3/nokia-6190-owner-manual.pdf`, SHA256
+`a0a5a8e039bc3cb6548553b4bcf546aee2ef685ee51a8f571b65a1e46c3ce144`.
+Source: [manual PDF](https://www.instructionsmanuals.com/sites/default/files/2019-05/Nokia-6190-en.pdf).
+Its Technical Information gives 3.6 V operating voltage; this is a nominal
+input reference, not a DSP mask or fitted CCONT calibration measurement.
+
+## External implementation reference archive
+
+The already-catalogued reference revision
+`2b4c10ffd6b22a2d021c7f515f27ceb2fb6c78cd` is retained as
+`research/djr-reference/nokia-dct3-emulator-2b4c10ffd6b22a2d021c7f515f27ceb2fb6c78cd.tar.gz`,
+SHA256 `6e8badb69d91480e7e9920ddf19159227eca1019c888910c98222bf3ff9cf731`.
+Source: [pinned repository archive](https://codeload.github.com/djr-747/nokia-dct3-emulator/tar.gz/2b4c10ffd6b22a2d021c7f515f27ceb2fb6c78cd).
+This is implementation reference material, not a newly acquired Nokia mask
+ROM or matched PMM. Its admission/dependency limits live in
+`docs/djr_dsp_integration.md`; sibling HLE success is not a native-ROM oracle.

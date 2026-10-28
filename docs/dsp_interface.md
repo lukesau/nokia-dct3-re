@@ -28,8 +28,8 @@ unimplemented mobility, handover, MO SMS or broader services are implied.
 The atlas counted ~444 references to the shared-RAM base and 42 pool-literal
 references to DSPIF across the image. A coherent stateful-SIM run reaches
 `0x290cf4` with service commands `0x30` and `0x32`. That function updates DSP
-shared control words, writes command 4 to DSPIF at `0x29103c`, and rings
-doorbell byte 2 at `0x20008`. DSPIF is therefore a live boundary, not a
+shared control words, writes command 4 to DSPIF at `0x29103c`, and acknowledges
+MAD2 FIQ1 with byte 2 at `0x20008`. DSPIF is therefore a live boundary, not a
 static-only future path. Those service commands remain useful lower-radio
 evidence; the distinct boot-critical service-session completion is mapped as
 type `0x70` TX / type `0x74` RX.
@@ -45,7 +45,8 @@ copy of this range.
 The widened MAD2 access ledger records 27 DSPIF command writes in the coherent
 boot: one zero-valued initialization and 26 command-4 writes, chiefly from
 `0x29103c` with one from `0x290778`. The command halfword is followed by the
-MAD2 doorbell write, so DSPIF is retained by the peer device. Command 4 is not
+MAD2 FIQ1 acknowledgement, not a second DSP doorbell. DSPIF is retained by
+the peer device. Command 4 is not
 the sole scheduling edge: ring-producer and service-pending are distinct
 triggers (single home: `dsp_service_transport_contract.md`; ledger
 `single_timer_dspif_doorbell_replaces_shared_triggers`).
@@ -134,7 +135,7 @@ protocol state, not a resource-availability bit. The experimental fixture was
 removed rather than bypassing that state machine.
 
 **Send side (MCU→DSP uplink):** write a command halfword to the **DSPIF register
-`0x30000`**, then poke the doorbell interrupt at `0x20008` (pattern seen at `0x291038`:
+`0x30000`**, then acknowledge MAD2 FIQ1 at `0x20008` (pattern seen at `0x291038`:
 `strh #4→[0x30000]; strb #2→[0x20008]`). The DSPIF has **287 write sites, almost all in the
 L1 driver `0x2b7xxx–0x2c9xxx`** — the per-command send stubs.
 
@@ -308,7 +309,7 @@ These are bitfield setters, not opaque DSP primitive IDs: their jump-table cases
 the MCU shadow halfword at `0x110c3a`, and the common tail copies the result to DSP shared
 offset `0xa8`. The observed `0xfff5` argument produces the successive values `0x700c` and
 `0x7004`. Only the second call has payload flag 1; it sets DSP-owned busy word `[0xe0]=1`,
-writes command 4 to DSPIF, and rings doorbell byte 2 at `0x20008`.
+writes command 4 to DSPIF, and acknowledges MAD2 FIQ1 with byte 2 at `0x20008`.
 
 IRQ 4 enters `0x291068`. That routine handles the shared service counts at `[0xda]`,
 `[0xe2]`, and `[0xe4]`; it does not parse a command-`0x30`/`0x32` reply payload.
@@ -398,12 +399,41 @@ inbound `0x80` is `RECEIVED_BLOCK`, `0x83` is `RSSI_RESULTS`, `0x84` is
 classify packets; they do not establish that an isolated packet is valid in
 every firmware controller state.
 
-Two public DCT3 traces further establish the type-`0x11` correlation used by
+Two public DCT3 traces further establish the mode-3 type-`0x11` correlation used by
 the radio peer: payload byte 1 is the expected BSIC and byte 7 is the ARFCN of
 the immediately following neighbour type-`0x80` BCCH block.  The pending
 instruction is saved and validated against the generic topology.  It neither
 selects that cell nor changes the serving receiver; those decisions remain
 firmware-owned.
+
+This evidence is mode-specific: the [published trace](https://maps.spench.net/drupal/node/98)
+contains payloads starting `03 07` and `03 22`, followed by matching neighbour
+BCCH blocks. It does not specify mode 4. The NSM-3 mode-4 constructor omits
+timing/BSIC serialization, so neither the mode-3 reply correlation nor its
+eligibility rules establish the mode-4 contract. The
+[Osmocom capture decoder](https://github.com/osmocom/dct3-gsmtap/blob/dcbe73ad77b67a09ac0b88775efb8fc84e9c4615/src/main.c)
+decodes outbound RACH/Layer-2 and inbound Layer-2 traffic, not type `0x11`;
+it supplies no independent mode-4 response specification.
+
+An independent historical layout reference is the archived Project Blacksphere
+documentation, credited to wumpus and its contributors:
+
+- [NMEAS/type `0x11`](https://web.archive.org/web/20160119230146id_/http://nokix.sourceforge.net/help/blacksphere/sub_100hardware/sub_dsp/sub_mdi/sub_typestxd/sub_11.htm)
+  lists modes 1 through 5, BSIC at payload offset 1, two-byte timing and frame
+  fields at offsets 2 and 4, and a **two-byte carrier at offset 6**. It does
+  not explain the modes, their eligibility rules, or the required replies.
+  This corroborates the full carrier field recovered from NSM-3; it does not
+  justify relaxing mode-4 membership checks or reusing a mode-3 response.
+- [Received block/type `0x80`](https://web.archive.org/web/20160119230159id_/http://nokix.sourceforge.net/help/blacksphere/sub_100hardware/sub_dsp/sub_mdi/sub_typesrxd/sub_80.htm)
+  describes logical channel, tuner/BSIC and error bytes at offsets 0 through 2,
+  a three-byte frame number at offset 3, a two-byte carrier at offset 6,
+  a signed timing displacement at offset 8, and Layer-2 content from offset
+  10. These are historical field descriptions, not a product-independent
+  transaction or scheduling specification.
+
+The type-`0x11` mode-4 request/response contract remains unresolved. Archived
+packet vocabulary is external evidence to check against each ROM, not an
+authority for synthesizing a firmware completion.
 
 The four remaining direct task-10 status types are closed through their first
 semantic consumer:

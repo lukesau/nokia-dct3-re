@@ -1,3 +1,4 @@
+from tools.dct3_products import composition_source
 import pathlib
 import unittest
 
@@ -14,7 +15,7 @@ class SimDeviceSplitTest(unittest.TestCase):
         cls.simi = (ROOT / "driver/nokia_simi.cpp").read_text()
         cls.simi_header = (ROOT / "driver/nokia_simi.h").read_text()
         cls.mad2 = (ROOT / "driver/nokia_mad2.cpp").read_text()
-        cls.phone = (ROOT / "driver/nokia_dct3.cpp").read_text()
+        cls.phone = composition_source()
 
     def test_card_has_no_mad2_controller_state(self):
         for token in (
@@ -114,12 +115,12 @@ class SimDeviceSplitTest(unittest.TestCase):
 
     def test_card_owns_persistent_linear_fixed_adn(self):
         self.assertIn("public device_nvram_interface", self.card_header)
-        self.assertIn("{ 0x6f3a, 0x7f10, 50 * 32, 32, file_structure::linear_fixed, true }", self.card)
+        self.assertIn("{ 0x6f3a, 0x7f10, 50 * 32, 32, file_structure::linear_fixed, ac::chv1, ac::chv1 }", self.card)
         self.assertIn(
             "Services 1 (CHV1 disable), 2 (ADN) and 4 (SMS) are active",
             self.card,
         )
-        self.assertIn("fcp[8] = 0x01", self.card)
+        self.assertIn("u8(file->update_condition())", self.card)
         self.assertIn("void nokia_sim_card_device::update_record()", self.card)
         self.assertIn("save_item(NAME(m_adn))", self.card)
 
@@ -128,9 +129,9 @@ class SimDeviceSplitTest(unittest.TestCase):
         self.assertIn("administrative_data[] = { 0x00, 0xff, 0xff, 0x02 }", self.card)
         self.assertIn("preferred_plmn", self.subscriber)
         self.assertIn("{ 0x00, 0xf1, 0x10 }", self.subscriber)
-        self.assertIn("{ 0x6f20, 0x7f20, 9, 0, file_structure::transparent, true }", self.card)
-        self.assertIn("{ 0x6f74, 0x7f20, 16, 0, file_structure::transparent, true }", self.card)
-        self.assertIn("{ 0x6f7e, 0x7f20, 11, 0, file_structure::transparent, true }", self.card)
+        self.assertIn("{ 0x6f20, 0x7f20, 9, 0, file_structure::transparent, ac::chv1, ac::chv1 }", self.card)
+        self.assertIn("{ 0x6f74, 0x7f20, 16, 0, file_structure::transparent, ac::chv1, ac::chv1 }", self.card)
+        self.assertIn("{ 0x6f7e, 0x7f20, 11, 0, file_structure::transparent, ac::chv1, ac::chv1 }", self.card)
         self.assertIn("void nokia_sim_card_device::update_binary()", self.card)
         self.assertIn("save_item(NAME(m_loci))", self.card)
         self.assertIn("save_item(NAME(m_kc))", self.card)
@@ -178,7 +179,7 @@ class SimDeviceSplitTest(unittest.TestCase):
 
     def test_acm_is_persistent_cyclic_and_uses_delayed_response(self):
         self.assertIn(
-            "{ 0x6f39, 0x7f20, 3, 3, file_structure::cyclic, true }",
+            "{ 0x6f39, 0x7f20, 3, 3, file_structure::cyclic, ac::chv1, ac::chv1 }",
             self.card,
         )
         for token in (
@@ -202,7 +203,6 @@ class SimDeviceSplitTest(unittest.TestCase):
         for token in (
             "authentication_profile::none",
             "void nokia_sim_card_device::run_gsm_algorithm()",
-            "m_p1 != 0 || m_p2 != 0 || m_tx_len != 16",
             "gsm::a3a8::aes_example(m_ki, rand)",
             "m_pending_response_len =",
             "queue_status(0x9f, m_pending_response_len)",

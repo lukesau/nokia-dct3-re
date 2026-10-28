@@ -22,9 +22,23 @@ CHECKPOINTS = (
 )
 
 
-def verify(text, storage):
+def verify(text, storage, *, configured_carrier=False, dcs1800=False):
+    if configured_carrier and dcs1800:
+        raise ValueError('GSM900 and DCS1800 carrier contracts are mutually exclusive')
+    checkpoints = list(CHECKPOINTS)
+    if dcs1800:
+        checkpoints[0] = r'TX packet type=56 payload=160 .*data=03370338'
+        checkpoints[1] = r'TX packet type=02 .*radio_phase=candidate_channel_change data=041202000000005050000337'
+        checkpoints[4] = r'TX packet type=1b .*data=0080013f490508(?:70|72)[0-9a-f]{10}30080910101032547698'
+        checkpoints[10] = r'TX packet type=02 .*radio_phase=release_channel_change data=041202000000001a600003370000000f00000000'
+        checkpoints[12] = r'RX enqueue type=80 payload=34 .*data=6012[0-9a-f]{8}033700001506210001f0'
+        checkpoints.insert(1, r'RX enqueue type=80 payload=14 .*data=4012[0-9a-f]{8}0337000048')
+    if configured_carrier:
+        checkpoints[1] = r'TX packet type=02 .*radio_phase=candidate_channel_change data=041202000000005050000004'
+        checkpoints[10] = r'TX packet type=02 .*radio_phase=release_channel_change data=041202000000001a600000040000000f00000000'
+        checkpoints.insert(1, r'RX enqueue type=80 payload=14 .*data=4012[0-9a-f]{8}0004000048')
     cursor = 0
-    for pattern in CHECKPOINTS:
+    for pattern in checkpoints:
         match = re.search(pattern, text[cursor:])
         if not match:
             raise ValueError(f'missing ordered registration evidence: {pattern}')
@@ -39,13 +53,18 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('log', type=Path)
     parser.add_argument('sim_nvram', type=Path)
+    parser.add_argument('--configured-carrier', action='store_true',
+                        help='require coherent ARFCN4 SCH and recovered channel parameters')
+    parser.add_argument('--dcs1800', action='store_true',
+                        help='require own DCS823/824 scan, capability, SCH and release')
     args = parser.parse_args()
     try:
         with args.log.open(errors='replace') as stream:
             text = ''.join(line for line in stream if 'TX packet' in line or
                            'RX enqueue' in line or 'acknowledged' in line or
                            'update-binary' in line)
-        verify(text, args.sim_nvram.read_bytes())
+        verify(text, args.sim_nvram.read_bytes(), configured_carrier=args.configured_carrier,
+               dcs1800=args.dcs1800)
     except (OSError, ValueError) as error:
         parser.exit(1, f'8210 registration FAIL: {error}\n')
     print('8210 own registration/release/paging and persisted EF_LOCI PASS; inspect idle capture separately')

@@ -88,6 +88,8 @@ u8 nokia_mbus_device::read(offs_t offset)
 	case 2:
 	{
 		const u8 result = m_data;
+		if (machine().side_effects_disabled())
+			return result;
 		m_rx_ready = false;
 		m_fiq2_cb(0);
 		trace_event("rx_read", result);
@@ -132,8 +134,9 @@ void nokia_mbus_device::write(offs_t offset, u8 data)
 	}
 	case 1:
 		m_status_latch = data & 0x0f;
-		// Bit 7 resets the serial bit counter. FIQ3 is armed separately when
-		// firmware unmasks the MBUSTIM terminal event.
+		// This byte-level path retains low status acknowledgements only.
+		// Service loaders also use bit 7 with a bit-6 handshake; that bit-level
+		// path is not modeled. FIQ3 is armed separately by its mask transition.
 		trace_event("status", data);
 		break;
 	case 2:

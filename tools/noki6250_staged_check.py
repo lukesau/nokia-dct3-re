@@ -5,12 +5,15 @@ from pathlib import Path
 import re
 
 
-def check(text):
+def check(text, *, runtime=False):
     stages = re.findall(r"release entry=0f00 words=(\d+) prom_input=0006 clock=13000000 stage=(\w+)", text)
     if stages != [("223", "verifier"), ("126", "loader")]:
         raise ValueError("missing ordered native verifier/loader launches")
     publications = re.findall(r"publication word0=(\w+) word1=(\w+) word2=(\w+) word3=(\w+) pc=(\w+)", text)
-    if publications != [("0000", "0006", "0006", "0006", "0f65")]:
+    # The periodic observer samples the published result, not its store edge.
+    # Cold runs reach either IDLE1 (0f64) or its following branch (0f65).
+    if (len(publications)!=1 or publications[0][:4]!=("0000","0006","0006","0006") or
+            publications[0][4] not in ("0f64","0f65")):
         raise ValueError("unexpected native result under the declared peripheral inputs")
     if re.findall(r"request selector=([0-9a-f]+)", text) != ["0014"] + ["0001"] * 124:
         raise ValueError("unexpected native loader request sequence")
@@ -18,8 +21,14 @@ def check(text):
     boundary = text.find("outside_uploaded_code pc=2c75")
     if verified < 0 or boundary <= verified:
         raise ValueError("missing product-local loader verification or fail-closed mask boundary")
-    if "observation_halt pc=2c75 ownership_retained=1" not in text:
-        raise ValueError("missing silent native isolation at the mask boundary")
+    ownership = ("runtime_hle_handoff pc=2c75 native_suspended=1" if runtime else
+                 "observation_halt pc=2c75 ownership_retained=1")
+    if ownership not in text:
+        raise ValueError("missing exclusive native ownership boundary")
+    other = ("observation_halt pc=2c75 ownership_retained=1" if runtime else
+             "runtime_hle_handoff pc=2c75 native_suspended=1")
+    if other in text:
+        raise ValueError("conflicting native ownership boundaries")
     if "unimplemented C54x opcode" in text or "[LUA ERROR]" in text:
         raise ValueError("execution or observer failed before the reviewed boundary")
 

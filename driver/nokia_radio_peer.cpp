@@ -3,6 +3,7 @@
 #include "emu.h"
 #include "emuopts.h"
 #include "nokia_radio_peer.h"
+#include "nokia_radio_timing.h"
 
 #define LOG_RADIO (1U << 0)
 #define VERBOSE (LOG_RADIO)
@@ -76,12 +77,12 @@ bool nokia_radio_peer_device::queue_host_incoming_sms(
 }
 
 bool nokia_radio_peer_device::queue_host_incoming_ussd(
-		u8 data_coding_scheme, const u8 *data, unsigned length)
+		u8 data_coding_scheme, const u8 *data, unsigned length, bool request)
 {
 	if (!m_enabled || !m_registered || !m_gsm_session->idle() ||
 			m_host_incoming_ussd_pending || m_host_incoming_ussd_active ||
 			!m_gsm_network->set_host_incoming_ussd(
-					data_coding_scheme, data, length))
+					data_coding_scheme, data, length, request))
 		return false;
 	m_host_incoming_ussd_pending = true;
 	return true;
@@ -113,6 +114,11 @@ void nokia_radio_peer_device::cancel_host_incoming_ussd()
 	m_gsm_session->cancel_queued_incoming_service();
 }
 
+bool nokia_radio_peer_device::terminate_host_incoming_ussd()
+{
+	return m_host_incoming_ussd_active && m_gsm_session->terminate_network_ussd();
+}
+
 nokia_radio_peer_device::nokia_radio_peer_device(
 		const machine_config &mconfig, const char *tag, device_t *owner, u32 clock) :
 	device_t(mconfig, NOKIA_RADIO_PEER, tag, owner, clock),
@@ -128,13 +134,10 @@ void nokia_radio_peer_device::device_start()
 {
 	m_trace_enabled = machine().options().verbose();
 	m_burst_timer = timer_alloc(FUNC(nokia_radio_peer_device::burst_tick), this);
-	// One assigned timeslot per GSM TDMA frame: 60/13 ms exactly.
-	m_burst_timer->adjust(
-			attotime::from_ticks(60, 13'000), 0,
-			attotime::from_ticks(60, 13'000));
 	save_item(NAME(m_enabled));
 	save_item(NAME(m_reports_sent));
 	save_item(NAME(m_reports_remaining));
+	save_item(NAME(m_background_measurement_pending));
 	save_item(NAME(m_phase));
 	save_item(NAME(m_search_round));
 	save_item(NAME(m_idle_measurement_sample));
@@ -146,6 +149,8 @@ void nokia_radio_peer_device::device_start()
 	save_item(NAME(m_neighbour_arfcn_count));
 	save_item(NAME(m_neighbour_bcch_pending));
 	save_item(NAME(m_neighbour_bcch_arfcn));
+	save_item(NAME(m_neighbour_timing_failure_pending));
+	save_item(NAME(m_neighbour_timing_failure_arfcn));
 	save_item(NAME(m_neighbour_instruction_mode));
 	save_item(NAME(m_neighbour_instruction_bsic));
 	save_item(NAME(m_last_neighbour_instruction_arfcn));
@@ -153,6 +158,10 @@ void nokia_radio_peer_device::device_start()
 	save_item(NAME(m_neighbour_resume_wait_ticks));
 	save_item(NAME(m_access_ra));
 	save_item(NAME(m_access_frame));
+	save_item(NAME(m_access_deadline));
+	save_item(NAME(m_access_deadline_pending));
+	save_item(NAME(m_access_reference_frame));
+	save_item(NAME(m_access_reference_valid));
 	save_item(NAME(m_search_has_serving_arfcn));
 	save_item(NAME(m_serving_arfcn));
 	save_item(NAME(m_receiver_arfcn));
@@ -290,10 +299,20 @@ void nokia_radio_peer_device::device_start()
 				FUNC(nokia_radio_peer_device::restore_l1_block_kinds), this));
 }
 
+void nokia_radio_peer_device::power_off()
+{
+	m_burst_timer->adjust(attotime::never);
+}
+
 void nokia_radio_peer_device::device_reset()
 {
+	// One assigned timeslot per GSM TDMA frame: 60/13 ms exactly. A digital
+	// power restart re-arms this clock after power_off stopped the endpoint.
+	m_burst_timer->adjust(attotime::from_ticks(60, 13'000), 0,
+			attotime::from_ticks(60, 13'000));
 	m_reports_sent = 0;
 	m_reports_remaining = 0;
+	m_background_measurement_pending = false;
 	set_phase(phase::inactive);
 	m_search_round = 0;
 	m_idle_measurement_sample = 0;
@@ -305,6 +324,8 @@ void nokia_radio_peer_device::device_reset()
 	m_neighbour_arfcn_count = 0;
 	m_neighbour_bcch_pending = false;
 	m_neighbour_bcch_arfcn = 0xffff;
+	m_neighbour_timing_failure_pending = false;
+	m_neighbour_timing_failure_arfcn = 0xffff;
 	m_neighbour_instruction_mode = 0;
 	m_neighbour_instruction_bsic = 0;
 	m_last_neighbour_instruction_arfcn = 0xffff;
@@ -312,6 +333,10 @@ void nokia_radio_peer_device::device_reset()
 	m_neighbour_resume_wait_ticks = 0;
 	m_access_ra = 0;
 	m_access_frame = 0;
+	m_access_deadline = 0;
+	m_access_deadline_pending = false;
+	m_access_reference_frame = 0;
+	m_access_reference_valid = false;
 	m_search_has_serving_arfcn = false;
 	m_serving_arfcn = 1;
 	m_receiver_arfcn = 1;
@@ -725,7 +750,10 @@ TIMER_CALLBACK_MEMBER(nokia_radio_peer_device::burst_tick)
 				gsm::a5::direction::uplink))
 			return;
 		++m_uplink_ciphered_bursts;
-		if (m_trace_enabled && m_uplink_ciphered_bursts == 1)
+		// Bounded observations must continue past activation so saved-call
+		// replay can compare cipher frame/count progression without key data.
+		if (m_trace_enabled && (m_uplink_ciphered_bursts == 1 ||
+				m_uplink_ciphered_bursts % 104 == 0))
 			LOGMASKED(LOG_RADIO,
 					"radio_l1: kind=cipher direction=uplink algorithm=%u fn=%u count=%u\n",
 					u8(m_gsm_session->cipher_algorithm()), frame_number,
@@ -838,7 +866,8 @@ TIMER_CALLBACK_MEMBER(nokia_radio_peer_device::burst_tick)
 				gsm::a5::direction::downlink))
 			return;
 		++m_downlink_ciphered_bursts;
-		if (m_trace_enabled && m_downlink_ciphered_bursts == 1)
+		if (m_trace_enabled && (m_downlink_ciphered_bursts == 1 ||
+				m_downlink_ciphered_bursts % 104 == 0))
 			LOGMASKED(LOG_RADIO,
 					"radio_l1: kind=cipher direction=downlink algorithm=%u fn=%u count=%u\n",
 					u8(m_gsm_session->cipher_algorithm()), frame_number,
@@ -965,6 +994,8 @@ u8 nokia_radio_peer_device::next_report_type() const
 	case phase::candidate_channel_change:
 		return m_reports_remaining == 2 ? 0x8f : 0x89;
 	case phase::serving_bcch:
+		if (m_protocol.coverage >= acquisition_coverage::candidate_bcch)
+			return 0x80;
 		if (m_registered || m_idle_common_control_active)
 			return (m_reports_remaining % 3) == 1 ? 0x83 : 0x80;
 		return (m_reports_remaining & 1) == 0 ? 0x80 : 0x83;
@@ -1330,10 +1361,14 @@ bool nokia_radio_peer_device::decode_neighbour_measurement_instruction(
 	// BSIC and byte 7 as the ARFCN.  NHM-2 independently emits zero in byte 1
 	// while requesting synchronization of its SI2-derived carrier, so keep the
 	// independently evidenced validation rule in the typed product contract.
-	// In either grammar the target must be a member of the firmware-published
-	// neighbour list as well as a receivable cell in the generic topology.
+	// A successful measurement requires membership of the firmware-published
+	// neighbour list and a receivable cell in the generic topology. Explicit
+	// lab negative-completion contracts are handled separately below.
 	const u8 expected_bsic = packet.payload[1];
 	u16 arfcn = packet.payload[7];
+	if (m_protocol.neighbour_instruction_arfcn ==
+			neighbour_arfcn_encoding::big_endian_word)
+		arfcn |= u16(packet.payload[6]) << 8;
 	if (m_protocol.neighbour_instruction_arfcn ==
 			neighbour_arfcn_encoding::topology_low_octet)
 	{
@@ -1364,6 +1399,19 @@ bool nokia_radio_peer_device::decode_neighbour_measurement_instruction(
 	if (!listed && m_protocol.neighbour_instruction_establishes_candidate)
 		listed = m_gsm_network->configured_neighbour(
 				m_serving_arfcn, arfcn);
+	// A directed unlisted request still needs a terminal result. This bounded
+	// lab contract reports failure, never a fabricated timing measurement.
+	if (packet.payload[0] == 4 && packet.length == 12 && !listed &&
+			m_protocol.unlisted_mode4_timing_failure)
+	{
+		m_neighbour_timing_failure_pending = true;
+		m_neighbour_timing_failure_arfcn = arfcn;
+		if (m_trace_enabled)
+			LOGMASKED(LOG_RADIO,
+					"dsp_hle: directed timing failure requested arfcn=%u mode=4 t=%.6f\n",
+					arfcn, machine().time().as_double());
+		return true;
+	}
 	if (candidate && listed && bsic_matches)
 	{
 		if (m_neighbour_arfcn_count == 0)
@@ -1405,12 +1453,15 @@ bool nokia_radio_peer_device::decode_neighbour_measurement_instruction(
 	if (m_trace_enabled)
 		LOGMASKED(LOG_RADIO,
 				"dsp_hle: neighbour measurement instruction arfcn=%u "
-				"bsic=%u validated=%u accepted=%u t=%.6f\n",
+				"bsic=%u validated=%u accepted=%u t=%.6f "
+				"mode=%u candidate=%u listed=%u bsic_matches=%u receivable=%u\n",
 				arfcn, expected_bsic,
 				m_protocol.neighbour_instruction_bsic !=
 						neighbour_bsic_encoding::none,
 				m_neighbour_bcch_pending,
-				machine().time().as_double());
+				machine().time().as_double(), packet.payload[0],
+				candidate != nullptr, listed, bsic_matches,
+				m_gsm_network->cell_receivable(arfcn));
 	return true;
 }
 
@@ -1635,7 +1686,9 @@ bool nokia_radio_peer_device::handle_acquisition_packet(
 				m_reports_remaining == 0) ||
 			(uses_candidate_window() &&
 				current_phase() == phase::candidate_measurement &&
-				m_reports_remaining == 1)))
+				(m_reports_remaining == 1 ||
+				 (m_protocol.coverage >= acquisition_coverage::candidate_channel &&
+				  m_reports_remaining == 0)))))
 	{
 		const bool active_candidate_window =
 				uses_candidate_window() &&
@@ -1653,6 +1706,10 @@ bool nokia_radio_peer_device::handle_acquisition_packet(
 		if (active_candidate_window &&
 				m_receiver_arfcn != m_serving_arfcn)
 			commit_receiver_as_serving();
+		// This replaces the candidate window's pending 8b report. ROM6
+		// cancellation/continuation semantics are not independently validated;
+		// see docs/8210_bringup.md. Retaining or repeating that report is not
+		// justified solely by the MCU's late-request consumer.
 		set_phase(selected_plmn_search ?
 				phase::selected_channel_change :
 				phase::candidate_channel_change);
@@ -1704,6 +1761,9 @@ void nokia_radio_peer_device::encode_channel_confirmation(u8 *payload) const
 void nokia_radio_peer_device::encode_random_access_info(u8 *payload)
 {
 	m_access_frame = m_tdma_frame_number % 2'715'648;
+	m_access_deadline_pending = false;
+	m_access_reference_frame = m_tdma_frame_number;
+	m_access_reference_valid = true;
 	payload[0] = m_access_ra;
 	payload[1] = m_access_frame >> 16;
 	payload[2] = m_access_frame >> 8;
@@ -1712,6 +1772,112 @@ void nokia_radio_peer_device::encode_random_access_info(u8 *payload)
 
 void nokia_radio_peer_device::receive_packet(const nokia_dspif_device::packet &packet)
 {
+	// Partial products enter only the shared handlers whose request grammar
+	// and firmware continuation have been independently qualified.
+	const bool partial_common_control_request =
+			m_protocol.coverage >= acquisition_coverage::candidate_common_control &&
+			current_phase() == phase::serving_bcch &&
+			packet.type == 0x02 && packet.length == 20 &&
+			packet.payload[0] == 4 && packet.payload[8] == 0x60;
+	const bool partial_random_access_request =
+			m_protocol.coverage >= acquisition_coverage::candidate_random_access &&
+			current_phase() == phase::serving_bcch && m_idle_common_control_active &&
+			packet.type == 0x0c && packet.length == 8 && packet.payload[0] == 0 &&
+			packet.payload[2] != 0;
+	const bool partial_dedicated_request =
+			m_protocol.coverage >= acquisition_coverage::candidate_dedicated &&
+			current_phase() == phase::random_access &&
+			packet.type == 0x02 && packet.length == 20 &&
+			packet.payload[0] == 4 && packet.payload[8] == 0x80;
+	const bool partial_establish_request =
+			m_protocol.coverage >= acquisition_coverage::candidate_contention &&
+			current_phase() == phase::lapdm_establish &&
+			packet.type == 0x1b && packet.length == 28 &&
+			packet.payload[0] == 0 && packet.payload[1] == 0x80;
+	const bool partial_acknowledgement =
+			m_protocol.coverage >= acquisition_coverage::candidate_location_update &&
+			(current_phase() == phase::location_update_acknowledgement ||
+			 current_phase() == phase::channel_release_acknowledgement) &&
+			packet.type == 0x1b && packet.length == 28 &&
+			packet.payload[0] == 0 && packet.payload[1] == 0x80;
+	const bool partial_release_request =
+			m_protocol.coverage >= acquisition_coverage::candidate_release &&
+			current_phase() == phase::release_deconfigure &&
+			packet.type == 0x02 && packet.length == 20 &&
+			packet.payload[8] == 0x60 &&
+			(packet.payload[15] == 0x0f ||
+				(m_traffic_channel_active && packet.payload[15] == m_protocol.traffic_release_parameter));
+	const bool partial_background_request =
+			m_protocol.background_band_measurements && packet.type == 0x57 &&
+			packet.length == m_protocol.background_measurement_request.size() &&
+			std::equal(m_protocol.background_measurement_request.begin(),
+				m_protocol.background_measurement_request.end(), packet.payload.begin());
+	const bool partial_service_uplink =
+			m_protocol.coverage >= acquisition_coverage::candidate_paging &&
+			(current_phase() == phase::service_uplink_wait ||
+				(m_traffic_channel_active && current_phase() >= phase::service_downlink &&
+				 current_phase() <= phase::service_uplink_acknowledgement)) &&
+			packet.type == 0x1b && packet.length == 28 &&
+			packet.payload[0] == 0 &&
+			(packet.payload[1] == 0x80 ||
+				(m_traffic_channel_active && packet.payload[1] == 0xb0));
+	const bool partial_traffic_establishment =
+			m_protocol.coverage >= acquisition_coverage::candidate_paging &&
+			current_phase() == phase::traffic_lapdm_establish &&
+			packet.type == 0x1b && packet.length == 28 &&
+			packet.payload[0] == 0 && packet.payload[1] == 0xb0;
+	const bool partial_traffic_configuration =
+			m_protocol.coverage >= acquisition_coverage::candidate_paging &&
+			(current_phase() == phase::service_uplink_request ||
+			 current_phase() == phase::service_uplink_wait ||
+			 current_phase() == phase::service_uplink_acknowledgement) &&
+			packet.type == 0x02 && packet.length == 20 && packet.payload[8] == 0xc1;
+	if (m_protocol.coverage != acquisition_coverage::full &&
+			!partial_common_control_request && !partial_random_access_request &&
+			!partial_dedicated_request && !partial_establish_request && !partial_acknowledgement &&
+			!partial_release_request && !partial_background_request && !partial_service_uplink &&
+			!partial_traffic_configuration && !partial_traffic_establishment)
+	{
+		if (packet.type == 0x55 && packet.length == 4 &&
+				packet.payload[0] == 3 &&
+				(packet.payload[1] == 3 || packet.payload[1] == 5) &&
+				packet.payload[2] == 0 && packet.payload[3] == 0)
+		{
+			const search_request request = decode_search_request(packet);
+			if (request == search_request::autonomous_band_scan)
+				handle_search_request(request);
+		}
+		else if (m_protocol.coverage >= acquisition_coverage::candidate_synchronization &&
+				packet.type == 0x56 && packet.length == 160)
+		{
+			const search_request request = decode_search_request(packet);
+			if (request == search_request::candidate_window)
+				handle_search_request(request);
+		}
+		else if (m_protocol.coverage >= acquisition_coverage::candidate_channel &&
+				packet.type == 0x02 && packet.length == 20 && packet.payload[0] == 4)
+		{
+			// The own channel handler commits cached receiver state on 89.
+			// No independent terminal-search report is established here.
+			if (handle_acquisition_packet(packet))
+				m_reports_remaining = 1;
+		}
+		return;
+	}
+	// Product-owned late scans consume ordinary 8b records without stopping
+	// the serving receiver; the request grammar is independently configured.
+	if (m_protocol.background_band_measurements && packet.type == 0x57 &&
+			packet.length == m_protocol.background_measurement_request.size() &&
+			(std::equal(m_protocol.background_measurement_request.begin(),
+				m_protocol.background_measurement_request.end(), packet.payload.begin()) ||
+				(m_protocol.background_measurement_followup_request &&
+					std::equal(m_protocol.background_measurement_followup_request->begin(),
+						m_protocol.background_measurement_followup_request->end(),
+						packet.payload.begin()))))
+	{
+		m_background_measurement_pending = true;
+		return;
+	}
 	const search_request search = decode_search_request(packet);
 	if (handle_search_request(search))
 		return;
@@ -1749,6 +1915,27 @@ void nokia_radio_peer_device::receive_packet(const nokia_dspif_device::packet &p
 				packet.length >= 3 && packet.payload[2] != 0;
 		if (!channel_request)
 			return;
+		if (m_protocol.coverage >= acquisition_coverage::candidate_random_access)
+		{
+			const u16 base = (u16(packet.payload[4]) << 8) | packet.payload[5];
+			if (packet.payload[1] == 1 && !m_access_reference_valid)
+				return;
+			// Scheduled retries are based on the previous reported access,
+			// not on the later MCU request time. Keep that absolute anchor so
+			// truncation to sixteen bits and GSM hyperframe wrap stay distinct.
+			const u32 anchor = packet.payload[1] == 1 ?
+					m_access_reference_frame : m_tdma_frame_number;
+			const auto delay = nokia::radio::access_delay(
+					anchor % 2'715'648, packet.payload[1], base, packet.payload[3]);
+			if (!delay)
+				return;
+			m_access_deadline = anchor + *delay;
+			m_access_deadline_pending = true;
+			LOGMASKED(LOG_RADIO,
+					"dsp_hle: access_deadline ra=%02x mode=%u frame=%u anchor=%u base=%u slots=%u deadline=%u t=%.9f\n",
+					packet.payload[2], packet.payload[1], m_tdma_frame_number,
+					anchor, base, packet.payload[3], m_access_deadline, machine().time().as_double());
+		}
 		m_access_ra = channel_request ? packet.payload[2] : 0;
 		m_access_frame = 0;
 		set_phase(phase::random_access);
@@ -2003,6 +2190,12 @@ void nokia_radio_peer_device::receive_packet(const nokia_dspif_device::packet &p
 						m_lapdm_link->pending_receive_sequence(),
 						machine().time().as_double());
 			const auto action = m_gsm_session->downlink_acknowledged();
+			if (m_trace_enabled && acknowledged ==
+					nokia_gsm_session_device::downlink_kind::location_update_reject)
+				LOGMASKED(LOG_RADIO,
+						"dsp_hle: LAPDm Location Updating Reject acknowledged nr=%u t=%.6f\n",
+						m_lapdm_link->pending_receive_sequence(),
+						machine().time().as_double());
 			if (action ==
 					nokia_gsm_session_device::downlink_kind::channel_release)
 			{
@@ -2223,8 +2416,9 @@ void nokia_radio_peer_device::receive_packet(const nokia_dspif_device::packet &p
 				// Registration release arms the configured incoming page.  A
 				// completed one-shot service does not repeat; multipart SMS
 				// alone leaves a successor queued and therefore re-arms it.
+				// Outgoing services must preserve an already consumed incoming page.
 				m_page_transmitted =
-						m_gsm_session->incoming_service_completed() &&
+						(m_page_transmitted || m_gsm_session->incoming_service_completed()) &&
 						!m_gsm_session->incoming_service_queued();
 				m_pch_fill_delivered = false;
 			}
@@ -2413,8 +2607,12 @@ void nokia_radio_peer_device::emit_report()
 		// with the rest of the L1 state, so SCH/BCCH metadata remains coherent
 		// across save/load instead of moving by a frame after a slightly
 		// different firmware poll latency.
-		u32 frame_number = current_phase() == phase::random_access ? m_access_frame :
+		u32 frame_number = current_phase() == phase::random_access &&
+				m_protocol.coverage < acquisition_coverage::candidate_assignment ? m_access_frame :
 				m_tdma_frame_number % 2'715'648;
+		if (current_phase() == phase::random_access &&
+				m_protocol.coverage >= acquisition_coverage::candidate_assignment)
+			frame_number = m_access_deadline % 2'715'648;
 		if (pch_report)
 			frame_number = paging_frame_number(
 					frame_number, paging_schedule::monitored);
@@ -2527,7 +2725,9 @@ void nokia_radio_peer_device::emit_report()
 				(m_incoming_sms_after_registration || m_host_incoming_sms_pending) ?
 					nokia_gsm_session_device::incoming_service::sms :
 				m_host_incoming_ussd_pending ?
-					nokia_gsm_session_device::incoming_service::ussd_notification :
+						(m_gsm_network->host_incoming_ussd_is_request() ?
+							nokia_gsm_session_device::incoming_service::ussd_request :
+							nokia_gsm_session_device::incoming_service::ussd_notification) :
 				m_incoming_ussd_profile == 1 ?
 					nokia_gsm_session_device::incoming_service::ussd_request :
 				m_incoming_ussd_profile == 2 ?
@@ -2610,7 +2810,7 @@ void nokia_radio_peer_device::emit_report()
 		else if (payload[0] == 0x60)
 		{
 			const auto assignment = m_gsm_network->immediate_assignment(
-					m_access_ra, frame_number, m_serving_arfcn);
+					m_access_ra, m_access_frame, m_serving_arfcn);
 			std::copy(assignment.begin(), assignment.end(), std::begin(payload) + 10);
 		}
 		else if (payload[0] == 0x50)
@@ -2756,8 +2956,93 @@ void nokia_radio_peer_device::emit_report()
 	++m_reports_sent;
 	if (!asynchronous_neighbour_report)
 	{
+		const bool completing_candidate = current_phase() == phase::candidate_channel_change;
+		const bool completing_dedicated = current_phase() == phase::assigned_channel_change;
+		const bool completing_contention = current_phase() == phase::contention_resolution;
+		const bool completing_common_control = current_phase() == phase::serving_channel_change;
+		const bool completing_release = current_phase() == phase::release_channel_change;
 		--m_reports_remaining;
 		advance_after_report(report_type);
+		// Qualify the receiver return independently of post-release paging.
+		if (m_protocol.coverage >= acquisition_coverage::candidate_release &&
+				report_type == 0x89 && completing_release)
+		{
+			m_reports_remaining = 0;
+			m_wait_ticks = 0;
+			m_report_deferred = false;
+		}
+		// Partial acquisition contracts establish one SCH observation, not
+		// the sibling products' subsequent terminal RSSI/channel dialogue.
+		if (m_protocol.coverage >= acquisition_coverage::candidate_synchronization &&
+				report_type == 0x80 && payload[0] == 0x40)
+			m_reports_remaining = 0;
+		if (m_protocol.coverage == acquisition_coverage::candidate_channel && report_type == 0x89)
+		{
+			// The full contract re-arms timed candidate RA-info and then BCCH
+			// even with no queued reports. A bounded channel-only product must
+			// not inherit that continuation after acknowledging configuration.
+			set_phase(phase::inactive);
+			m_reports_remaining = 0;
+			m_wait_ticks = 0;
+			m_report_deferred = false;
+		}
+		if (m_protocol.coverage >= acquisition_coverage::candidate_bcch &&
+				report_type == 0x89 && completing_candidate)
+		{
+			// This product establishes BCCH directly after the receiver
+			// acknowledgement, not the sibling's unsolicited RA-info report.
+			set_phase(phase::serving_bcch);
+			m_reports_remaining = serving_cycle_reports();
+			m_wait_ticks = 59;
+		}
+		if (m_protocol.coverage >= acquisition_coverage::candidate_common_control &&
+				report_type == 0x89 && completing_common_control)
+		{
+			// Retain the configured receiver so another command in the same
+			// grammar can reconfigure it, but schedule no unqualified PCH data.
+			m_reports_remaining = 0;
+			m_wait_ticks = 0;
+			m_report_deferred = false;
+			if (m_protocol.coverage >= acquisition_coverage::candidate_paging && m_registered)
+			{
+				m_reports_remaining = serving_cycle_reports();
+				m_wait_ticks = 59;
+			}
+		}
+		if (m_protocol.coverage == acquisition_coverage::candidate_random_access && report_type == 0x84)
+		{
+			// Publish the observed access frame only. AGCH assignment is a
+			// separate contract; keep the receiver available for organic retry.
+			set_phase(phase::serving_bcch);
+			m_reports_remaining = 0;
+			m_wait_ticks = 0;
+			m_report_deferred = false;
+		}
+		if (m_protocol.coverage >= acquisition_coverage::candidate_assignment && report_type == 0x84)
+		{
+			const u32 frame = m_access_reference_frame % 2'715'648;
+			m_access_deadline = m_access_reference_frame +
+					nokia::radio::common_control_block_end(frame + 4) - frame;
+			m_access_deadline_pending = true;
+			LOGMASKED(LOG_RADIO, "dsp_hle: assignment_deadline access_frame=%u deadline=%u\n",
+					m_access_reference_frame, m_access_deadline);
+		}
+		if (m_protocol.coverage >= acquisition_coverage::candidate_assignment && report_type == 0x80)
+			m_access_deadline_pending = false;
+		if (m_protocol.coverage == acquisition_coverage::candidate_dedicated &&
+				report_type == 0x89 && completing_dedicated)
+		{
+			m_reports_remaining = 0;
+			m_wait_ticks = 0;
+			m_report_deferred = false;
+		}
+		if (m_protocol.coverage == acquisition_coverage::candidate_contention &&
+				report_type == 0x80 && completing_contention)
+		{
+			m_reports_remaining = 0;
+			m_wait_ticks = 0;
+			m_report_deferred = false;
+		}
 	}
 	m_transport->notify_rx();
 	if (m_trace_enabled)
@@ -2818,6 +3103,11 @@ void nokia_radio_peer_device::advance_after_report(u8 report_type)
 				((m_reports_remaining + 1) % 3) == 2;
 		if (!pch_report)
 			m_wait_ticks = 59;
+		// Partial acquisition omits the unqualified type-83 measurement
+		// report, so its registered BCCH/PCH cycle ends on type 80 instead.
+		if (m_protocol.coverage >= acquisition_coverage::candidate_paging &&
+				m_registered && m_reports_remaining == 0)
+			m_reports_remaining = serving_cycle_reports();
 	}
 	else if (current_phase() == phase::serving_bcch && report_type == 0x83 &&
 			m_reports_remaining == 0)
@@ -2962,6 +3252,7 @@ void nokia_radio_peer_device::advance_after_report(u8 report_type)
 		const auto action = m_gsm_session->contention_resolution_delivered();
 		if (action ==
 				nokia_gsm_session_device::downlink_kind::location_update_accept ||
+				action == nokia_gsm_session_device::downlink_kind::location_update_reject ||
 				action ==
 				nokia_gsm_session_device::downlink_kind::authentication_request)
 		{
@@ -3096,6 +3387,8 @@ void nokia_radio_peer_device::advance_after_report(u8 report_type)
 	else if (current_phase() == phase::traffic_release_acknowledgement &&
 			report_type == 0x80)
 	{
+		if (m_gsm_session->mobile_link_release_acknowledged(m_lapdm_link->layer3_sapi()))
+			m_pch_fill_delivered = false;
 		set_phase(phase::release_deconfigure);
 		m_reports_remaining = 0;
 	}
@@ -3126,6 +3419,52 @@ void nokia_radio_peer_device::tick()
 {
 	if (!m_enabled)
 		return;
+	if (m_neighbour_timing_failure_pending)
+	{
+		const u16 arfcn = m_neighbour_timing_failure_arfcn;
+		const u8 failure[10] = { 1, 0, 0, 0, u8(arfcn >> 8), u8(arfcn), 0, 0, 0, 1 };
+		// Defer to the existing peer cadence and retain the result while the
+		// RX ring is full. Cadence and unused timing bytes are not silicon evidence.
+		if (m_transport->enqueue_rx_packet(0x88, failure, std::size(failure)))
+		{
+			m_neighbour_timing_failure_pending = false;
+			m_neighbour_timing_failure_arfcn = 0xffff;
+			m_transport->notify_rx();
+			if (m_trace_enabled)
+				LOGMASKED(LOG_RADIO,
+						"dsp_hle: directed timing failure published arfcn=%u mode=4 status=1 t=%.6f\n",
+						arfcn, machine().time().as_double());
+		}
+		return;
+	}
+	if (m_background_measurement_pending)
+	{
+		std::array<u8, 166> payload{};
+		payload[1] = 0x10;
+		for (unsigned slot = 0; slot < 40; ++slot)
+		{
+			payload[2 + slot * 4] = 0xff;
+			payload[3 + slot * 4] = 0xff;
+			payload[5 + slot * 4] = 0x81;
+		}
+		unsigned slot = 0;
+		for (unsigned index = 0; index < m_gsm_network->cell_count() && slot < 40; ++index)
+		{
+			const auto *cell = m_gsm_network->cell_at(index);
+			if (!cell || !m_gsm_network->cell_receivable(cell->arfcn))
+				continue;
+			payload[2 + slot * 4] = cell->arfcn >> 8;
+			payload[3 + slot * 4] = cell->arfcn;
+			payload[5 + slot * 4] = u8(m_gsm_network->cell_rssi(cell->arfcn, 0));
+			++slot;
+		}
+		if (m_transport->enqueue_rx_packet(0x8b, payload.data(), payload.size()))
+		{
+			m_background_measurement_pending = false;
+			m_transport->notify_rx();
+		}
+		return;
+	}
 
 	if (m_handover_enabled && !m_handover_started &&
 			m_traffic_channel_active && m_gsm_session->call_connected() &&
@@ -3166,27 +3505,33 @@ void nokia_radio_peer_device::tick()
 	// link is waiting for the mobile's next uplink opportunity. Promote that
 	// saved session message into the ordinary decoded downlink/FACCH path;
 	// the producer never owns radio scheduling.
-	if (m_traffic_channel_active &&
-			current_phase() == phase::service_uplink_request &&
+	// Alerting can retain either uplink phase after assignment. A queued
+	// network Disconnect must not wait for a physical key/uplink to unstick it.
+	const bool queued_disconnect = m_gsm_session->pending_downlink_kind() ==
+			nokia_gsm_session_device::downlink_kind::call_disconnect;
+	if ((((m_traffic_channel_active || queued_disconnect) &&
+				current_phase() == phase::service_uplink_request) ||
+			((!m_traffic_channel_active || queued_disconnect) &&
+				current_phase() == phase::service_uplink_wait)) &&
 			m_gsm_session->pending_downlink_kind() !=
-					nokia_gsm_session_device::downlink_kind::none)
+					nokia_gsm_session_device::downlink_kind::none &&
+			!m_lapdm_link->downlink_acknowledgement_pending(
+					m_gsm_session->pending_downlink().sapi) &&
+			!m_lapdm_link->awaiting_establishment(
+					m_gsm_session->pending_downlink().sapi))
 	{
-		set_phase(phase::service_downlink);
-		m_reports_remaining = 1;
-		m_wait_ticks = 0;
-		m_report_deferred = true;
-	}
-	if (!m_traffic_channel_active &&
-			current_phase() == phase::service_uplink_wait &&
-			m_gsm_session->pending_downlink_kind() !=
-					nokia_gsm_session_device::downlink_kind::none)
-	{
+		// A queued Layer-3 message remains pending until its LAPDm ACK. Do
+		// not promote it again while that frame (or SABM) is outstanding:
+		// service_uplink_request must emit the handset's ACK opportunity.
 		set_phase(phase::service_downlink);
 		m_reports_remaining = 1;
 		m_wait_ticks = 0;
 		m_report_deferred = true;
 	}
 
+	if (current_phase() == phase::random_access && m_access_deadline_pending &&
+			!nokia::radio::frame_due(m_tdma_frame_number, m_access_deadline))
+		return;
 	if (m_reports_remaining != 0 && phase_waits())
 		--m_wait_ticks;
 	if ((current_phase() == phase::candidate_ra_info || current_phase() == phase::selected_ra_info) &&

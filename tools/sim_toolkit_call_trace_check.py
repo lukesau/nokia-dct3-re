@@ -3,9 +3,12 @@
 
 import argparse
 from pathlib import Path
+import sys
 
-from radio_call_lifecycle_common import require_ordered
-from radio_outgoing_call_trace_check import (
+if __package__ in (None, ''):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from tools.radio_call_lifecycle_common import require_ordered
+from tools.radio_outgoing_call_trace_check import (
     ALERTING,
     ASSIGNMENT_COMPLETE,
     CALL_PROCEEDING,
@@ -19,7 +22,7 @@ from radio_outgoing_call_trace_check import (
     TRAFFIC_ASSIGNMENT,
     decode_called_digits,
 )
-from sim_toolkit_trace_check import require_in_order
+from tools.sim_toolkit_trace_check import require_in_order
 
 
 def verify(log: str) -> None:
@@ -53,6 +56,23 @@ def verify(log: str) -> None:
         raise ValueError("toolkit SETUP did not carry destination 5551234")
     if len(TRAFFIC_ASSIGNMENT.findall(log)) != 1:
         raise ValueError("toolkit call must contain exactly one traffic assignment")
+
+
+def verify_decline(log: str, product: str, *, action_namespace='toolkit_interactive') -> None:
+    if '[LUA ERROR]' in log:
+        raise ValueError('physical Toolkit call cancellation failed')
+    compact = log.replace('[:sim_card] ', '')
+    require_in_order(compact, [
+        'proactive SET UP CALL ready', 'SIM status ins=c2 sw=911c',
+        'header cla=a0 ins=12 p1=00 p2=00 p3=1c',
+        f'{product}_{action_namespace}: action=call_decline',
+        'terminal-response data=810306100002028281030122',
+        'SIM status ins=14 sw=9000',
+        f'{product}_{action_namespace}: action=menu_exit',
+    ])
+    if ('GSM outgoing request' in log or SETUP.search(log) or
+            TRAFFIC_ASSIGNMENT.search(log) or CONNECT.search(log)):
+        raise ValueError('declined Toolkit request started a GSM call')
 
 
 def main() -> None:

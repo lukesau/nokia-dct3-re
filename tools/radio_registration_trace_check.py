@@ -39,7 +39,7 @@ PROFILE_CHECKPOINTS = {
     "nhm3": (
         ("Location Updating Accept", re.compile(
             r"RX enqueue type=80 payload=34 .*data=80[0-9a-f]{18}"
-            r"030045050200f11000011708")),
+            r"03[0-9a-f][02468ace]45050200f11000011708")),
     ),
     "nse8": (
         ("Location Updating Accept", re.compile(
@@ -103,9 +103,21 @@ COMMON_POST_ACCEPT_CHECKPOINTS = (
         r"RX enqueue type=80 payload=34 .*data=60[0-9a-f]{18}1506210001f0")),
 )
 
-def verify(text: str, profile: str = "nse8", preserved: bool = False) -> None:
+def verify(text: str, profile: str = "nse8", preserved: bool = False, *, configured_carrier=False,
+           nsm5_pin=False) -> None:
     if profile not in PROFILE_CHECKPOINTS:
         raise ValueError(f"unknown registration profile: {profile}")
+    if configured_carrier and profile != 'nhm3':
+        raise ValueError('configured carrier contract is only validated for NHM-3')
+    if nsm5_pin and profile != 'nsm5':
+        raise ValueError('PIN release contract is only validated for NSM-5')
+    deconfig_prefix = '041202' if configured_carrier or nsm5_pin else PROFILE_DECONFIG_PREFIX[profile]
+    acquisition = (
+        ('configured SCH carrier 19', re.compile(
+            r'RX enqueue type=80 payload=14 .*data=4012[0-9a-f]{8}0013000048')),
+        ('configured candidate carrier 19', re.compile(
+            r'TX packet type=02 .*radio_phase=candidate_channel_change data=041202000000005050000013')),
+    ) if configured_carrier else ()
 
     if preserved and profile in ("nhm2", "nhm3"):
         after_accept = tuple(
@@ -118,13 +130,47 @@ def verify(text: str, profile: str = "nse8", preserved: bool = False) -> None:
     else:
         after_accept = COMMON_CHECKPOINTS_AFTER_ACCEPT
 
+    # Authentication consumes an I-frame before the accept. NHM-3's service
+    # session owns this exchange, rather than the unauthenticated boot helper.
+    authenticated = profile == 'nhm3' and re.search(
+        r'GSM service uplink sapi=0 pd=05 message=14 length=6 data=05[159d]4[0-9a-f]{8}\b',
+        text)
+    if authenticated:
+        replacements = {
+            'Location Updating Accept LAPDm acknowledgement':
+                r'TX packet type=1b .*data=0080034101',
+            'handset SAPI-0 RR N(R)=1':
+                r'TX consume type=1b .*data=0080034101',
+            'RR Channel Release LAPDm acknowledgement':
+                r'LAPDm service Channel Release acknowledged nr=3\b',
+            'handset SAPI-0 RR N(R)=2':
+                r'TX packet type=1b .*data=0080036101',
+        }
+        after_accept = tuple((label, re.compile(replacements[label]))
+                             if label in replacements else (label, pattern)
+                             for label, pattern in after_accept)
+        # The authenticated service path commits LAI before requesting the
+        # release acknowledgement; its final status write remains after it.
+        location = tuple(item for item in after_accept
+                         if item[0] == 'EF_LOCI location update')
+        after_accept = (after_accept[:3] + location
+                        + tuple(item for item in after_accept[3:]
+                                if item[0] != 'EF_LOCI location update'))
+        authentication = re.search(
+            r'RX enqueue type=80 payload=34 .*data=80[0-9a-f]{18}'
+            r'03004d051200[0-9a-f]{32}',
+            text[:authenticated.start()])
+        accept_frame = PROFILE_CHECKPOINTS[profile][0][1].search(text)
+        if not authentication or not accept_frame or authenticated.end() >= accept_frame.start():
+            raise ValueError('missing or out-of-order NHM-3 authentication exchange')
+
     checkpoints = (
-        COMMON_CHECKPOINTS_BEFORE_ACCEPT
+        acquisition + COMMON_CHECKPOINTS_BEFORE_ACCEPT
         + PROFILE_CHECKPOINTS[profile]
         + after_accept
         + (("RR channel deconfiguration", re.compile(
             r"TX packet type=02 .*radio_phase=release_channel_change "
-            rf"data={PROFILE_DECONFIG_PREFIX[profile]}000000001a6000"
+            rf"data={deconfig_prefix}000000001a6000"
             rf"{PROFILE_ARFCN[profile]}"
             r"0000000f00000000")),)
         + COMMON_POST_ACCEPT_CHECKPOINTS
@@ -150,7 +196,8 @@ def verify(text: str, profile: str = "nse8", preserved: bool = False) -> None:
         raise ValueError(
             "preserved cold boot did not use the persisted LAI/TMSI location update")
     if preserved and profile == "nhm3":
-        accept = text.find("LAPDm Location Updating Accept acknowledged nr=1")
+        accept = (accept_frame.start() if authenticated else
+                  text.find("LAPDm Location Updating Accept acknowledged nr=1"))
         release_end = text.find("radio_phase=release_channel_change", accept)
         interval = text[accept:release_end]
         if "sim_device: update-binary fid=6f7e offset=4 length=5" not in interval:

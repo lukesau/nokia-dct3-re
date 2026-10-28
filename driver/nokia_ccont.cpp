@@ -23,6 +23,7 @@ constexpr uint8_t RTC_HOUR = 0x09;
 constexpr uint8_t RTC_DAY = 0x0a;
 constexpr uint8_t RTC_ALARM_MINUTE = 0x0b;
 constexpr uint8_t RTC_ALARM_HOUR = 0x0c;
+constexpr uint8_t RTC_CONTROL = 0x0d;
 constexpr uint8_t IRQ_STATUS = 0x0e;
 constexpr uint8_t IRQ_MASK = 0x0f;
 constexpr uint8_t RESET_READY = 0x01;
@@ -36,6 +37,7 @@ constexpr uint8_t IRQ_RTC_ALARM = 0x80;
 
 nokia_ccont_device::nokia_ccont_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
 	device_t(mconfig, NOKIA_CCONT, tag, owner, clock),
+	device_nvram_interface(mconfig, *this),
 	m_irq_cb(*this),
 	m_power_cb(*this)
 {
@@ -47,8 +49,12 @@ void nokia_ccont_device::device_start()
 	m_rtc_trace = machine().options().verbose();
 	m_rtc_timer = timer_alloc(FUNC(nokia_ccont_device::rtc_tick), this);
 	m_rtc_alarm_latch_timer = timer_alloc(FUNC(nokia_ccont_device::rtc_alarm_latch_complete), this);
+	// MAME reports a malformed NVRAM load but does not call nvram_default()
+	// afterwards. Keep failed, atomic reads on the deterministic fresh state.
+	nvram_default();
 	save_item(NAME(m_cmd));
 	save_item(NAME(m_watchdog));
+	save_item(NAME(m_analog_acquisition_control));
 	save_item(NAME(m_regs));
 	save_item(NAME(m_adc_source));
 	save_item(NAME(m_adc_result));
@@ -62,8 +68,16 @@ void nokia_ccont_device::device_start()
 
 void nokia_ccont_device::device_reset()
 {
+	// Digital reset does not remove the RTC supply. NVRAM loading/defaulting
+	// owns the cold values. NSB-6 validates alarm/control/mask snapshots
+	// against NV data before accepting its restored software clock.
+	uint8_t const rtc[] = {m_regs[RTC_SECOND], m_regs[RTC_MINUTE],
+		m_regs[RTC_HOUR], m_regs[RTC_DAY], m_regs[RTC_ALARM_MINUTE],
+		m_regs[RTC_ALARM_HOUR], m_regs[RTC_CONTROL]};
+	uint8_t const rtc_mask = m_regs[IRQ_MASK] & 0xf0;
 	m_cmd = 0;
 	m_watchdog = 0;
+	m_analog_acquisition_control = 0;
 	m_adc_result = 0;
 	m_adc_channel = 0;
 	std::fill(std::begin(m_regs), std::end(m_regs), 0);
@@ -72,19 +86,65 @@ void nokia_ccont_device::device_reset()
 	m_regs[IRQ_STATUS] = (m_ready ? RESET_READY : 0) | RESET_PWRONX;
 	m_powered = true;
 	m_charger_connected = false;
-	// Use a fixed epoch rather than the host clock.  The firmware consumes these
-	// registers as binary counters, and deterministic reset state keeps frames
-	// and save states reproducible across hosts.
-	m_regs[RTC_SECOND] = 0;
-	m_regs[RTC_MINUTE] = 0;
-	m_regs[RTC_HOUR] = 12;
-	m_regs[RTC_DAY] = 1;
-	m_rtc_alarm_armed = false;
-	m_rtc_alarm_latch_timer->adjust(attotime::never);
+	std::copy(std::begin(rtc), std::end(rtc), &m_regs[RTC_SECOND]);
+	m_regs[IRQ_MASK] = rtc_mask;
+	m_rtc_alarm_latch_timer->adjust(BIT(m_regs[RTC_ALARM_HOUR], 7)
+		? attotime::from_msec(1) : attotime::never);
 	m_data_cycle = false;
 	m_rtc_timer->adjust(attotime::from_seconds(1), 0, attotime::from_seconds(1));
 	m_irq_cb(0);
 	m_power_cb(1);
+}
+
+void nokia_ccont_device::nvram_default()
+{
+	// A fresh retained-supply fixture is deterministic, not host-clock seeded.
+	m_regs[RTC_SECOND] = 0;
+	m_regs[RTC_MINUTE] = 0;
+	m_regs[RTC_HOUR] = 12;
+	m_regs[RTC_DAY] = 1;
+	m_regs[RTC_ALARM_MINUTE] = 0;
+	m_regs[RTC_ALARM_HOUR] = 0;
+	m_regs[RTC_CONTROL] = 0;
+	m_regs[IRQ_MASK] = 0;
+	m_rtc_alarm_armed = false;
+}
+
+bool nokia_ccont_device::nvram_read(util::read_stream &file)
+{
+	uint8_t rtc[4];
+	auto const [err, actual] = util::read(file, rtc, sizeof(rtc));
+	if (err || actual != sizeof(rtc))
+		return false;
+	uint8_t retained[5] = {0};
+	auto const [retained_err, retained_actual] = util::read(file, retained, sizeof(retained));
+	// Counter-only files predate the recovered controller-snapshot contract.
+	if (retained_err || (retained_actual != 0 && retained_actual != sizeof(retained)) ||
+			retained[4] > 1 || (retained[3] & 0x0f))
+		return false;
+	uint8_t trailing;
+	auto const [trailing_err, trailing_actual] = util::read(file, &trailing, 1);
+	if (trailing_err || trailing_actual)
+		return false;
+	// Preserve register bytes, including the firmware's zero day/epoch value;
+	// this is not a serialized Gregorian calendar.
+	std::copy(std::begin(rtc), std::end(rtc), &m_regs[RTC_SECOND]);
+	std::copy_n(retained, 3, &m_regs[RTC_ALARM_MINUTE]);
+	m_regs[IRQ_MASK] = retained[3];
+	m_rtc_alarm_armed = retained[4] != 0;
+	return true;
+}
+
+bool nokia_ccont_device::nvram_write(util::write_stream &file)
+{
+	// Pending causes, watchdog and rail state are not retained. Offline host
+	// time is deliberately excluded from this deterministic supply model.
+	uint8_t const retained[] = {m_regs[RTC_SECOND], m_regs[RTC_MINUTE],
+		m_regs[RTC_HOUR], m_regs[RTC_DAY], m_regs[RTC_ALARM_MINUTE],
+		m_regs[RTC_ALARM_HOUR], m_regs[RTC_CONTROL],
+		uint8_t(m_regs[IRQ_MASK] & 0xf0), uint8_t(m_rtc_alarm_armed)};
+	auto const [err, actual] = util::write(file, retained, sizeof(retained));
+	return !err && actual == sizeof(retained);
 }
 
 void nokia_ccont_device::device_post_load()
@@ -97,6 +157,21 @@ void nokia_ccont_device::set_adc_source(unsigned channel, uint16_t value)
 {
 	if (channel < std::size(m_adc_source))
 		m_adc_source[channel] = value & 0x3ff;
+}
+
+void nokia_ccont_device::set_power_key_input(bool pressed)
+{
+	if (!pressed || m_powered)
+		return;
+	// PWRONX is independent of the switched MAD2 keypad/CPU domain. Restore
+	// that domain without resetting the always-powered RTC or pending sources.
+	m_powered = true;
+	m_regs[IRQ_STATUS] = (m_regs[IRQ_STATUS] & IRQ_SOURCE_MASK) |
+			(m_ready ? RESET_READY : 0) | RESET_PWRONX;
+	if (m_adc_trace)
+		LOGMASKED(LOG_CCONT, "ccont_power: event=wake cause=%02x t=%.9f\n",
+				RESET_PWRONX, machine().time().as_double());
+	m_power_cb(1);
 }
 
 void nokia_ccont_device::set_charger_input(unsigned channel, bool connected, uint16_t vchar)
@@ -175,9 +250,21 @@ void nokia_ccont_device::advance_rtc()
 		m_regs[RTC_MINUTE] == (m_regs[RTC_ALARM_MINUTE] & 0x3f) &&
 		m_regs[RTC_HOUR] == (m_regs[RTC_ALARM_HOUR] & 0x1f))
 	{
-		latch_irq_sources(IRQ_RTC_ALARM);
+		// The always-powered alarm comparator also restores switched rails.
+		// Retain its cause, rather than manufacturing a power-key/charger cause,
+		// and present the held IRQ after the digital-domain reset callback.
+		m_regs[IRQ_STATUS] |= IRQ_RTC_ALARM;
 		m_rtc_alarm_armed = false;
 		m_regs[RTC_ALARM_HOUR] &= 0x7f;
+		if (!m_powered)
+		{
+			m_powered = true;
+			if (m_adc_trace)
+				LOGMASKED(LOG_CCONT, "ccont_power: event=wake cause=%02x t=%.9f\n",
+					IRQ_RTC_ALARM, machine().time().as_double());
+			m_power_cb(1);
+		}
+		update_irq();
 	}
 	if (m_rtc_trace)
 		LOGMASKED(LOG_CCONT, "ccont_rtc: event=second time=%02u:%02u:%02u day=%u status=%02x mask=%02x t=%.9f\n",
@@ -192,6 +279,11 @@ TIMER_CALLBACK_MEMBER(nokia_ccont_device::rtc_tick)
 
 TIMER_CALLBACK_MEMBER(nokia_ccont_device::rtc_alarm_latch_complete)
 {
+	// The MCU time-setting helper writes minutes then hour|0x80 to this
+	// shared latch pair. Normal hour writes select the alarm comparator.
+	m_regs[RTC_MINUTE] = m_regs[RTC_ALARM_MINUTE] & 0x3f;
+	m_regs[RTC_HOUR] = m_regs[RTC_ALARM_HOUR] & 0x1f;
+	m_regs[RTC_SECOND] = 0;
 	m_regs[RTC_ALARM_HOUR] &= 0x7f;
 }
 
@@ -225,6 +317,8 @@ void nokia_ccont_device::serial_w(uint8_t data)
 		case WATCHDOG:
 			if (data == 0x00)
 			{
+				m_regs[address] = 0;
+				m_watchdog = 0;
 				m_powered = false;
 				if (m_adc_trace)
 					LOGMASKED(LOG_CCONT, "ccont_power: event=off t=%.9f\n", machine().time().as_double());
@@ -244,6 +338,14 @@ void nokia_ccont_device::serial_w(uint8_t data)
 			}
 			break;
 		case RTC_SECOND:
+			// Read address 7 is RTC seconds; its independent write selector
+			// controls analog acquisition (NSB-7 0x30813a/0x30818a).
+			// Electrical effects remain unknown; never rewrite the RTC here.
+			m_analog_acquisition_control = data;
+			if (m_rtc_trace)
+				LOGMASKED(LOG_CCONT, "ccont_analog: event=control_write reg=%02x data=%02x t=%.9f\n",
+					address, data, machine().time().as_double());
+			break;
 		case RTC_MINUTE:
 		case RTC_HOUR:
 		case RTC_DAY:
@@ -263,8 +365,8 @@ void nokia_ccont_device::serial_w(uint8_t data)
 			if (BIT(data, 7))
 			{
 				m_rtc_alarm_armed = false;
-				// Bit 7 is the disable/update strobe. Firmware polls it as a
-				// busy indication before programming a new alarm.
+				// Bit 7 transfers the shared latch pair to the running clock.
+				// Firmware polls it as busy before reusing the alarm registers.
 				m_rtc_alarm_latch_timer->adjust(attotime::from_msec(1));
 			}
 			else
@@ -313,6 +415,8 @@ uint8_t nokia_ccont_device::serial_r()
 		case RTC_SECOND: data |= 0x80; break;
 		}
 	}
+	if (machine().side_effects_disabled())
+		return data;
 	if (m_rtc_trace &&
 			((address >= RTC_SECOND && address <= RTC_ALARM_HOUR) || address == IRQ_STATUS))
 		LOGMASKED(LOG_CCONT, "ccont_rtc: event=read reg=%02x data=%02x t=%.9f\n",
@@ -328,7 +432,8 @@ uint8_t nokia_ccont_device::serial_r()
 
 bool nokia_ccont_device::watchdog_tick()
 {
-	if (m_wddisx_grounded || m_watchdog == 0)
+	// The switched baseband cannot be reset by an old reload after rail-off.
+	if (!m_powered || m_wddisx_grounded || m_watchdog == 0)
 		return false;
 	return --m_watchdog == 0;
 }

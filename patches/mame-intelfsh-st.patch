@@ -1,0 +1,501 @@
+diff --git a/src/devices/machine/intelfsh.cpp b/src/devices/machine/intelfsh.cpp
+index 006ce2bf..27a6dafa 100644
+--- a/src/devices/machine/intelfsh.cpp
++++ b/src/devices/machine/intelfsh.cpp
+@@ -113,6 +113,7 @@ DEFINE_DEVICE_TYPE(MACRONIX_29L001MC,        macronix_29l001mc_device,        "m
+ DEFINE_DEVICE_TYPE(MACRONIX_29LV160TMC,      macronix_29lv160tmc_device,      "macronix_29lv160tmc",      "Macronix 29LV160TMC Flash")
+ DEFINE_DEVICE_TYPE(ST_M29W640GB,             st_m29w640gb_device,             "st_m29w640gb",             "ST M29W640GB Flash")
+ DEFINE_DEVICE_TYPE(ST_M29W640FT,             st_m29w640ft_device,             "st_m29w640ft",             "ST M29W640FT Flash")
++DEFINE_DEVICE_TYPE(ST_M28W320ECT,            st_m28w320ect_device,            "st_m28w320ect",            "ST M28W320ECT Flash")
+ DEFINE_DEVICE_TYPE(TMS_29F040,               tms_29f040_device,               "tms_29f040",               "Texas Instruments 29F040 Flash")
+ 
+ DEFINE_DEVICE_TYPE(PANASONIC_MN63F805MNP,    panasonic_mn63f805mnp_device,    "panasonic_mn63f805mnp",    "Panasonic MN63F805MNP Flash")
+@@ -279,6 +280,406 @@ st_m29w640gb_device::st_m29w640gb_device(const machine_config &mconfig, const ch
+ st_m29w640ft_device::st_m29w640ft_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
+ 	: intelfsh16_device(mconfig, ST_M29W640FT, tag, owner, clock, 0x800000, MFG_ST, 0x22ed) { m_bot_boot_sector = true; m_device_id2 = 0x2210; m_device_id3 = 0x2200; }
+ 
++st_m28w320ect_device::st_m28w320ect_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
++	: intelfsh16_device(mconfig, ST_M28W320ECT, tag, owner, clock, 0x400000, MFG_ST, 0x88ba)
++{
++	m_device_id_address = 1;
++	m_top_boot_sector = true;
++	m_parameter_block_size = 8 * 1024;
++	m_parameter_block_count = 8;
++}
++
++void st_m28w320ect_device::device_start()
++{
++	intelfsh16_device::device_start();
++	m_operation_timer = timer_alloc(FUNC(st_m28w320ect_device::operation_complete), this);
++	// ST Table 7/31: lock, four factory words, eight user words. An absent
++	// dump is left erased, not replaced with a made-up factory identifier.
++	m_st_otp_seed.fill(0xffff);
++	if (m_protection_region.found())
++	{
++		if (m_protection_region->bytes() != 26)
++			fatalerror("ST OTP region must contain thirteen big-endian halfwords");
++		for (unsigned i = 0; i < m_st_otp_seed.size(); ++i)
++			m_st_otp_seed[i] = (uint16_t(m_protection_region->as_u8(i * 2)) << 8)
++					| m_protection_region->as_u8(i * 2 + 1);
++		if (!(m_st_otp_seed[0] & 4))
++			fatalerror("ST OTP lock DQ2 must not be programmed to zero");
++	}
++	m_st_otp = m_st_otp_seed;
++	save_item(NAME(m_st_otp));
++	save_item(NAME(m_st_otp_dirty));
++	save_item(NAME(m_program_otp));
++	save_item(NAME(m_vpp_valid));
++	save_item(NAME(m_st_locks));
++	save_item(NAME(m_program_address));
++	save_item(NAME(m_program_data));
++	save_item(NAME(m_setup));
++	save_item(NAME(m_program_words));
++	save_item(NAME(m_program_active));
++	save_item(NAME(m_program_suspended));
++	save_item(NAME(m_erase_active));
++	save_item(NAME(m_erase_suspended));
++	save_item(NAME(m_erase_address));
++	save_item(NAME(m_program_remaining));
++	save_item(NAME(m_erase_remaining));
++}
++
++void st_m28w320ect_device::device_reset()
++{
++	intelfsh16_device::device_reset();
++	m_st_locks.fill(1);
++	m_setup = SETUP_IDLE;
++	m_program_words = 0;
++	m_program_active = m_program_suspended = false;
++	m_program_otp = false;
++	m_erase_active = m_erase_suspended = false;
++	m_program_remaining = m_erase_remaining = attotime::zero;
++	m_operation_timer->adjust(attotime::never);
++	m_flash_mode = FM_NORMAL;
++	m_status = 0x80;
++	// Aborted-cell contents are unspecified by ST. No pending operation is
++	// committed after reset; retaining the prior cells is an emulator policy.
++}
++
++unsigned st_m28w320ect_device::block(uint32_t address) const
++{
++	return address < 0x1f8000 ? address / 0x8000
++			: 63 + (address - 0x1f8000) / 0x1000;
++}
++
++void st_m28w320ect_device::nvram_default()
++{
++	intelfsh16_device::nvram_default();
++	m_st_otp = m_st_otp_seed;
++	m_st_otp_dirty = false;
++}
++
++bool st_m28w320ect_device::nvram_read(util::read_stream &file)
++{
++	// Validate the entire image before publishing either plane. Raw-array
++	// files remain compatible; changed ST OTP has its own 26-byte BE tail.
++	auto const [err, data, size] = util::read(file, m_size);
++	if (err || size != m_size) return false;
++	std::array<uint8_t, 27> tail{};
++	auto const [tail_err, tail_size] = util::read(file, tail.data(), tail.size());
++	if (tail_err || (tail_size && tail_size != 26)) return false;
++	auto otp = m_st_otp_seed;
++	if (tail_size)
++	{
++		for (unsigned i = 0; i < otp.size(); ++i)
++			otp[i] = (uint16_t(tail[i * 2]) << 8) | tail[i * 2 + 1];
++		// Only lock DQ1 and user bits can clear relative to the declared seed.
++		if ((otp[0] | 2) != (m_st_otp_seed[0] | 2)) return false;
++		for (unsigned i = 0; i < otp.size(); ++i)
++			if ((otp[i] & ~m_st_otp_seed[i]) ||
++					(i >= 1 && i <= 4 && otp[i] != m_st_otp_seed[i])) return false;
++	}
++	std::copy_n(data.get(), m_size, m_data.get());
++	m_st_otp = otp;
++	m_st_otp_dirty = otp != m_st_otp_seed;
++	return true;
++}
++
++bool st_m28w320ect_device::nvram_write(util::write_stream &file)
++{
++	auto const [err, size] = util::write(file, m_data.get(), m_size);
++	if (err || size != m_size) return false;
++	if (!m_st_otp_dirty) return true;
++	std::array<uint8_t, 26> tail{};
++	for (unsigned i = 0; i < m_st_otp.size(); ++i)
++	{
++		tail[i * 2] = m_st_otp[i] >> 8;
++		tail[i * 2 + 1] = m_st_otp[i];
++	}
++	auto const [tail_err, tail_size] = util::write(file, tail.data(), tail.size());
++	return !tail_err && tail_size == tail.size();
++}
++
++uint8_t st_m28w320ect_device::protection(unsigned index) const
++{
++	const uint8_t lock = m_st_locks[index];
++	return lock | ((!m_wp && (lock & 2)) ? 1 : 0);
++}
++
++void st_m28w320ect_device::update_status()
++{
++	m_status &= 0x3a; // Error bits persist until 50h or hardware reset.
++	if (m_erase_suspended) m_status |= 0x40;
++	if (m_program_suspended) m_status |= 0x04;
++	if ((!m_erase_active || m_erase_suspended) &&
++			(!m_program_active || m_program_suspended)) m_status |= 0x80;
++}
++
++bool st_m28w320ect_device::check_vpp()
++{
++	// ST full datasheet, VPP signal description and status bit 3: sample
++	// the qualified input at operation start. Errors remain sticky even if
++	// the supply recovers. No pulse failure or high-VPP instability is inferred.
++	if (m_vpp_valid) return true;
++	m_status |= 0x08;
++	update_status();
++	return false;
++}
++
++uint32_t st_m28w320ect_device::read_full(uint32_t address)
++{
++	address %= m_size / 2;
++	if ((m_program_active && !m_program_suspended) ||
++			(m_erase_active && !m_erase_suspended) || m_flash_mode == FM_READSTATUS)
++		return m_status;
++	if (m_flash_mode == FM_READID)
++	{
++		// ST Tables 4/5: A8..A20 are don't-care for identity; A8..A11
++		// are don't-care for block signatures. A2..A7 must be zero.
++		if ((address & 0xff) == 0) return m_maker_id;
++		if ((address & 0xff) == 1) return m_device_id;
++		if ((address & 0xff) == 2) return protection(block(address));
++		if ((address & 0xff) >= 0x80 && (address & 0xff) <= 0x8c)
++			return m_st_otp[(address & 0xff) - 0x80];
++		return 0xffff;
++	}
++	if (m_flash_mode == FM_READQUERY)
++	{
++		// ST M28W320ECT/ECB full datasheet, Tables 27--30. Query data
++		// occupy DQ0..DQ7; this top-boot part is not an Intel C3 variant.
++		static constexpr uint8_t query[] = {
++			0x51, 0x52, 0x59, 0x03, 0x00, 0x35, 0x00, 0x00,
++			0x00, 0x00, 0x00, 0x27, 0x36, 0xb4, 0xc6, 0x04,
++			0x04, 0x0a, 0x00, 0x05, 0x05, 0x03, 0x00, 0x16,
++			0x01, 0x00, 0x03, 0x00, 0x02, 0x3e, 0x00, 0x00,
++			0x01, 0x07, 0x00, 0x20, 0x00, 0x50, 0x52, 0x49,
++			0x31, 0x30, 0x66, 0x00, 0x00, 0x00, 0x01, 0x03,
++			0x00, 0x30, 0xc0, 0x01, 0x80, 0x00, 0x03, 0x03
++		};
++		if (address == 0) return m_maker_id;
++		if (address == 1) return m_device_id;
++		if (address >= 0x10 && address < 0x10 + std::size(query))
++			return query[address - 0x10];
++		if (address >= 0x80 && address <= 0x8c) return m_st_otp[address - 0x80];
++		return 0xffff; // Reserved and undumped unique-ID words, not fabricated.
++	}
++	// Only other blocks have defined data during erase/program suspension.
++	return (uint16_t(m_data[address * 2]) << 8) | m_data[address * 2 + 1];
++}
++
++void st_m28w320ect_device::start_program(unsigned words)
++{
++	m_setup = SETUP_IDLE;
++	m_flash_mode = FM_READSTATUS;
++	if (!check_vpp()) return;
++	for (unsigned i = 0; i < words; ++i)
++	{
++		if (protection(block(m_program_address[i])) & 1)
++		{
++			m_status |= 0x12;
++			update_status();
++			return;
++		}
++		if (m_erase_active && block(m_program_address[i]) == block(m_erase_address))
++		{
++			logerror("program of erase-suspended block is outside the supported contract\n");
++			return;
++		}
++	}
++	m_program_words = words;
++	m_program_otp = false;
++	m_program_active = true;
++	m_program_suspended = false;
++	// ST Table 8 typical word/page programming interval, not measured.
++	m_program_remaining = attotime::from_usec(10);
++	m_operation_timer->adjust(m_program_remaining);
++	update_status();
++}
++
++TIMER_CALLBACK_MEMBER(st_m28w320ect_device::operation_complete)
++{
++	if (m_program_active && !m_program_suspended)
++	{
++		if (m_program_otp)
++		{
++			const unsigned index = m_program_address[0] - 0x80;
++			m_st_otp[index] &= index ? m_program_data[0] : (m_program_data[0] | 0xfffd);
++			m_st_otp_dirty = m_st_otp != m_st_otp_seed;
++			m_program_otp = false;
++		}
++		else for (unsigned i = 0; i < m_program_words; ++i)
++		{
++			const uint32_t address = m_program_address[i] * 2;
++			m_data[address] &= m_program_data[i] >> 8;
++			m_data[address + 1] &= m_program_data[i];
++		}
++		m_program_active = false;
++	}
++	else if (m_erase_active && !m_erase_suspended)
++	{
++		const bool parameter = block(m_erase_address) >= 63;
++		const uint32_t size = parameter ? 0x2000 : 0x10000;
++		const uint32_t base = (m_erase_address * 2) & ~(size - 1);
++		std::fill_n(&m_data[base], size, 0xff);
++		m_erase_active = false;
++	}
++	update_status();
++}
++
++void st_m28w320ect_device::start_otp_program(uint32_t address, uint16_t data)
++{
++	m_setup = SETUP_IDLE;
++	m_flash_mode = FM_READSTATUS;
++	address &= 0xff; // Table 7: upper address bits are don't-care.
++	if (address == 0x80 && !(data & 4))
++	{
++		logerror("ST protection-lock DQ2 must not be programmed to zero\n");
++		return; // Reserved-bit violation: no silicon error code inferred.
++	}
++	if (address >= 0x81 && address <= 0x84)
++	{
++		m_status |= 0x12; // Immutable factory segment.
++		update_status();
++		return;
++	}
++	if (address != 0x80 && (address < 0x85 || address > 0x8c))
++	{
++		logerror("unsupported ST protection-program address %x\n", address);
++		return;
++	}
++	if (!check_vpp()) return;
++	if (!(m_st_otp[0] & 2))
++	{
++		m_status |= 0x12;
++		update_status();
++		return;
++	}
++	m_program_address[0] = address;
++	m_program_data[0] = data;
++	m_program_otp = m_program_active = true;
++	m_program_suspended = false;
++	// Protection programming has no separately specified typical duration;
++	// use the nominal word-program interval, not a measured OTP pulse model.
++	m_program_remaining = attotime::from_usec(10);
++	m_operation_timer->adjust(m_program_remaining);
++	update_status();
++}
++
++bool st_m28w320ect_device::collect_program_data(uint32_t address, uint16_t data)
++{
++	unsigned index, words;
++	uint8_t next;
++	switch (m_setup)
++	{
++	case SETUP_WORD: index = 0; words = 1; next = SETUP_IDLE; break;
++	case SETUP_DOUBLE_FIRST: index = 0; words = 2; next = SETUP_DOUBLE_SECOND; break;
++	case SETUP_DOUBLE_SECOND: index = 1; words = 2; next = SETUP_IDLE; break;
++	case SETUP_QUAD_FIRST: index = 0; words = 4; next = SETUP_QUAD_SECOND; break;
++	case SETUP_QUAD_SECOND: index = 1; words = 4; next = SETUP_QUAD_THIRD; break;
++	case SETUP_QUAD_THIRD: index = 2; words = 4; next = SETUP_QUAD_FOURTH; break;
++	case SETUP_QUAD_FOURTH: index = 3; words = 4; next = SETUP_IDLE; break;
++	default: return false;
++	}
++	bool valid = !index || ((address & ~(words - 1)) == (m_program_address[0] & ~(words - 1)));
++	for (unsigned i = 0; i < index; ++i)
++		valid = valid && address != m_program_address[i];
++	if (!valid)
++	{
++		// Reject malformed pages without inferring a silicon error code.
++		logerror("invalid %u-word program page\n", words);
++		m_setup = SETUP_IDLE;
++		m_flash_mode = FM_NORMAL;
++		return true;
++	}
++	m_program_address[index] = address;
++	m_program_data[index] = data;
++	m_setup = next;
++	if (next == SETUP_IDLE) start_program(words);
++	return true;
++}
++
++void st_m28w320ect_device::write_full(uint32_t address, uint32_t data)
++{
++	address %= m_size / 2;
++	const uint8_t command = data;
++	// Setup cycles own their next write, even if data resembles an opcode.
++	if (m_setup == SETUP_OTP) { start_otp_program(address, data); return; }
++	if (collect_program_data(address, data)) return;
++	if (m_setup == SETUP_ERASE)
++	{
++		m_setup = SETUP_IDLE;
++		m_flash_mode = FM_READSTATUS;
++		if (command != 0xd0) m_status |= 0x30;
++		else if (!check_vpp()) return;
++		else if (protection(block(address)) & 1) m_status |= 0x22;
++		else
++		{
++			m_erase_address = address;
++			m_erase_active = true;
++			m_erase_suspended = false;
++			// Full datasheet Table 8; no cell-pulse model.
++			m_erase_remaining = block(address) >= 63
++					? attotime::from_msec(400) : attotime::from_seconds(1);
++			m_operation_timer->adjust(m_erase_remaining);
++		}
++		update_status();
++		return;
++	}
++	if (m_setup == SETUP_LOCK)
++	{
++		m_setup = SETUP_IDLE;
++		auto &lock = m_st_locks[block(address)];
++		if (command == 0x01) lock |= 1;
++		else if (command == 0xd0) { if (m_wp || !(lock & 2)) lock &= ~1; }
++		else if (command == 0x2f) lock |= 3;
++		else { m_flash_mode = FM_NORMAL; return; }
++		m_flash_mode = FM_READSTATUS;
++		update_status();
++		return;
++	}
++	const bool running = (m_program_active && !m_program_suspended) ||
++			(m_erase_active && !m_erase_suspended);
++	if (command == 0x70) { m_flash_mode = FM_READSTATUS; return; }
++	if (command == 0xb0 && running && !m_program_otp)
++	{
++		if (m_program_active)
++		{
++			m_program_remaining = m_operation_timer->remaining();
++			m_program_suspended = true;
++		}
++		else
++		{
++			m_erase_remaining = m_operation_timer->remaining();
++			m_erase_suspended = true;
++		}
++		m_operation_timer->adjust(attotime::never);
++		m_flash_mode = FM_READSTATUS;
++		update_status();
++		return;
++	}
++	if (running) return; // ST accepts only status/suspend while busy.
++	if (command == 0xd0 && (m_program_suspended || m_erase_suspended))
++	{
++		const attotime remaining = m_program_suspended ? m_program_remaining : m_erase_remaining;
++		if (m_program_suspended) m_program_suspended = false;
++		else m_erase_suspended = false;
++		m_operation_timer->adjust(std::max(attotime::from_nsec(1), remaining));
++		m_flash_mode = FM_READSTATUS;
++		update_status();
++		return;
++	}
++	switch (command)
++	{
++	case 0xff: m_flash_mode = FM_NORMAL; break;
++	case 0x90: m_flash_mode = FM_READID; break;
++	case 0x98: m_flash_mode = FM_READQUERY; break;
++	case 0x50: m_status &= ~0x3a; update_status(); break;
++	case 0x40: case 0x10: if (!m_program_suspended) m_setup = SETUP_WORD; break;
++	case 0x30: if (!m_program_suspended) m_setup = SETUP_DOUBLE_FIRST; break;
++	case 0x56: if (!m_program_suspended) m_setup = SETUP_QUAD_FIRST; break;
++	case 0xc0: if (!m_program_active) m_setup = SETUP_OTP; break;
++	case 0x20: if (!m_erase_active && !m_program_active) m_setup = SETUP_ERASE; break;
++	case 0x60: if (!m_program_suspended) m_setup = SETUP_LOCK; break;
++	default: m_flash_mode = FM_NORMAL; break;
++	}
++}
++
+ panasonic_mn63f805mnp_device::panasonic_mn63f805mnp_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
+ 	: intelfsh8_device(mconfig, PANASONIC_MN63F805MNP, tag, owner, clock, 0x10000, MFG_PANASONIC, 0x1b) { m_sector_is_4k = true; }
+ 
+diff --git a/src/devices/machine/intelfsh.h b/src/devices/machine/intelfsh.h
+index 8ea2871f..038b9583 100644
+--- a/src/devices/machine/intelfsh.h
++++ b/src/devices/machine/intelfsh.h
+@@ -32,8 +32,8 @@ protected:
+ 	virtual bool nvram_write(util::write_stream &file) override;
+ 
+ 	// derived helpers
+-	uint32_t read_full(uint32_t offset);
+-	void write_full(uint32_t offset, uint32_t data);
++	virtual uint32_t read_full(uint32_t offset);
++	virtual void write_full(uint32_t offset, uint32_t data);
+ 	unsigned lock_index(uint32_t address) const;
+ 
+ 	TIMER_CALLBACK_MEMBER(delay_tick);
+@@ -250,6 +250,58 @@ public:
+ 	st_m29w640ft_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
+ };
+ 
++class st_m28w320ect_device : public intelfsh16_device
++{
++public:
++	st_m28w320ect_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
++	// Qualified low-voltage VPP input, not an analogue voltage or VPPH model.
++	void vpp_valid_w(int state) { m_vpp_valid = bool(state); }
++
++protected:
++	virtual void device_start() override ATTR_COLD;
++	virtual void device_reset() override ATTR_COLD;
++	virtual void nvram_default() override;
++	virtual bool nvram_read(util::read_stream &file) override;
++	virtual bool nvram_write(util::write_stream &file) override;
++	virtual uint32_t read_full(uint32_t address) override;
++	virtual void write_full(uint32_t address, uint32_t data) override;
++
++private:
++	enum setup_state : uint8_t
++	{
++		SETUP_IDLE = 0, SETUP_WORD = 1, SETUP_ERASE = 2, SETUP_LOCK = 3,
++		SETUP_DOUBLE_FIRST = 4, SETUP_DOUBLE_SECOND = 5,
++		SETUP_QUAD_FIRST = 6, SETUP_QUAD_SECOND = 7,
++		SETUP_QUAD_THIRD = 8, SETUP_QUAD_FOURTH = 9, SETUP_OTP = 10
++	};
++	bool collect_program_data(uint32_t address, uint16_t data);
++	unsigned block(uint32_t address) const;
++	uint8_t protection(unsigned index) const;
++	void update_status();
++	bool check_vpp();
++	void start_program(unsigned words);
++	void start_otp_program(uint32_t address, uint16_t data);
++	TIMER_CALLBACK_MEMBER(operation_complete);
++
++	std::array<uint8_t, 71> m_st_locks{};
++	std::array<uint16_t, 13> m_st_otp{}, m_st_otp_seed{};
++	bool m_st_otp_dirty = false;
++	bool m_program_otp = false;
++	bool m_vpp_valid = true;
++	std::array<uint32_t, 4> m_program_address{};
++	std::array<uint16_t, 4> m_program_data{};
++	uint8_t m_setup = SETUP_IDLE;
++	uint8_t m_program_words = 0;
++	bool m_program_active = false;
++	bool m_program_suspended = false;
++	bool m_erase_active = false;
++	bool m_erase_suspended = false;
++	uint32_t m_erase_address = 0;
++	attotime m_program_remaining;
++	attotime m_erase_remaining;
++	emu_timer *m_operation_timer = nullptr;
++};
++
+ class panasonic_mn63f805mnp_device : public intelfsh8_device
+ {
+ public:
+@@ -466,6 +518,7 @@ DECLARE_DEVICE_TYPE(MACRONIX_29L001MC,       macronix_29l001mc_device)
+ DECLARE_DEVICE_TYPE(MACRONIX_29LV160TMC,     macronix_29lv160tmc_device)
+ DECLARE_DEVICE_TYPE(ST_M29W640GB,            st_m29w640gb_device)
+ DECLARE_DEVICE_TYPE(ST_M29W640FT,            st_m29w640ft_device)
++DECLARE_DEVICE_TYPE(ST_M28W320ECT,           st_m28w320ect_device)
+ DECLARE_DEVICE_TYPE(TMS_29F040,              tms_29f040_device)
+ 
+ DECLARE_DEVICE_TYPE(PANASONIC_MN63F805MNP,   panasonic_mn63f805mnp_device)

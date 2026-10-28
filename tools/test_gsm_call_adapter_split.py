@@ -1,3 +1,4 @@
+from tools.dct3_products import composition_source
 from pathlib import Path
 import unittest
 
@@ -10,7 +11,7 @@ class GsmCallAdapterSplitTest(unittest.TestCase):
     def setUpClass(cls):
         cls.header = (ROOT / "driver/nokia_gsm_call_adapter.h").read_text()
         cls.source = (ROOT / "driver/nokia_gsm_call_adapter.cpp").read_text()
-        cls.driver = (ROOT / "driver/nokia_dct3.cpp").read_text()
+        cls.driver = composition_source()
         cls.generic_sources = "\n".join(
             (ROOT / path).read_text()
             for path in (
@@ -40,8 +41,20 @@ class GsmCallAdapterSplitTest(unittest.TestCase):
         self.assertIn("outgoing_call_media_downlink", callback)
         self.assertNotIn("submit_outgoing_decision", callback)
         self.assertNotIn("submit_outgoing_termination", callback)
-        self.assertEqual(callback.count("m_host->queued_events() <"), 8)
+        self.assertIn('incoming_ussd_terminate', callback)
+        self.assertNotIn('terminate_host_incoming_ussd()', callback)
+        self.assertEqual(callback.count("m_host->queued_events() <"), 9)
         self.assertIn("unsigned queued_events() const", self.source)
+
+    def test_reset_reannounces_epoch_to_already_connected_clients(self):
+        reset = self.source.split(
+            "void nokia_gsm_call_adapter_device::device_reset()", 1
+        )[1].split(
+            "void nokia_gsm_call_adapter_device::postload()", 1
+        )[0]
+        self.assertIn("m_host->republish = !m_host->connections.empty()", reset)
+        self.assertIn("m_host->ready_pending = !m_host->connections.empty()", reset)
+        self.assertNotIn("m_host->connections.clear()", reset)
 
     def test_admitted_host_services_have_saved_emulation_time_deadlines(self):
         for field in (

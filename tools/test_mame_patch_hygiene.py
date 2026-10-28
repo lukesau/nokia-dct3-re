@@ -1,3 +1,4 @@
+from tools.dct3_products import composition_source
 import pathlib
 import unittest
 
@@ -13,7 +14,7 @@ class MamePatchHygieneTest(unittest.TestCase):
         cls.lcd = (ROOT / "mame/src/devices/video/pcd8544.cpp").read_text()
         cls.i2cmem = (ROOT / "mame/src/devices/machine/i2cmem.cpp").read_text()
         cls.i2cmem_h = (ROOT / "mame/src/devices/machine/i2cmem.h").read_text()
-        cls.driver = (ROOT / "driver/nokia_dct3.cpp").read_text()
+        cls.driver = composition_source()
 
     def test_flash_behavior_uses_part_attributes(self):
         self.assertIn("m_device_id_address", self.flash_h)
@@ -29,6 +30,14 @@ class MamePatchHygieneTest(unittest.TestCase):
         self.assertIn("m_data[address] &= data", body)
         self.assertIn("m_data[address*2] &= data >> 8", body)
         self.assertNotIn("m_data[address] = data", body)
+
+    def test_c3_locking_is_an_opt_in_part_attribute(self):
+        self.assertIn("bool                     m_flexible_block_lock = false;", self.flash_h)
+        body = self.flash.split("intel_28f160c3t_device::intel_28f160c3t_device", 1)[1]
+        body = body.split("intel_te28f160_device::", 1)[0]
+        self.assertIn("MFG_INTEL, 0x88c2", body)
+        self.assertIn("m_flexible_block_lock = true;", body)
+        self.assertIn("m_parameter_block_count = 8;", body)
 
     def test_parameter_erase_is_geometry_driven(self):
         self.assertIn("m_parameter_block_size * m_parameter_block_count", self.flash)

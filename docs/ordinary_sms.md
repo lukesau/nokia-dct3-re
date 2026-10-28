@@ -66,15 +66,32 @@ RP-ACK. `verify-radio-outgoing-sms-timeout` withholds CP-ACK. Firmware waits
 about 22.9 seconds, retransmits the segmented CP-DATA once, then uses an
 LAPDm poll after T200. The network RR response mirrors F=1 and stops the link-
 layer retry. After the second CP wait firmware renders `Message sending
-failed` and returns to the composer. Withholding RP after CP acknowledgement
-remains separately observed but is not yet an accepted oracle.
+failed` and returns to the composer.
+
+`verify-radio-outgoing-sms-rp-timeout` separately acknowledges CP but supplies
+no RP result. The firmware renders the same reviewed `Message sending failed`
+pixels and returns to its composer. At about 67.5 seconds after the single
+submission it sends main-link DISC; the network answers UA, the firmware
+deconfigures the channel and ordinary paging resumes. The gate requires the
+exact submission, exactly one CP-ACK, no RP-ACK/RP-ERROR, an observed 60--80
+second DISC window, ordered UA/deconfiguration/paging and the failure frame.
+That window is acceptance tolerance around this firmware observation, not a
+claimed physical clock or standards timer constant. No firmware state or
+completion event is supplied by the fixture.
 
 The originated-SMS contract covers accepted and rejected submits, CP silence
 with the firmware's bounded retry, service-centre editing, requested delivery
 reports, and save-state continuation during the CP wait. Firmware-owned
 `EF_SMS`/`EF_SMSP` writes are observed rather than synthesized by the network.
-RP silence after CP acknowledgement remains an observed, unpromoted outcome;
-it is outside this accepted contract.
+RP silence after CP acknowledgement is separately accepted by the gate above.
+`verify-radio-outgoing-sms-rp-timeout-state` saves at 40 seconds, after CP-ACK
+but before timeout clearing. Its 65-second reference/restored interval spans
+the main-link DISC, UA and channel deconfiguration, comparing protocol records
+and payload bytes with the shared replay checker. The restored timeline must
+still satisfy the timeout and resumed-paging contract; the sampled hardware
+round-trip and failure-frame gates remain separate checks. This does not claim
+an exact full CPU/RAM image comparison or establish host-service reconnect
+behavior.
 
 Nokia 3210 v5.01 independently reaches the same MM service-type-4, mobile
 SAPI-3, CP/RP and RR-release lifecycle from physical composition. Its editor
@@ -166,7 +183,7 @@ reference and record.
 | Nokia 3210 NSE-8 v6.00 | Complete receipt, notification, preserved cold-boot listing, physical read, read status, erase/cancel, capacity, duplicate/malformed and two-message isolation. |
 | Nokia 3310 NHM-5 v6.39 | Independent localized notification, exact `hello`, SIM read status, erase confirmation and durable deletion. Preserved-NVRAM boot reaches the message through its firmware time/date setup and Menu 2-2 path. |
 | Nokia 3410 NHM-2 v5.46E | Independent preserved-PMM receipt, notification, ordinary Messages → Inbox listing, exact `hello`, read status, erase confirmation and durable deletion. Virgin-PMM setup is completed in a separate physical preparation run. |
-| Nokia 3330 NHM-6 v4.50E | Paging, exact SIM storage, CP/RP closure and RR release pass after physical fresh-PMM provisioning. A preserved cold boot completes the firmware security/time editors through physical keys, then ordinary Messages -> Inbox navigation renders the exact text, marks EF_SMS read and erases it through the physical Options/confirmation path. The held PMM still requires those editors; the application gate does not bypass them. |
+| Nokia 3330 NHM-6 v4.50E | Paging, exact SIM storage, CP/RP closure and RR release pass after physical fresh-PMM provisioning. A preserved cold boot retains the physically entered RTC and date. The inbox fixture enters the phone code, acknowledges Code accepted, then opens Menu -> Messages -> Inbox, renders the exact text, marks EF_SMS read and erases it through physical Options/confirmation. It does not re-enter time/date digits into the settled UI or bypass phone security. |
 
 The cross-product gates share only standards-level transport and record
 checks through `tools/radio_sms_acceptance_common.py`. Menu grammar, localized

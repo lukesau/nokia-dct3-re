@@ -13,6 +13,7 @@
 #include "nokia_lapdm_link.h"
 
 #include <array>
+#include <optional>
 
 class nokia_radio_peer_device : public device_t
 {
@@ -38,10 +39,29 @@ public:
 		direct,
 		low_six_bits
 	};
+	// Partial levels are ordered by the independently qualified continuation.
+	enum class acquisition_coverage : u8
+	{
+		full,
+		band_measurements,
+		candidate_synchronization,
+		candidate_channel,
+		candidate_bcch,
+		candidate_common_control,
+		candidate_random_access,
+		candidate_assignment,
+		candidate_dedicated,
+		candidate_block_request,
+		candidate_contention,
+		candidate_location_update,
+		candidate_release,
+		candidate_paging
+	};
 
 	enum class neighbour_arfcn_encoding : u8
 	{
 		direct_octet,
+		big_endian_word,
 		topology_low_octet
 	};
 
@@ -62,6 +82,14 @@ public:
 				neighbour_bsic_encoding::none;
 		bool band_scan_accepts_candidate_window = false;
 		bool split_gsm_pcs_scans = false;
+		bool background_band_measurements = false;
+		std::array<u8, 4> background_measurement_request{3, 5, 0, 0};
+		std::optional<std::array<u8, 4>> background_measurement_followup_request = std::nullopt;
+		// Partial products may establish RSSI transport before channel/SCH
+		// contracts. Do not answer the latter using another product's defaults.
+		acquisition_coverage coverage = acquisition_coverage::full;
+		// Explicit lab-peer negative completion; not a measured DSP policy.
+		bool unlisted_mode4_timing_failure = false;
 
 		constexpr bool enabled() const
 		{
@@ -134,13 +162,16 @@ public:
 	bool host_incoming_sms_queued() const { return m_host_incoming_sms_pending; }
 	void cancel_host_incoming_sms();
 	bool queue_host_incoming_ussd(u8 data_coding_scheme,
-			const u8 *data, unsigned length);
+			const u8 *data, unsigned length, bool request = false);
+	bool host_incoming_ussd_is_request() const { return m_gsm_network->host_incoming_ussd_is_request(); }
+	const gsm::ss::ussd_result &host_incoming_ussd_reply() const { return m_gsm_network->host_incoming_ussd_reply(); }
 	bool host_incoming_ussd_pending() const
 	{
 		return m_host_incoming_ussd_pending || m_host_incoming_ussd_active;
 	}
 	bool host_incoming_ussd_queued() const { return m_host_incoming_ussd_pending; }
 	void cancel_host_incoming_ussd();
+	bool terminate_host_incoming_ussd();
 	void cancel_host_incoming_call();
 	bool registered() const { return m_registered; }
 	u16 serving_arfcn() const { return m_serving_arfcn; }
@@ -172,6 +203,7 @@ public:
 	void set_handover_failure(bool failure) { m_handover_failure = failure; }
 	void set_host_voice_peer(bool enabled) { m_host_voice_peer = enabled; }
 	bool enabled() const { return m_enabled; }
+	void power_off();
 	void receive_packet(const nokia_dspif_device::packet &packet);
 	void tick();
 	bool fast_completion_pending() const;
@@ -326,6 +358,7 @@ private:
 	bool m_trace_enabled = false;
 	unsigned m_reports_sent = 0;
 	unsigned m_reports_remaining = 0;
+	bool m_background_measurement_pending = false;
 	u8 m_phase = u8(phase::inactive);
 	unsigned m_search_round = 0;
 	unsigned m_idle_measurement_sample = 0;
@@ -337,6 +370,8 @@ private:
 	u8 m_neighbour_arfcn_count = 0;
 	bool m_neighbour_bcch_pending = false;
 	u16 m_neighbour_bcch_arfcn = 0xffff;
+	bool m_neighbour_timing_failure_pending = false;
+	u16 m_neighbour_timing_failure_arfcn = 0xffff;
 	u8 m_neighbour_instruction_mode = 0;
 	u8 m_neighbour_instruction_bsic = 0;
 	u16 m_last_neighbour_instruction_arfcn = 0xffff;
@@ -344,6 +379,10 @@ private:
 	unsigned m_neighbour_resume_wait_ticks = 0;
 	u8 m_access_ra = 0;
 	u32 m_access_frame = 0;
+	u32 m_access_deadline = 0;
+	bool m_access_deadline_pending = false;
+	u32 m_access_reference_frame = 0;
+	bool m_access_reference_valid = false;
 	bool m_search_has_serving_arfcn = false;
 	u16 m_serving_arfcn = 1;
 	u16 m_receiver_arfcn = 1;

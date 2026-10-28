@@ -23,6 +23,13 @@ std::string packet_hex(const u8 *payload, unsigned length)
 	return result.str();
 }
 
+std::string tx_packet_trace(const nokia_dspif_device::packet &value)
+{
+	if (value.type == 0x14 && value.length >= 10 && value.payload[0] != 0x00)
+		return "<redacted>";
+	return packet_hex(value.payload.data(), value.length);
+}
+
 } // anonymous namespace
 
 DEFINE_DEVICE_TYPE(NOKIA_DSPIF, nokia_dspif_device, "nokia_dspif", "Nokia DCT3 DSP interface")
@@ -40,6 +47,7 @@ nokia_dspif_device::nokia_dspif_device(
 	m_shared_100_read_cb(*this),
 	m_shared_100_write_cb(*this),
 	m_fiq0_cb(*this),
+	m_fiq1_cb(*this),
 	m_service_irq_cb(*this)
 {
 }
@@ -62,6 +70,8 @@ u16 nokia_dspif_device::shared_r(offs_t offset)
 	offset &= 0x7ff;
 	const unsigned byte_offset = offset << 1;
 	const u16 value = m_ram[offset];
+	if (machine().side_effects_disabled())
+		return value;
 	if (offset == (0x0fe / 2))
 	{
 		m_shared_0fe_read_cb(1);
@@ -72,7 +82,9 @@ u16 nokia_dspif_device::shared_r(offs_t offset)
 		m_shared_100_read_cb(1);
 		m_shared_100_read_cb(0);
 	}
-	if (m_trace_enabled && (byte_offset <= 0x006 || byte_offset == 0x0e0 ||
+	// Low shared words overlap the TX ring; inspect complete packets below
+	// rather than printing unclassified cipher-key fragments.
+	if (m_trace_enabled && (byte_offset == 0x0e0 ||
 			byte_offset == 0x0fe || byte_offset == 0x100 ||
 			byte_offset == 0x0a4 || byte_offset == 0x0a6 ||
 			byte_offset == 0x0a8 || byte_offset == 0x0aa ||
@@ -86,7 +98,7 @@ void nokia_dspif_device::shared_w(offs_t offset, u16 data, u16 mem_mask)
 {
 	offset &= 0x7ff;
 	COMBINE_DATA(&m_ram[offset]);
-	if (m_trace_enabled && ((offset << 1) <= 0x006 || (offset << 1) == 0x0e0 ||
+	if (m_trace_enabled && ((offset << 1) == 0x0e0 ||
 			(offset << 1) == 0x0e2 || (offset << 1) == 0x0e4 ||
 			(offset << 1) == 0x0fe || (offset << 1) == 0x100 ||
 			(offset << 1) == 0x0a8 || (offset << 1) == 0x0aa ||
@@ -107,7 +119,7 @@ void nokia_dspif_device::shared_w(offs_t offset, u16 data, u16 mem_mask)
 			if (peek_tx_packet(pending))
 				LOGMASKED(LOG_DSPIF, "dspif_transport: TX pending type=%02x payload=%u data=%s t=%.6f\n",
 						pending.type, pending.length,
-						packet_hex(pending.payload.data(), pending.length).c_str(),
+						tx_packet_trace(pending).c_str(),
 						machine().time().as_double());
 		}
 		m_tx_commit_cb(1);
@@ -170,14 +182,22 @@ void nokia_dspif_device::dsp_data_w(u16 address, u16 data)
 		if (peek_tx_packet(consumed))
 			LOGMASKED(LOG_DSPIF, "dspif_transport: DSP consume type=%02x payload=%u data=%s next=%03x t=%.6f\n",
 					consumed.type, consumed.length,
-					packet_hex(consumed.payload.data(), consumed.length).c_str(), data,
+					tx_packet_trace(consumed).c_str(), data,
 					machine().time().as_double());
 	}
 	if (m_trace_enabled && offset == RX_PRODUCER && data != m_ram[offset])
 	{
-		const u16 header = m_ram[m_ram[offset]];
-		LOGMASKED(LOG_DSPIF, "dspif_transport: DSP publish type=%02x payload=%u producer=%03x t=%.6f\n",
-				header & 0xff, header >> 8, data, machine().time().as_double());
+		const u16 cursor = m_ram[offset];
+		// The old producer is firmware-owned state, not a trusted array index.
+		if (cursor >= RX_START && cursor < RX_END)
+		{
+			const u16 header = m_ram[cursor];
+			LOGMASKED(LOG_DSPIF, "dspif_transport: DSP publish type=%02x payload=%u producer=%03x t=%.6f\n",
+					header & 0xff, header >> 8, data, machine().time().as_double());
+		}
+		else
+			LOGMASKED(LOG_DSPIF, "dspif_transport: DSP publish invalid-cursor=%04x producer=%04x t=%.6f\n",
+					cursor, data, machine().time().as_double());
 	}
 	peer_shared_w(offset, data);
 }
@@ -230,13 +250,9 @@ void nokia_dspif_device::consume_tx_packet(const packet &value)
 	peer_shared_w(TX_CONSUMER, (m_ram[TX_CONSUMER] + value.words) % TX_WORDS);
 	if (m_trace_enabled)
 	{
-		const bool cipher_secret =
-				value.type == 0x14 && value.length >= 10 &&
-				value.payload[0] != 0x00;
 		LOGMASKED(LOG_DSPIF, "dspif_transport: TX consume type=%02x payload=%u words=%u consumer=%02x data=%s t=%.6f\n",
 				value.type, value.length, value.words, m_ram[TX_CONSUMER],
-				cipher_secret ? "<redacted>" :
-						packet_hex(value.payload.data(), value.length).c_str(),
+				tx_packet_trace(value).c_str(),
 				machine().time().as_double());
 	}
 }
@@ -278,6 +294,12 @@ void nokia_dspif_device::notify_rx()
 				m_ram[RX_PRODUCER], m_ram[RX_CONSUMER], machine().time().as_double());
 	m_fiq0_cb(1);
 	m_fiq0_cb(0);
+}
+
+void nokia_dspif_device::notify_tx()
+{
+	m_fiq1_cb(1);
+	m_fiq1_cb(0);
 }
 
 u16 nokia_dspif_device::service_pending() const

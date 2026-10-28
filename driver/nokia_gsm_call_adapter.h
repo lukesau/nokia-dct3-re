@@ -21,6 +21,7 @@ public:
 	virtual ~nokia_gsm_call_adapter_device();
 
 	void set_enabled(bool enabled);
+	void session_reset_w(int state);
 
 protected:
 	virtual void device_start() override;
@@ -40,6 +41,7 @@ private:
 	void publish_ussd_request();
 	void publish_ussd_state(const char *phase);
 	void publish_incoming_ussd_state(const char *phase);
+	void publish_incoming_ussd_reply();
 	void publish_ready();
 	void publish_state(const char *phase);
 	void publish_incoming_state(const char *phase,
@@ -78,6 +80,7 @@ private:
 	bool m_incoming_started = false;
 	bool m_incoming_connected_once = false;
 	std::atomic<u32> m_transport_epoch{1};
+	bool m_transport_initialized = false; // Host lifecycle, not save-state data.
 };
 
 DECLARE_DEVICE_TYPE(NOKIA_GSM_CALL_ADAPTER, nokia_gsm_call_adapter_device)

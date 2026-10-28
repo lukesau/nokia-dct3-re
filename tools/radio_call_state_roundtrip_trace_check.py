@@ -25,6 +25,34 @@ REPLAY_RECORDS = (
     "gsm_voice_peer: exchange=",
     "radio_l1: ",
 )
+CIPHER_RE = re.compile(
+    r"radio_l1: kind=cipher direction=(uplink|downlink) algorithm=1 "
+    r"fn=(\d+) count=(\d+)"
+)
+HYPERFRAME = 26 * 51 * 2048
+
+
+def validate_cipher_progression(records):
+    for direction in ("uplink", "downlink"):
+        observations = [
+            (int(match[2]), int(match[3]))
+            for record in records
+            if (match := CIPHER_RE.search(record)) and match[1] == direction
+        ]
+        if len(observations) < 2:
+            raise ValueError(
+                f"missing repeated {direction} cipher observations inside replay"
+            )
+        previous = None
+        for frame, count in observations:
+            expected = ((frame // (26 * 51)) << 11) | ((frame % 51) << 5) | (frame % 26)
+            if frame >= HYPERFRAME or count != expected:
+                raise ValueError(f"invalid {direction} cipher frame/COUNT mapping")
+            if previous is not None:
+                distance = (frame - previous) % HYPERFRAME
+                if not 0 < distance < HYPERFRAME // 2:
+                    raise ValueError(f"non-progressing {direction} cipher frame number")
+            previous = frame
 
 
 def replay_records(lines, begin, end):
@@ -36,7 +64,7 @@ def replay_records(lines, begin, end):
     ]
 
 
-def check(path: Path) -> str:
+def check(path: Path, require_cipher: bool = False) -> str:
     text = path.read_text(errors="replace")
     roundtrip = ROUNDTRIP_RE.search(text)
     if not roundtrip or roundtrip.group(1) != "pass":
@@ -70,6 +98,8 @@ def check(path: Path) -> str:
         raise ValueError(
             "restored digital speech trace diverged from the reference interval"
         )
+    if require_cipher:
+        validate_cipher_progression(reference)
     reference_duration = markers[1][2] - markers[0][2]
     restored_duration = markers[3][2] - markers[2][2]
     if abs(reference_duration - restored_duration) > 0.000_001:
@@ -105,9 +135,10 @@ def check(path: Path) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("log", type=Path)
+    parser.add_argument("--require-cipher", action="store_true")
     args = parser.parse_args()
     try:
-        print(check(args.log))
+        print(check(args.log, require_cipher=args.require_cipher))
     except ValueError as error:
         raise SystemExit(f"FAIL - {error}") from error
 

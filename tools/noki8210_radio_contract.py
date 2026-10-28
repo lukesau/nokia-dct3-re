@@ -2,8 +2,94 @@
 
 import argparse
 import hashlib
+import re
 from pathlib import Path
 from capstone import Cs, CS_ARCH_ARM, CS_MODE_THUMB, CS_MODE_BIG_ENDIAN
+from capstone.arm import ARM_OP_IMM, ARM_OP_MEM, ARM_REG_PC, ARM_REG_R0
+
+
+DESCRIPTOR_CALLS = (0x21c320, 0x21c96e, 0x21cc1e, 0x21d236, 0x21d41a, 0x21de2e)
+
+
+def neighbour_descriptor_sources(image):
+    """Recover PC-relative descriptor loads, without indexing RAM as ROM."""
+    decoder = Cs(CS_ARCH_ARM, CS_MODE_THUMB | CS_MODE_BIG_ENDIAN)
+    decoder.detail = True
+    result = []
+    for call in DESCRIPTOR_CALLS:
+        call_offset = call - 0x200000
+        branch = list(decoder.disasm(image[call_offset:call_offset + 4], call))
+        if (len(branch) != 1 or branch[0].mnemonic != 'bl' or
+                len(branch[0].operands) != 1 or branch[0].operands[0].type != ARM_OP_IMM or
+                branch[0].operands[0].imm != 0x2b3026):
+            raise ValueError('descriptor caller does not invoke the own constructor')
+        address = call - 2
+        offset = address - 0x200000
+        decoded = list(decoder.disasm(image[offset:offset + 2], address))
+        if len(decoded) != 1:
+            raise ValueError('descriptor argument load is not a decoded Thumb instruction')
+        load = decoded[0]
+        operands = load.operands
+        if (load.mnemonic != 'ldr' or len(operands) != 2 or
+                operands[0].reg != ARM_REG_R0 or operands[1].type != ARM_OP_MEM or
+                operands[1].mem.base != ARM_REG_PC):
+            raise ValueError('descriptor argument is not a PC-relative r0 load')
+        pool = ((address + 4) & ~3) + operands[1].mem.disp
+        pool_offset = pool - 0x200000
+        if not 0 <= pool_offset <= len(image) - 4:
+            raise ValueError('descriptor literal pool is outside the acquired ROM')
+        descriptor = int.from_bytes(image[pool_offset:pool_offset + 4], 'big')
+        if descriptor != 0x132b18:
+            raise ValueError('shared RAM descriptor address differs')
+        result.append({'call': call, 'load': address, 'pool': pool,
+                       'descriptor': descriptor, 'storage': 'ram',
+                       'mode': None})
+    return result
+
+
+def verify_descriptor_observation(text, *, dcs1800):
+    """Check the bounded late-PIN observation, not general mode-4 semantics."""
+    horizon = re.search(
+        r'dsp_shared_observe: off=[0-9a-f]+ data=[0-9a-f]+ '
+        r'pc=[0-9a-f]{8} t=(46\.[0-9]+)\b', text)
+    if not horizon:
+        raise ValueError('descriptor absence requires the full 46-second observation horizon')
+    writes = re.findall(
+        r'8210_shared_descriptor_write: address=([0-9a-f]{8}) '
+        r'data=([0-9a-f]{8}) mask=([0-9a-f]{8}) pc=([0-9a-f]{8}) t=([0-9.]+)', text)
+    expected = [('00132b18', '00000000', 'ffffffff', '00200168'),
+                ('00132b1c', '00000000', 'ffffffff', '00200168'),
+                ('00132b20', '00000000', 'ffffffff', '00200168')]
+    if (text.count('8210_shared_descriptor_write:') != len(writes) or
+            [item[:4] for item in writes] != expected or
+            any(not 0 < float(item[4]) < 0.1 for item in writes)):
+        raise ValueError('shared descriptor has missing initialization or later population')
+    calls = re.findall(
+        r'8210_neighbour_constructor: descriptor=([0-9a-f]{8}) '
+        r'caller=([0-9a-f]{8}) data=([0-9a-f]{24}) t=([0-9.]+)', text)
+    if text.count('8210_neighbour_constructor:') != len(calls):
+        raise ValueError('malformed constructor observation cannot prove absence')
+    if dcs1800:
+        if (len(calls) != 1 or calls[0][0] != '0013ac98' or
+                calls[0][1] != '00286d8d' or calls[0][2][:2] != '04' or
+                calls[0][2][8:12] != '0338' or not 12 < float(calls[0][3]) < 13):
+            raise ValueError('late-PIN DCS constructor is not the observed stack mode-4 path')
+        if re.findall(r'TX packet type=11 .*data=([0-9a-f]+)\b', text) != [
+                '040000000000033800000000']:
+            raise ValueError('mode-4 constructor lacks its zeroed serialized instruction')
+    elif calls:
+        raise ValueError('GSM control unexpectedly invokes a neighbour constructor')
+
+
+def scan_initial_record_flags(rows):
+    """Project decoded 2a1110 priority; return (scan result, record kind)."""
+    if len(rows) != 7 or any(len(row) != 9 for row in rows):
+        raise ValueError('initial record scan requires seven nine-byte rows')
+    for column in range(9):
+        for index, row in enumerate(rows):
+            if row[column]:
+                return (1, index) if column == 0 else (column, 7)
+    return 8, 7
 
 
 def verify(image):
@@ -11,6 +97,7 @@ def verify(image):
         raise ValueError('requires acquired 8210 v5.31 PPM C')
     def read(address, size):
         return image[address - 0x200000:address - 0x200000 + size]
+    neighbour_descriptor_sources(image)
     expected = [0x307060, 0x307058, 0x30707a, 0x307050, 0x307048,
                 0x307040, 0x307038, 0x307030, 0x307028, 0x307020,
                 0x30707a, 0x30707a, 0x307018]
@@ -20,10 +107,791 @@ def verify(image):
     decoder = Cs(CS_ARCH_ARM, CS_MODE_THUMB | CS_MODE_BIG_ENDIAN)
     def instructions(address, size):
         return [(ins.mnemonic, ins.op_str) for ins in decoder.disasm(read(address, size), address)]
+    if instructions(0x21ee2c, 4) != [
+            ('cmp', 'r0, #0x88'), ('beq', '#0x21ee8c')]:
+        raise ValueError('own timing-result class branch differs')
+    if instructions(0x21eebc, 8) != [
+            ('movs', 'r1, #0'), ('ldr', 'r0, [r4, #8]'),
+            ('bl', '#0x286e9a')]:
+        raise ValueError('own timing-result receiver call differs')
+    if instructions(0x286ea2, 20) != [
+            ('ldrb', 'r1, [r4, #9]'), ('ldrb', 'r0, [r4, #8]'),
+            ('lsls', 'r0, r0, #8'), ('adds', 'r0, r1, r0'),
+            ('lsls', 'r0, r0, #0x10'), ('lsrs', 'r0, r0, #0x10'),
+            ('ldr', 'r1, [r6, #8]'), ('bl', '#0x285c0a'),
+            ('str', 'r0, [r6, #8]')]:
+        raise ValueError('own timing-result full-carrier lookup differs')
+    if instructions(0x286e5e, 6) != [
+            ('ldrb', 'r1, [r0, #4]'), ('cmp', 'r1, #0'),
+            ('bne', '#0x286e80')]:
+        raise ValueError('own timing-result error-byte selection differs')
+    if instructions(0x286e80, 24) != [
+            ('ldrb', 'r0, [r4, #0xb]'), ('adds', 'r0, #1'),
+            ('strb', 'r0, [r4, #0xb]'), ('ldrb', 'r0, [r4, #0xb]'),
+            ('cmp', 'r0, #0'), ('beq', '#0x286e98'),
+            ('movs', 'r0, #0xf0'), ('ldrb', 'r1, [r4, #0xd]'),
+            ('ands', 'r0, r1'), ('movs', 'r1, #1'),
+            ('orrs', 'r1, r0'), ('strb', 'r1, [r4, #0xd]')]:
+        raise ValueError('own timing-result failure counter/state update differs')
+    if int.from_bytes(read(0x248df8, 4), 'big') != 0x132b18:
+        raise ValueError('neighbour descriptor writer literal differs')
+    if instructions(0x248a9c, 2) != [('ldr', 'r6, [pc, #0x358]')]:
+        raise ValueError('neighbour descriptor writer base load differs')
+    if instructions(0x248aba, 28) != [
+            ('mov', 'r0, sl'), ('strh', 'r0, [r6, #4]'),
+            ('movs', 'r0, #0x20'), ('ldrsh', 'r0, [r0, r4]'),
+            ('strh', 'r0, [r6, #2]'), ('ldrb', 'r0, [r4, #0xa]'),
+            ('strb', 'r0, [r6, #1]'), ('ldrb', 'r0, [r5]'),
+            ('strh', 'r0, [r6, #6]'), ('movs', 'r0, #2'),
+            ('strb', 'r0, [r6]'), ('movs', 'r0, #0xdf'),
+            ('ldrb', 'r1, [r6, #8]'), ('ands', 'r0, r1')]:
+        raise ValueError('shared neighbour descriptor mode-2 population differs')
+    if int.from_bytes(read(0x286214, 4), 'big') != 0x137224:
+        raise ValueError('acquisition updater current-candidate pointer differs')
+    if int.from_bytes(read(0x286384, 4), 'big') != 0x13721c:
+        raise ValueError('acquisition receiver candidate context differs')
+    if instructions(0x286136, 20) != [
+            ('ldrb', 'r1, [r5, #0xb]'), ('ldrb', 'r0, [r5, #0xa]'),
+            ('lsls', 'r0, r0, #8'), ('adds', 'r0, r1, r0'),
+            ('lsls', 'r0, r0, #0x10'), ('lsrs', 'r0, r0, #0x10'),
+            ('ldr', 'r1, [r4, #8]'), ('bl', '#0x285c0a'),
+            ('str', 'r0, [r4, #8]')]:
+        raise ValueError('acquisition receiver full-carrier candidate reselection differs')
+    if instructions(0x21ebc4, 16) != [
+            ('cmp', 'r0, #0x80'), ('beq', '#0x21ebca'), ('b', '#0x21ee2c'),
+            ('ldr', 'r2, [r4, #8]'), ('ldrb', 'r2, [r2, #4]'),
+            ('cmp', 'r2, #0x40'), ('beq', '#0x21ebd4'), ('b', '#0x21ee2c')]:
+        raise ValueError('common synchronization receive class/channel selector differs')
+    if instructions(0x21ebf2, 8) != [
+            ('ldr', 'r0, [r4, #8]'), ('movs', 'r1, #1'), ('bl', '#0x28612c')]:
+        raise ValueError('common synchronization receiver invocation differs')
+    if instructions(0x286190, 8) != [
+            ('adds', 'r0, r5, #0'), ('adds', 'r1, r6, #0'),
+            ('bl', '#0x285f04')]:
+        raise ValueError('observed acquisition updater caller differs')
+    if instructions(0x285f0c, 8) != [
+            ('ldr', 'r4, [r1]'), ('ldrb', 'r1, [r0, #6]'),
+            ('cmp', 'r1, #0'), ('bne', '#0x285f36')]:
+        raise ValueError('acquisition updater response-byte branch differs')
+    if instructions(0x285f26, 16) != [
+            ('movs', 'r0, #0xf0'), ('ldrb', 'r1, [r4, #0xd]'),
+            ('ands', 'r0, r1'), ('movs', 'r1, #4'),
+            ('orrs', 'r1, r0'), ('movs', 'r0, #0'),
+            ('strb', 'r0, [r4, #0xb]'), ('b', '#0x285f4c')]:
+        raise ValueError('successful acquisition nibble-4 update differs')
+    if instructions(0x2875e4, 12) != [
+            ('movs', 'r1, #0xf0'), ('ldrb', 'r0, [r4, #0xd]'),
+            ('ands', 'r1, r0'), ('movs', 'r0, #2'),
+            ('orrs', 'r0, r1'), ('strb', 'r0, [r4, #0xd]')]:
+        raise ValueError('candidate acquisition nibble-2 initialization differs')
+    if instructions(0x28678c, 14) != [
+            ('lsls', 'r0, r4, #0x15'), ('asrs', 'r1, r0, #0x10'),
+            ('ldrb', 'r0, [r6, #0xd]'), ('lsls', 'r0, r0, #0x1b'),
+            ('lsrs', 'r0, r0, #0x1b'), ('orrs', 'r1, r0'),
+            ('strb', 'r1, [r6, #0xd]')]:
+        raise ValueError('candidate row update does not preserve low five control bits')
+    if int.from_bytes(read(0x2a1378, 4), 'big') != 0x137248:
+        raise ValueError('initial record scan table root differs')
+    if instructions(0x2a1126, 18) != [
+            ('ldrb', 'r6, [r5]'), ('cmp', 'r6, #0'),
+            ('bne', '#0x2a1138'), ('adds', 'r5, #9'),
+            ('adds', 'r3, #1'), ('subs', 'r4, #1'),
+            ('cmp', 'r4, #0'), ('bne', '#0x2a1126'), ('b', '#0x2a1142')]:
+        raise ValueError('initial record scan row order/stride differs')
+    if instructions(0x2a1142, 18) != [
+            ('adds', 'r2, #1'), ('movs', 'r3, #0'), ('adds', 'r1, #1'),
+            ('cmp', 'r1, #9'), ('blt', '#0x2a114e'), ('movs', 'r3, #1'),
+            ('orrs', 'r3, r7'), ('cmp', 'r3, #0'), ('beq', '#0x2a1120')]:
+        raise ValueError('initial record scan column priority differs')
+    if instructions(0x2a1154, 16) != [
+            ('cmp', 'r0, #0'), ('beq', '#0x2a1160'), ('movs', 'r2, #7'),
+            ('mov', 'r1, ip'), ('strb', 'r2, [r1]'),
+            ('pop', '{r4, r5, r6, r7, pc}'), ('movs', 'r0, #1'),
+            ('pop', '{r4, r5, r6, r7, pc}')]:
+        raise ValueError('initial record scan result/kind normalization differs')
+    if int.from_bytes(read(0x285f54, 4), 'big') != 0x13721c:
+        raise ValueError('candidate record-count context root differs')
+    if instructions(0x285dcc, 22) != [
+            ('ldrb', 'r1, [r4, #0xd]'), ('lsrs', 'r1, r1, #5'),
+            ('lsls', 'r1, r1, #0x18'), ('lsrs', 'r1, r1, #0x18'),
+            ('lsls', 'r2, r1, #3'), ('adds', 'r1, r1, r2'),
+            ('adds', 'r0, r0, r1'), ('adds', 'r1, r5, r0'),
+            ('ldrb', 'r0, [r1]'), ('adds', 'r0, #1'), ('strb', 'r0, [r1]')]:
+        raise ValueError('candidate record-count row index/increment differs')
+    if instructions(0x285d94, 4) != [
+            ('movs', 'r4, #0'), ('adds', 'r0, r4, #0')]:
+        raise ValueError('candidate classifier column-zero return differs')
+    if instructions(0x285e68, 6) != [
+            ('ldrb', 'r2, [r1]'), ('adds', 'r0, r0, r2'), ('strb', 'r0, [r1]')]:
+        raise ValueError('incremental candidate record-count update differs')
+    if instructions(0x2b303a, 26) != [
+            ('movs', 'r0, #0xc'), ('strb', 'r0, [r4, #2]'),
+            ('movs', 'r0, #2'), ('strh', 'r0, [r4]'),
+            ('movs', 'r0, #0x11'), ('strb', 'r0, [r4, #3]'),
+            ('ldrb', 'r0, [r5]'), ('strb', 'r0, [r4, #4]'),
+            ('ldrh', 'r0, [r5, #4]'), ('lsrs', 'r0, r0, #8'),
+            ('strb', 'r0, [r4, #0xa]'), ('ldrb', 'r0, [r5, #5]'),
+            ('strb', 'r0, [r4, #0xb]')]:
+        raise ValueError('own neighbour instruction full carrier serialization differs')
+    if instructions(0x2b3054, 6) != [
+            ('ldrb', 'r0, [r5]'), ('cmp', 'r0, #4'), ('beq', '#0x2b30ae')]:
+        raise ValueError('mode-4 instruction does not bypass timing/BSIC serialization')
+    if instructions(0x286d7e, 14) != [
+            ('mov', 'r0, sp'), ('movs', 'r1, #4'), ('strb', 'r1, [r0]'),
+            ('ldrh', 'r1, [r2, #6]'), ('strh', 'r1, [r0, #4]'),
+            ('bl', '#0x2b3026')]:
+        raise ValueError('own mode-4 descriptor carrier source differs')
+    if instructions(0x286d52, 16) != [
+            ('ldr', 'r1, [r2, #0xc]'), ('lsls', 'r1, r1, #0xc'),
+            ('lsrs', 'r1, r1, #0x1c'), ('lsls', 'r1, r1, #0x10'),
+            ('movs', 'r3, #1'), ('lsls', 'r3, r3, #0x11'),
+            ('cmp', 'r1, r3'), ('beq', '#0x286d7e')]:
+        raise ValueError('own cell-context selector for mode 4 differs')
+    if instructions(0x286d62, 28) != [
+            ('movs', 'r2, #3'), ('lsls', 'r2, r2, #0x10'),
+            ('cmp', 'r1, r2'), ('beq', '#0x286d78'),
+            ('movs', 'r0, #1'), ('lsls', 'r0, r0, #0x12'),
+            ('cmp', 'r1, r0'), ('bne', '#0x286d8c'),
+            ('bl', '#0x286cd2'), ('b', '#0x286d8c'),
+            ('bl', '#0x286d0c'), ('b', '#0x286d8c')]:
+        raise ValueError('own context selectors do not dispatch mode-2/mode-3 builders')
+    if instructions(0x286cd8, 8) != [
+            ('ldr', 'r0, [r1, #0xc]'), ('mov', 'r3, sp'),
+            ('movs', 'r2, #3'), ('strb', 'r2, [r3]')]:
+        raise ValueError('alternate stack builder does not select mode 3')
+    if instructions(0x286d12, 8) != [
+            ('ldr', 'r3, [r1]'), ('mov', 'r2, sp'),
+            ('movs', 'r1, #2'), ('strb', 'r1, [r2]')]:
+        raise ValueError('alternate stack builder does not select mode 2')
+    if int.from_bytes(read(0x2870b0, 4), 'big') != 0x137228:
+        raise ValueError('own mode-selection context root differs')
+    if int.from_bytes(read(0x287198, 4), 'big') != 0x137224:
+        raise ValueError('own received-block update context root differs')
+    if instructions(0x286e58, 10) != [
+            ('push', '{r4, lr}'), ('ldr', 'r1, [pc, #0x33c]'),
+            ('ldr', 'r4, [r1]'), ('ldrb', 'r1, [r0, #4]'),
+            ('cmp', 'r1, #0')]:
+        raise ValueError('received-block updater pointer/error selector differs')
+    if instructions(0x286e70, 12) != [
+            ('movs', 'r0, #0xf0'), ('ldrb', 'r1, [r4, #0xd]'),
+            ('ands', 'r0, r1'), ('movs', 'r1, #3'),
+            ('orrs', 'r1, r0'), ('movs', 'r0, #0')]:
+        raise ValueError('received-block success context selector differs')
+    if instructions(0x286e8c, 12) != [
+            ('movs', 'r0, #0xf0'), ('ldrb', 'r1, [r4, #0xd]'),
+            ('ands', 'r0, r1'), ('movs', 'r1, #1'),
+            ('orrs', 'r1, r0'), ('strb', 'r1, [r4, #0xd]')]:
+        raise ValueError('received-block error context selector differs')
+    if instructions(0x21eee2, 22) != [
+            ('movs', 'r1, #3'), ('lsls', 'r1, r1, #0x10'),
+            ('cmp', 'r0, r1'), ('beq', '#0x21eefa'),
+            ('movs', 'r1, #1'), ('lsls', 'r1, r1, #0x11'),
+            ('cmp', 'r0, r1'), ('beq', '#0x21eefa'),
+            ('adr', 'r0, #0x384'), ('bl', '#0x2d5dcc')]:
+        raise ValueError('observed measurement caller context eligibility differs')
+    if instructions(0x21eef8, 14) != [
+            ('b', '#0x21ef0c'), ('adr', 'r0, #0x37c'),
+            ('bl', '#0x2d5dcc'), ('movs', 'r0, #0'),
+            ('bl', '#0x286d4a')]:
+        raise ValueError('observed measurement caller helper ownership differs')
     if instructions(0x30702a, 4) != [('bl', '#0x2df484')]:
         raise ValueError('type 8b handler differs')
     if instructions(0x2df498, 6) != [('movs', 'r0, #0xc'), ('bl', '#0x28845c')]:
         raise ValueError('type 8b does not post to task 12')
+    if instructions(0x21ef4a, 6) != [('ldr', 'r0, [r4, #8]'), ('bl', '#0x2a2250')]:
+        raise ValueError('own task-12 measurement completion differs')
+    if instructions(0x2a2260, 4) != [('bl', '#0x28755e')]:
+        raise ValueError('own measurement parser differs')
+    if instructions(0x2a2258, 8) != [
+            ('ldr', 'r2, [r0, #4]'), ('cmp', 'r2, #0'),
+            ('bne', '#0x2a2266'), ('ldrb', 'r0, [r0]')]:
+        raise ValueError('measurement parser context selector differs')
+    if instructions(0x2a2266, 8) != [
+            ('ldrb', 'r0, [r0]'), ('bl', '#0x287664'), ('pop', '{pc}')]:
+        raise ValueError('alternate measurement parser differs')
+    if int.from_bytes(read(0x2a16b8, 4), 'big') != 0x137f58:
+        raise ValueError('selected-cell decision state differs')
+    if instructions(0x21f908, 6) != [('movs', 'r0, #0'), ('bl', '#0x2a1380')]:
+        raise ValueError('PH_1250 decision call differs')
+    if instructions(0x21f5c8, 6) != [('movs', 'r0, #3'), ('bl', '#0x2a1380')]:
+        raise ValueError('PH_9000 decision call differs')
+    promotion_states = [int.from_bytes(read(0x2a139c + state * 4, 4), 'big')
+                        for state in (4, 5, 6)]
+    if promotion_states != [0x2a1468, 0x2a1456, 0x2a1444]:
+        raise ValueError('queue-promotion selector states differ')
+    for address, alternate in ((0x2a1468, 0x2a14cc),
+                               (0x2a1456, 0x2a1464),
+                               (0x2a1444, 0x2a1452)):
+        if instructions(address, 4) != [('cmp', 'r6, #0'), ('bne', f'#{alternate:#x}')]:
+            raise ValueError('queue promotion is not argument-zero owned')
+    if int.from_bytes(read(0x2a17c4, 4), 'big') != 0x13721e:
+        raise ValueError('queue-promotion enable byte differs')
+    if instructions(0x2a1474, 10) != [
+            ('ldr', 'r0, [pc, #0x34c]'), ('ldrb', 'r0, [r0]'),
+            ('cmp', 'r0, #0'), ('bne', '#0x2a147e'), ('b', '#0x2a1934')]:
+        raise ValueError('queue-promotion enable predicate differs')
+    if instructions(0x2a1484, 8) != [
+            ('bl', '#0x2a0dc8'), ('ldr', 'r1, [r4, #4]'), ('strb', 'r0, [r1, #3]')]:
+        raise ValueError('queue-promotion call/return ownership differs')
+    if instructions(0x2a18d0, 8) != [
+            ('movs', 'r1, #2'), ('bics', 'r0, r1'),
+            ('cmp', 'r0, #0'), ('bne', '#0x2a194c')]:
+        raise ValueError('selected-cell outcome rejection differs')
+    if [int.from_bytes(read(address, 4), 'big') for address in
+            (0x2a18f8, 0x2a1c14, 0x2a1c18)] != [0x13722c, 0x137238, 0x137240]:
+        raise ValueError('selected-cell outcome/link roots differ')
+    if [int.from_bytes(read(address, 4), 'big') for address in
+            (0x258e20, 0x258e28, 0x258e10)] != [0x7d4, 0x7da, 0x3ed]:
+        raise ValueError('readiness producer status/input literals differ')
+    if instructions(0x258aea, 6) != [
+            ('movs', 'r0, #0xfb'), ('lsls', 'r0, r0, #2'), ('b', '#0x258afc')]:
+        raise ValueError('07d4 readiness input construction differs')
+    if instructions(0x258afc, 4) != [('bl', '#0x2aede0')]:
+        raise ValueError('readiness constructor boundary differs')
+    if int.from_bytes(read(0x209e44, 4), 'big') != 0x9c6:
+        raise ValueError('upstream readiness cascade origin differs')
+    if instructions(0x209b9a, 28) != [
+            ('subs', 'r0, #1'), ('cmp', 'r0, #0'), ('beq', '#0x209bdc'),
+            ('subs', 'r0, #1'), ('cmp', 'r0, #0'), ('beq', '#0x209bd8'),
+            ('subs', 'r0, #4'), ('cmp', 'r0, #0'), ('beq', '#0x209bd4'),
+            ('subs', 'r0, #0x2c'), ('cmp', 'r0, #0'), ('beq', '#0x209bd0'),
+            ('subs', 'r0, #1'), ('cmp', 'r0, #0')]:
+        raise ValueError('upstream readiness cascade arithmetic differs')
+    if [int.from_bytes(read(address, 4), 'big') for address in
+            (0x209c2c, 0x209e58)] != [0x7d4, 0x7da]:
+        raise ValueError('09c8/09cc readiness mapping literals differ')
+    if instructions(0x209bd4, 8) != [
+            ('ldr', 'r0, [pc, #0x280]'), ('b', '#0x209be2'),
+            ('ldr', 'r0, [pc, #0x50]'), ('b', '#0x209be2')]:
+        raise ValueError('09c8/09cc readiness mapping branches differ')
+    if instructions(0x209be2, 6) != [
+            ('movs', 'r1, #0'), ('bl', '#0x20925c')]:
+        raise ValueError('upstream readiness publication boundary differs')
+    if instructions(0x210fd0, 6) != [
+            ('ldr', 'r0, [sp, #4]'), ('bl', '#0x209b90')]:
+        raise ValueError('observed upstream readiness caller differs')
+    for address in (0x2280c8, 0x22923e):
+        if instructions(address, 4) != [('bl', '#0x2252cc')]:
+            raise ValueError('observed readiness input constructor caller differs')
+    if [int.from_bytes(read(address, 4), 'big') for address in
+            (0x228440, 0x2295dc)] != [0x9cc, 0x9c8]:
+        raise ValueError('observed readiness input producer literals differ')
+    if instructions(0x225362, 8) != [
+            ('movs', 'r0, #0xe'), ('adds', 'r1, r4, #0'),
+            ('bl', '#0x28845c')]:
+        raise ValueError('readiness input mailbox publication differs')
+    if instructions(0x22803e, 6) != [
+            ('ldrb', 'r0, [r4, #0x11]'), ('cmp', 'r0, #1'),
+            ('beq', '#0x228080')]:
+        raise ValueError('readiness producer context selector differs')
+    if instructions(0x228052, 4) != [('bl', '#0x229224')]:
+        raise ValueError('zero context selector readiness branch differs')
+    if int.from_bytes(read(0x2272e0, 4), 'big') != 0x1587:
+        raise ValueError('readiness selector setter input differs')
+    if instructions(0x227110, 10) != [
+            ('bl', '#0x225688'), ('adds', 'r7, r0, #0'),
+            ('ldr', 'r0, [pc, #0x1c8]'), ('cmp', 'r7, r0')]:
+        raise ValueError('readiness selector receive predicate differs')
+    if instructions(0x227124, 4) != [
+            ('movs', 'r0, #1'), ('strb', 'r0, [r4, #0x11]')]:
+        raise ValueError('readiness selector setter differs')
+    if instructions(0x258c1a, 10) != [
+            ('movs', 'r0, #0x7f'), ('lsls', 'r1, r0, #4'),
+            ('ldr', 'r0, [sp, #8]'), ('cmp', 'r0, r1'),
+            ('beq', '#0x258c3a')]:
+        raise ValueError('07f0 prerequisite input selector differs')
+    if int.from_bytes(read(0x258fd4, 4), 'big') != 0x9fc:
+        raise ValueError('07f0 prerequisite producer literal differs')
+    if instructions(0x258c6e, 4) != [('bl', '#0x2af30c')]:
+        raise ValueError('09fc prerequisite constructor boundary differs')
+    if [int.from_bytes(read(address, 4), 'big') for address in
+            (0x2a2218, 0x2a2274)] != [0x137f58, 0x3ea]:
+        raise ValueError('selected-cell status dispatcher context/origin differs')
+    if instructions(0x2a21b6, 6) != [
+            ('subs', 'r0, #1'), ('cmp', 'r0, #0'), ('beq', '#0x2a21fa')]:
+        raise ValueError('03eb selected-cell publication selection differs')
+    if instructions(0x2a21fa, 6) != [
+            ('movs', 'r0, #0x7f'), ('lsls', 'r0, r0, #4'),
+            ('b', '#0x2a21f4')]:
+        raise ValueError('03eb to 07f0 status construction differs')
+    if instructions(0x21bffa, 4) != [('bl', '#0x2a21a4')]:
+        raise ValueError('observed selected-cell publication caller differs')
+    if instructions(0x21c41c, 24) != [
+            ('ldr', 'r0, [r4, #0xc]'), ('cmp', 'r0, #2'),
+            ('bne', '#0x21c424'), ('b', '#0x21c5e0'),
+            ('cmp', 'r0, #5'), ('bne', '#0x21c42a'),
+            ('b', '#0x21c5be'), ('cmp', 'r0, #3'),
+            ('beq', '#0x21c4ee'), ('cmp', 'r0, #4'),
+            ('beq', '#0x21c434'), ('b', '#0x21bf86')]:
+        raise ValueError('initial request completion phase dispatch differs')
+    if instructions(0x21c348, 2) != [('str', 'r0, [r4, #0xc]')]:
+        raise ValueError('completion phase common store differs')
+    if [int.from_bytes(read(address,4),'big') for address in (0x21bbd4,0x21f7f4)] != [0x138038,0x138038]:
+        raise ValueError('receive/phase context root literals differ')
+    if instructions(0x21bf86, 14) != [
+            ('cmp', 'r0, #0'), ('bne', '#0x21c01c'),
+            ('adr', 'r0, #0x24c'), ('bl', '#0x2d5dcc'),
+            ('bl', '#0x2a1d44')]:
+        raise ValueError('initial request completion phase-zero gate differs')
+    if int.from_bytes(read(0x21f9a0, 4), 'big') != 0x1802:
+        raise ValueError('private completion wait input differs')
+    if int.from_bytes(read(0x21f960, 4), 'big') != 0x137f5c:
+        raise ValueError('private completion result-record root differs')
+    if instructions(0x21f624, 36) != [
+            ('ldr', 'r0, [pc, #0x378]'), ('cmp', 'r1, r0'),
+            ('beq', '#0x21f62c'), ('b', '#0x21efe6'),
+            ('ldrb', 'r0, [r4]'), ('cmp', 'r0, #0x89'),
+            ('beq', '#0x21f634'), ('b', '#0x21efe6'),
+            ('adr', 'r0, #0x378'), ('bl', '#0x2d5dcc'),
+            ('ldr', 'r0, [pc, #0x324]'), ('ldr', 'r0, [r0]'),
+            ('ldrb', 'r0, [r0, #2]'), ('cmp', 'r0, #1'),
+            ('bne', '#0x21f648'), ('bl', '#0x21bc58')]:
+        raise ValueError('private completion class/result predicate differs')
+    if instructions(0x21bc5e, 4) != [
+            ('movs', 'r0, #0'), ('b', '#0x21c348')]:
+        raise ValueError('private completion phase-zero selection differs')
+    if instructions(0x21c348, 2) != [('str', 'r0, [r4, #0xc]')]:
+        raise ValueError('completion phase storage differs')
+    if int.from_bytes(read(0x2a110c, 4), 'big') != 0x137f58:
+        raise ValueError('selected-cell request queue context differs')
+    if instructions(0x2a0dcc, 10) != [
+            ('ldr', 'r0, [r1, #0xc]'), ('cmp', 'r0, #0'),
+            ('bne', '#0x2a0dd6'), ('movs', 'r4, #0'), ('b', '#0x2a0dfa')]:
+        raise ValueError('empty replacement request handling differs')
+    if instructions(0x2a0df0, 10) != [
+            ('ldr', 'r0, [r1, #0xc]'), ('movs', 'r4, #2'),
+            ('str', 'r0, [r1, #8]'), ('movs', 'r0, #0'), ('str', 'r0, [r1, #0xc]')]:
+        raise ValueError('replacement request promotion differs')
+    if instructions(0x21f5aa, 6) != [
+            ('ldr', 'r0, [r4, #8]'), ('bl', '#0x2a1eaa')]:
+        raise ValueError('late readiness request queue insertion differs')
+    if instructions(0x21f5b0, 16) != [
+            ('movs', 'r0, #4'), ('ldrsh', 'r1, [r0, r4]'),
+            ('movs', 'r0, #0xfb'), ('lsls', 'r0, r0, #2'),
+            ('cmp', 'r1, r0'), ('beq', '#0x21f5c0'),
+            ('bl', '#0x21b8ea')]:
+        raise ValueError('queued non-03ec request receive-loop continuation differs')
+    if instructions(0x2a1ec0, 4) != [
+            ('ldrsh', 'r1, [r5, r1]'), ('strh', 'r1, [r0]')]:
+        raise ValueError('queued request input copy differs')
+    if instructions(0x2a1eb0, 14) != [
+            ('ldr', 'r0, [r4, #0xc]'), ('cmp', 'r0, #0'),
+            ('bne', '#0x2a1ebe'), ('movs', 'r0, #0x14'),
+            ('bl', '#0x28922c'), ('str', 'r0, [r4, #0xc]')]:
+        raise ValueError('queued request reuse/allocation branch differs')
+    if int.from_bytes(read(0x2a2274, 4), 'big') != 0x03ea:
+        raise ValueError('queued request dispatch base differs')
+    if instructions(0x2a1f72, 18) != [
+            ('movs', 'r0, #0x20'), ('strb', 'r0, [r2, #2]'),
+            ('movs', 'r0, #0'), ('ldr', 'r1, [r4, #0xc]'),
+            ('strb', 'r0, [r1, #3]'), ('ldr', 'r1, [r4, #0xc]'),
+            ('strb', 'r0, [r1, #8]'), ('ldr', 'r1, [r4, #0xc]'),
+            ('strb', 'r0, [r1, #0x10]')]:
+        raise ValueError('manual-selection queued object initialization differs')
+    if instructions(0x21f5d6, 8) != [
+            ('cmp', 'r0, #3'), ('beq', '#0x21f5de'), ('bl', '#0x21b8ea')]:
+        raise ValueError('late readiness result continuation differs')
+    if instructions(0x21b8ea, 8) != [
+            ('adr', 'r0, #0x2d4'), ('bl', '#0x2d5dcc'), ('b', '#0x21bb8c')]:
+        raise ValueError('PH9000 alternate does not return directly to receive loop')
+    if instructions(0x21bb92, 10) != [
+            ('ldr', 'r0, [r4, #8]'), ('bl', '#0x288e44'), ('bl', '#0x2886b0')]:
+        raise ValueError('PH9000 message disposal and receive boundary differs')
+    if int.from_bytes(read(0x21bbe4 + 13 * 4, 4), 'big') != 0x21ef30:
+        raise ValueError('state-13 measurement recovery dispatch differs')
+    if instructions(0x21ef3c, 8) != [
+            ('ldrb', 'r0, [r4]'), ('cmp', 'r0, #0x8b'),
+            ('beq', '#0x21ef44'), ('b', '#0x21ebc4')]:
+        raise ValueError('state-13 measurement completion selector differs')
+    if instructions(0x21ef4a, 10) != [
+            ('ldr', 'r0, [r4, #8]'), ('bl', '#0x2a2250'), ('bl', '#0x21f900')]:
+        raise ValueError('state-13 measurement recovery does not reevaluate queued request')
+    if instructions(0x2b2ff2, 12) != [
+            ('movs', 'r0, #0xa0'), ('strb', 'r0, [r4, #2]'),
+            ('movs', 'r0, #2'), ('strh', 'r0, [r4]'),
+            ('movs', 'r0, #0x56'), ('strb', 'r0, [r4, #3]')]:
+        raise ValueError('own candidate-list packet header differs')
+    if instructions(0x286c50, 6) != [('bl', '#0x2b2fe0'), ('adds', 'r7, r0, #0')]:
+        raise ValueError('candidate-list producer constructor differs')
+    if instructions(0x286c74, 8) != [
+            ('adds', 'r0, r7, #0'), ('bl', '#0x2b300e'),
+            ('pop', '{r4, r5, r6, r7, pc}')]:
+        raise ValueError('candidate-list producer send tail differs')
+    if instructions(0x21faaa, 4) != [('bl', '#0x286c48')]:
+        raise ValueError('candidate-window producer caller differs')
+    if instructions(0x21fb78, 6) != [
+            ('cmp', 'r2, #0x8b'), ('beq', '#0x21fb7e'), ('b', '#0x21f44e')]:
+        raise ValueError('candidate-window measurement receive selector differs')
+    if instructions(0x21fb84, 6) != [('ldr', 'r0, [r4, #8]'), ('bl', '#0x2a2250')]:
+        raise ValueError('candidate-window measurement parser differs')
+    if instructions(0x21fbb0, 6) != [
+            ('cmp', 'r0, #0'), ('bne', '#0x21fbb6'), ('b', '#0x21fa68')]:
+        raise ValueError('candidate-window zero-result retry differs')
+    if instructions(0x2b2dc8, 12) != [
+            ('movs', 'r0, #4'), ('strb', 'r0, [r4, #2]'),
+            ('movs', 'r0, #2'), ('strh', 'r0, [r4]'),
+            ('movs', 'r0, #0x55'), ('strb', 'r0, [r4, #3]')]:
+        raise ValueError('own scan-control packet header differs')
+    if instructions(0x2b2ddc, 8) != [
+            ('adds', 'r0, r6, #0'), ('adds', 'r1, r5, #0'), ('bl', '#0x2b2d52')]:
+        raise ValueError('scan-control selector mapping differs')
+    if int.from_bytes(read(0x2b30d0, 4), 'big') != 0x33e8a9 or read(0x33e8a9, 3) != bytes.fromhex('050303'):
+        raise ValueError('selector-three scan-control options differ')
+    for address in (0x21f3c4, 0x21fa3a):
+        expected_branch = '#0x21f3d4' if address == 0x21f3c4 else '#0x21fa4e'
+        if instructions(address, 8) != [
+                ('ldrb', 'r1, [r0, #9]'), ('cmp', 'r1, #0'),
+                ('beq', expected_branch), ('movs', 'r1, #2')]:
+            raise ValueError('scan-control option request ownership differs')
+    if instructions(0x2b31c6, 4) != [('movs', 'r0, #0x57'), ('strb', 'r0, [r4, #3]')]:
+        raise ValueError('background measurement packet type differs')
+    if instructions(0x2b31d2, 8) != [
+            ('adds', 'r0, r6, #0'), ('adds', 'r1, r5, #0'), ('bl', '#0x2b2d52')]:
+        raise ValueError('background measurement does not share selector mapping')
+    # Enumerate aligned direct-BL candidates, not indirect-call ownership.
+    parser_calls = []
+    selector_calls = []
+    wrapper_calls = []
+    alternate_readiness_calls = []
+    state_calls = []
+    for offset in range(0, len(image) - 4, 2):
+        if image[offset] & 0xf8 != 0xf0:
+            continue
+        candidate = instructions(0x200000 + offset, 4)
+        if candidate == [('bl', '#0x2a2250')]:
+            parser_calls.append(0x200000 + offset)
+        if candidate == [('bl', '#0x2a1380')]:
+            selector_calls.append(0x200000 + offset)
+        if candidate == [('bl', '#0x21f900')]:
+            wrapper_calls.append(0x200000 + offset)
+        if candidate == [('bl', '#0x21f2ec')]:
+            alternate_readiness_calls.append(0x200000 + offset)
+        if candidate == [('bl', '#0x21bdc4')]:
+            predecessor = instructions(0x200000 + offset - 2, 2)
+            state_calls.append((0x200000 + offset, predecessor))
+    if parser_calls != [0x21ef4c, 0x21fb86]:
+        raise ValueError('direct measurement-parser candidate callsites differ')
+    if selector_calls != [0x21d886, 0x21f356, 0x21f5ca, 0x21f90a,
+                          0x21fba2, 0x2a1e28, 0x2a1e62, 0x2a224a]:
+        raise ValueError('direct selector candidate callsites differ')
+    if wrapper_calls != [0x21ef50]:
+        raise ValueError('direct selector-wrapper candidate callsites differ')
+    if alternate_readiness_calls != [0x21fc4a]:
+        raise ValueError('alternate readiness direct entrance candidates differ')
+    for offset in range(0, len(image) - 1, 2):
+        word = int.from_bytes(image[offset:offset + 2], 'big')
+        if word & 0xf800 == 0xe000:
+            displacement = (word & 0x7ff) << 1
+            if displacement & 0x800:
+                displacement -= 0x1000
+        elif word & 0xf000 == 0xd000 and ((word >> 8) & 15) < 14:
+            displacement = (word & 0xff) << 1
+            if displacement & 0x100:
+                displacement -= 0x200
+        else:
+            continue
+        if 0x200000 + offset + 4 + displacement == 0x21f2ec:
+            raise ValueError('alternate readiness short-branch entrance candidate present')
+    if any(int.from_bytes(image[offset:offset + 4], 'big') in
+           (0x21f2ec, 0x21f2ed) for offset in range(0, len(image) - 3, 4)):
+        raise ValueError('alternate readiness literal pointer candidate present')
+    expected_states = [7, 5, 26, 4, 6, 2, 23, 24, 25, 11, 13, 15,
+                       17, 12, 9, 10, 21, 28, 20]
+    if len(state_calls) != len(expected_states):
+        raise ValueError('direct receive-state setter candidate count differs')
+    for (_, predecessor), state in zip(state_calls, expected_states):
+        operand = f'r0, #{state:#x}' if state >= 10 else f'r0, #{state}'
+        if predecessor != [('movs', operand)]:
+            raise ValueError('direct receive-state setter argument differs')
+    for address, state in ((0x21f39e, 22), (0x21f424, 19),
+                           (0x21f45c, 14), (0x21f46a, 16)):
+        if instructions(address, 4) != [
+                ('movs', f'r0, #{state:#x}'), ('b', '#0x21f482')]:
+            raise ValueError('inline receive-state continuation differs')
+    if instructions(0x21f480, 8) != [
+            ('movs', 'r0, #0x12'), ('strh', 'r0, [r4, #2]'),
+            ('ldr', 'r4, [pc, #0x36c]'), ('movs', 'r0, #4')]:
+        raise ValueError('inline state-eighteen continuation differs')
+    if instructions(0x21bdc2, 4) != [
+            ('movs', 'r0, #1'), ('strh', 'r0, [r4, #2]')]:
+        raise ValueError('inline state-one entrance differs')
+    # Tail branches are a separate entrance class; a BL census cannot close it.
+    if instructions(0x21f2c0, 2) != [('b', '#0x21f900')]:
+        raise ValueError('state-ten acknowledgement tail entrance differs')
+    if instructions(0x21f2ae, 6) != [
+            ('ldrb', 'r0, [r4]'), ('cmp', 'r0, #0x89'), ('bne', '#0x21f2c2')]:
+        raise ValueError('state-ten acknowledgement class predicate differs')
+    if int.from_bytes(read(0x21bbe4 + 21 * 4, 4), 'big') != 0x21fc40:
+        raise ValueError('state-21 readiness dispatcher differs')
+    if instructions(0x21fc44, 10) != [
+            ('ldr', 'r0, [pc, #0x3a4]'), ('cmp', 'r1, r0'),
+            ('beq', '#0x21fc4e'), ('bl', '#0x21f2ec')]:
+        raise ValueError('state-21 alternate readiness entrance differs')
+    if instructions(0x21f2f6, 30) != [
+            ('ldr', 'r0, [pc, #0x230]'), ('cmp', 'r1, r0'),
+            ('beq', '#0x21f314'), ('movs', 'r0, #0xfb'),
+            ('lsls', 'r0, r0, #2'), ('cmp', 'r1, r0'),
+            ('beq', '#0x21f314'), ('ldr', 'r0, [pc, #0x23c]'),
+            ('cmp', 'r1, r0'), ('beq', '#0x21f314'),
+            ('movs', 'r0, #0x15'), ('bl', '#0x21bdc4'),
+            ('movs', 'r3, r2'), ('ldrb', 'r0, [r5, #5]')]:
+        raise ValueError('alternate readiness unmatched-input state transition differs')
+    for pool, expected in ((0x21f434, 0x03e9), (0x21f528, 0x03eb),
+                           (0x21f544, 0x03ea)):
+        if int.from_bytes(read(pool, 4), 'big') != expected:
+            raise ValueError('alternate readiness input literal differs')
+    if instructions(0x21f354, 6) != [('movs', 'r0, #0'), ('bl', '#0x2a1380')]:
+        raise ValueError('alternate readiness is not argument-zero owned')
+    if instructions(0x21f552, 2) != [('b', '#0x21f5aa')]:
+        raise ValueError('shared forwarded readiness tail differs')
+    if int.from_bytes(read(0x21bedc, 4), 'big') != 0x137db0:
+        raise ValueError('generic measurement flag address differs')
+    if instructions(0x21bb5a, 6) != [
+            ('ldr', 'r1, [pc, #0x380]'), ('movs', 'r0, #1'), ('b', '#0x21b950')]:
+        raise ValueError('generic measurement flag setter differs')
+    if instructions(0x2865dc, 4) != [('cmp', 'r0, #1'), ('bne', '#0x2865f2')]:
+        raise ValueError('measurement flag consumer enable predicate differs')
+    if int.from_bytes(read(0x28693c, 4), 'big') != 0x13722c:
+        raise ValueError('measurement flag normalization outcome root differs')
+    if instructions(0x2865e4, 16) != [
+            ('ldr', 'r0, [r1]'), ('cmp', 'r0, #1'), ('beq', '#0x2865ee'),
+            ('cmp', 'r0, #2'), ('bne', '#0x2865f2'),
+            ('movs', 'r0, #0'), ('str', 'r0, [r1]'), ('mov', 'pc, lr')]:
+        raise ValueError('measurement flag outcome normalization differs')
+    if instructions(0x287606, 8) != [
+            ('movs', 'r1, #0x68'), ('mov', 'r0, fp'),
+            ('cmn', 'r1, r0'), ('bmi', '#0x287638')]:
+        raise ValueError('measurement terminal signed RSSI predicate differs')
+    if instructions(0x287634, 16) != [
+            ('movs', 'r0, #4'), ('b', '#0x287640'),
+            ('mov', 'r0, sl'), ('cmp', 'r0, #0'), ('beq', '#0x287634'),
+            ('movs', 'r0, #3'), ('ldr', 'r5, [pc, #0x104]'), ('str', 'r0, [r4]')]:
+        raise ValueError('measurement terminal skipped-entry outcome differs')
+    if int.from_bytes(read(0x28651c, 4), 'big') != 0x137248:
+        raise ValueError('flag-record table address differs')
+    if instructions(0x28621a, 4) != [('lsls', 'r2, r1, #3'), ('adds', 'r1, r1, r2')]:
+        raise ValueError('flag-record table stride differs')
+    if instructions(0x2a117a, 20) != [
+            ('movs', 'r4, #3'), ('lsls', 'r0, r4, #0x18'),
+            ('lsrs', 'r1, r0, #0x18'), ('adds', 'r0, r5, #0'),
+            ('bl', '#0x286218'), ('adds', 'r5, #0xc'),
+            ('adds', 'r4, #1'), ('cmp', 'r4, #7'), ('blt', '#0x2a117c')]:
+        raise ValueError('complementary flag-record bank indices differ')
+    if instructions(0x2a15b2, 8) != [
+            ('movs', 'r1, #0xfb'), ('lsls', 'r1, r1, #2'),
+            ('cmp', 'r0, r1'), ('beq', '#0x2a168e')]:
+        raise ValueError('state-two 03ec record-bank selection differs')
+    if instructions(0x2a1694, 4) != [('bl', '#0x2a1170')]:
+        raise ValueError('state-two complementary bank consumer differs')
+    promotion_calls = []
+    for offset in range(0, len(image) - 4, 2):
+        if image[offset] & 0xf8 == 0xf0 and instructions(0x200000 + offset, 4) == [('bl', '#0x2a0dc8')]:
+            promotion_calls.append(0x200000 + offset)
+    if promotion_calls != [0x2a13d0, 0x2a1484, 0x2a193a, 0x2a1988]:
+        raise ValueError('direct queue-promotion candidate callsites differ')
+    selector_arguments = {
+        0x21d886: 2, 0x21f356: 0, 0x21f5ca: 3, 0x21f90a: 0,
+        0x21fba2: 0, 0x2a1e28: 1, 0x2a1e62: 1, 0x2a224a: 1,
+    }
+    for address, argument in selector_arguments.items():
+        if instructions(address - 2, 6) != [
+                ('movs', f'r0, #{argument}'), ('bl', '#0x2a1380')]:
+            raise ValueError('cell-selector immediate argument differs')
+    # Scan all byte offsets, not just aligned literal pools. This excludes
+    # stored full-width pointers only; computed/relative dispatch is not closed.
+    for address in (0x2a0dc8, 0x2a0dc9, 0x2a1380, 0x2a1381):
+        if address.to_bytes(4, 'big') in image:
+            raise ValueError('stored queue-promotion/selector pointer requires classification')
+    if instructions(0x2a187a, 8) != [
+            ('cmp', 'r6, #2'), ('beq', '#0x2a197c'),
+            ('cmp', 'r6, #3'), ('beq', '#0x2a18bc')]:
+        raise ValueError('selector argument-two promotion dispatch differs')
+    if instructions(0x21d884, 6) != [('movs', 'r0, #2'), ('bl', '#0x2a1380')]:
+        raise ValueError('explicit queue-promotion selector caller differs')
+    if int.from_bytes(read(0x220198, 4), 'big') != 0x413:
+        raise ValueError('explicit queue-promotion event selector differs')
+    if instructions(0x21fe00, 8) != [
+            ('bl', '#0x287b38'), ('cmp', 'r0, #0'),
+            ('bne', '#0x21fe0c')]:
+        raise ValueError('timer remaining-duration recovery guard differs')
+    if [int.from_bytes(read(address, 4), 'big') for address in
+            (0x287bd0, 0x287bd4)] != [0x11174c, 0x1115d0]:
+        raise ValueError('timer descriptor and clock roots differ')
+    if instructions(0x287b42, 18) != [
+            ('movs', 'r0, #0xc'), ('muls', 'r0, r4, r0'),
+            ('ldr', 'r1, [pc, #0x88]'), ('adds', 'r2, r1, r0'),
+            ('ldrb', 'r0, [r2, #8]'), ('cmp', 'r0, #2'),
+            ('beq', '#0x287b56'), ('ldrh', 'r1, [r2, #4]'),
+            ('ldr', 'r5, [pc, #0x80]')]:
+        raise ValueError('timer descriptor stride/state/duration reads differ')
+    if instructions(0x287c0a, 8) != [
+            ('mov', 'r0, sp'), ('ldrh', 'r0, [r0]'),
+            ('add', 'sp, #4'), ('pop', '{r4, r5, r6, pc}')]:
+        raise ValueError('timer query halfword return differs')
+    for address, literal_offset in ((0x21bca2, '#0x370'), (0x21bcf2, '#0x320')):
+        if instructions(address, 8) != [
+                ('movs', 'r0, #0x81'), ('ldr', f'r1, [pc, {literal_offset}]'),
+                ('bl', '#0x2879fe')]:
+            raise ValueError('explicit timer-81 setup candidate differs')
+    if int.from_bytes(read(0x21c018, 4), 'big') != 0x75a:
+        raise ValueError('timer-81 setup duration differs')
+    if [int.from_bytes(read(0x21bbe4 + 4 * state, 4), 'big')
+            for state in (23, 24)] != [0x21e93a, 0x21e786]:
+        raise ValueError('timer setup receive-state entries differ')
+    if instructions(0x21e944, 10) != [
+            ('ldrb', 'r0, [r4]'), ('cmp', 'r0, #0x89'),
+            ('bne', '#0x21e94e'), ('bl', '#0x21bc88')]:
+        raise ValueError('state-23 type-89 timer setup route differs')
+    if instructions(0x21e906, 4) != [('bl', '#0x21bcec')]:
+        raise ValueError('state-24 timer setup caller differs')
+    if int.from_bytes(read(0x21bbd4, 4), 'big') != 0x138038:
+        raise ValueError('task-12 receive-state context differs')
+    if instructions(0x21bdc4, 6) != [
+            ('strh', 'r0, [r4, #2]'), ('bl', '#0x21f48a')]:
+        raise ValueError('task-12 state-store continuation differs')
+    if int.from_bytes(read(0x21bbe4 + 4 * 15, 4), 'big') != 0x21f8e2:
+        raise ValueError('state-15 acknowledgement handler differs')
+    if int.from_bytes(read(0x21f9a0, 4), 'big') != 0x1802:
+        raise ValueError('state-15 DSP message selector differs')
+    if instructions(0x21f8f0, 16) != [
+            ('ldrb', 'r0, [r4]'), ('cmp', 'r0, #0x89'),
+            ('beq', '#0x21f8fa'), ('bl', '#0x21ef54'),
+            ('adr', 'r0, #0x36c'), ('bl', '#0x2d5dcc')]:
+        raise ValueError('state-15 type-89 acknowledgement route differs')
+    if int.from_bytes(read(0x21f188, 4), 'big') != 0x411:
+        raise ValueError('state-13 alternate input selector differs')
+    if instructions(0x21ee30, 12) != [
+            ('ldr', 'r0, [pc, #0x354]'), ('cmp', 'r1, r0'),
+            ('beq', '#0x21ee4c'), ('movs', 'r0, #0xd'),
+            ('bl', '#0x21bdc4')]:
+        raise ValueError('state-13 default continuation differs')
+    if instructions(0x21ee52, 14) != [
+            ('ldr', 'r0, [pc, #0x64]'), ('ldr', 'r0, [r0]'),
+            ('ldr', 'r0, [r0]'), ('lsrs', 'r1, r0, #1'),
+            ('beq', '#0x21eef2'), ('cmp', 'r0, #2'), ('beq', '#0x21eef2')]:
+        raise ValueError('state-13 special-input outcome predicate differs')
+    if instructions(0x21ee7a, 14) != [
+            ('bl', '#0x287272'), ('ldr', 'r5, [pc, #0x1b8]'),
+            ('ldr', 'r0, [r5]'), ('strb', 'r6, [r0, #2]'), ('bl', '#0x21fb8c')]:
+        raise ValueError('state-13 special-input argument-zero continuation differs')
+    if int.from_bytes(read(0x2e1150, 4), 'big') != 0x305ec5:
+        raise ValueError('special-status transport callback literal differs')
+    if instructions(0x2e0fae, 6) != [
+            ('ldr', 'r0, [pc, #0x1a0]'), ('bl', '#0x2b98e4')]:
+        raise ValueError('special-status transport callback registration differs')
+    if int.from_bytes(read(0x2b9c80, 4), 'big') != 0x12bab4:
+        raise ValueError('transport callback root differs')
+    if instructions(0x2b98e4, 6) != [
+            ('ldr', 'r1, [pc, #0x398]'), ('str', 'r0, [r1]'), ('mov', 'pc, lr')]:
+        raise ValueError('transport callback registrar differs')
+    if instructions(0x2ba074, 6) != [
+            ('adds', 'r1, r4, #0'), ('mov', 'lr, pc'), ('bx', 'r3')]:
+        raise ValueError('transport packet callback invocation differs')
+    if instructions(0x306fbc, 12) != [
+            ('subs', 'r0, #0x17'), ('cmp', 'r0, #0'),
+            ('beq', '#0x307010'), ('subs', 'r0, #2'),
+            ('cmp', 'r0, #0'), ('beq', '#0x307008')]:
+        raise ValueError('type-9c RX dispatcher arithmetic differs')
+    if instructions(0x307008, 8) != [
+            ('adds', 'r0, r4, #0'), ('bl', '#0x2ba010'), ('b', '#0x3070d0')]:
+        raise ValueError('type-9c transport callback worker route differs')
+    if instructions(0x305ec6, 20) != [
+            ('adds', 'r4, r1, #0'), ('cmp', 'r2, #1'),
+            ('beq', '#0x305f06'), ('ldrb', 'r0, [r4, #4]'),
+            ('cmp', 'r0, #0xb0'), ('beq', '#0x305f06'),
+            ('ldr', 'r1, [pc, #0x16c]'), ('ldrb', 'r5, [r1, #3]'),
+            ('cmp', 'r0, r5'), ('beq', '#0x305eee')]:
+        raise ValueError('type-9c flag/tag forwarding predicates differ')
+    if instructions(0x305edc, 18) != [
+            ('strb', 'r0, [r6, #3]'), ('movs', 'r0, #0x18'),
+            ('ldr', 'r1, [pc, #0x160]'), ('bl', '#0x288d0c'),
+            ('cmp', 'r0, #0'), ('bne', '#0x305f0e'),
+            ('strb', 'r5, [r6, #3]'), ('b', '#0x305f0e')]:
+        raise ValueError('type-9c changed-tag marker/rollback differs')
+    if instructions(0x305eee, 18) != [
+            ('ldrb', 'r0, [r4, #5]'), ('cmp', 'r0, #1'),
+            ('beq', '#0x305f06'), ('ldr', 'r0, [pc, #0x150]'),
+            ('strh', 'r0, [r4]'), ('movs', 'r0, #0x18'),
+            ('adds', 'r1, r4, #0'), ('bl', '#0x288d0c')]:
+        raise ValueError('type-9c stable-tag packet forwarding differs')
+    if instructions(0x305f06, 14) != [
+            ('movs', 'r0, #0x18'), ('ldr', 'r1, [pc, #0x140]'),
+            ('bl', '#0x288d0c'), ('adds', 'r0, r4, #0'),
+            ('bl', '#0x288e44')]:
+        raise ValueError('type-9c marker-only packet disposal differs')
+    if [int.from_bytes(read(address, 4), 'big') for address in (
+            0x306040, 0x306044, 0x306048, 0x30604c)] != [
+            0x136cac, 0x33ea20, 0x3f7, 0x33ea14]:
+        raise ValueError('type-9c tag root/marker literals differ')
+    if [int.from_bytes(read(address, 2), 'big') for address in (
+            0x33ea20, 0x33ea14)] != [0x3fa, 0x3f8]:
+        raise ValueError('type-9c changed-tag/flag marker IDs differ')
+    if int.from_bytes(read(0x27604c, 4), 'big') != 0x3ea or instructions(0x275cb6, 32) != [
+            ('subs', 'r1, r1, r3'), ('cmp', 'r1, #3'), ('bhi', '#0x275cbe'),
+            ('b', '#0x275e80'), ('subs', 'r1, #5'), ('cmp', 'r1, #1'),
+            ('bhi', '#0x275cc6'), ('b', '#0x275e80'), ('subs', 'r1, #2'),
+            ('cmp', 'r1, #9'), ('bls', '#0x275cce'), ('b', '#0x275e82'),
+            ('adr', 'r3, #0xc'), ('mov', 'sb, r3'), ('lsls', 'r3, r1, #2'),
+            ('mov', 'r1, sb')]:
+        raise ValueError('shared transport marker dispatch arithmetic differs')
+    if [int.from_bytes(read(0x275cdc + index * 4, 4), 'big') for index in range(10)] != [
+            0x275e24, 0x275e14, 0x275e08, 0x275dfc, 0x275df0,
+            0x275de4, 0x275da8, 0x275d7a, 0x275e82, 0x275d04]:
+        raise ValueError('shared transport 03f1..03fa dispatch table differs')
+    if instructions(0x275d86, 24) != [
+            ('bl', '#0x2b9a18'), ('movs', 'r0, #0x24'), ('ldr', 'r1, [r4]'),
+            ('strb', 'r6, [r0, r1]'), ('movs', 'r0, #0x25'),
+            ('ldr', 'r1, [r4]'), ('strb', 'r6, [r0, r1]'),
+            ('movs', 'r0, #0x26'), ('ldr', 'r1, [r4]'), ('movs', 'r2, #1'),
+            ('strb', 'r2, [r0, r1]')]:
+        raise ValueError('03f8 context flag clear/consumed marker differs')
+    if instructions(0x2b9a60, 22) != [
+            ('adds', 'r5, r0, #0'), ('movs', 'r0, #2'), ('strh', 'r0, [r5]'),
+            ('ldr', 'r0, [sp]'), ('strb', 'r0, [r5, #2]'),
+            ('movs', 'r0, #0x50'), ('strb', 'r0, [r5, #3]'),
+            ('movs', 'r0, #4'), ('adds', 'r0, r0, r5'), ('mov', 'r1, sl'),
+            ('ldr', 'r2, [sp]')]:
+        raise ValueError('shared marker transport type-50 constructor differs')
+    default_selectors = (0x21bcdc, 0x21bce4, 0x21bd24,
+                         0x21bd28, 0x21bd2c, 0x21bd7c)
+    if [int.from_bytes(read(address, 4), 'big') for address in default_selectors] != [
+            0x3fd, 0x3fb, 0x3fa, 0x422, 0x41d, 0x421]:
+        raise ValueError('default receive-handler selectors differ')
+    if instructions(0x21b9e8, 8) != [
+            ('ldr', 'r0, [pc, #0x390]'), ('cmp', 'r1, r0'),
+            ('beq', '#0x21b9f0'), ('b', '#0x21b8ea')]:
+        raise ValueError('default receive-handler unmatched tail differs')
+    if instructions(0x28758e, 4) != [('movs', 'r1, #0x27'), ('mvns', 'r6, r1')]:
+        raise ValueError('measurement parser does not enumerate forty records')
+    if instructions(0x2875b4, 8) != [
+            ('ldrb', 'r0, [r5, #7]'), ('ldrb', 'r1, [r5, #6]'),
+            ('lsls', 'r1, r1, #8'), ('adds', 'r0, r0, r1')]:
+        raise ValueError('measurement ARFCN byte layout differs')
+    if instructions(0x2875c0, 6) != [
+            ('ldrb', 'r1, [r5, #9]'), ('lsls', 'r0, r1, #0x18'),
+            ('asrs', 'r0, r0, #0x18')]:
+        raise ValueError('measurement signed RSSI layout differs')
+    if instructions(0x2875e4, 12) != [
+            ('movs', 'r1, #0xf0'), ('ldrb', 'r0, [r4, #0xd]'),
+            ('ands', 'r1, r0'), ('movs', 'r0, #2'),
+            ('orrs', 'r0, r1'), ('strb', 'r0, [r4, #0xd]')]:
+        raise ValueError('measurement parser candidate selector assignment differs')
+    if instructions(0x286790, 10) != [
+            ('ldrb', 'r0, [r6, #0xd]'), ('lsls', 'r0, r0, #0x1b'),
+            ('lsrs', 'r0, r0, #0x1b'), ('orrs', 'r1, r0'),
+            ('strb', 'r1, [r6, #0xd]')]:
+        raise ValueError('candidate metadata update selector preservation differs')
+    if instructions(0x287780, 18) != [
+            ('lsls', 'r0, r0, #0x1d'), ('lsrs', 'r0, r0, #0x1d'),
+            ('lsls', 'r0, r0, #0x15'), ('ldr', 'r2, [r1, #0xc]'),
+            ('movs', 'r4, #7'), ('lsls', 'r4, r4, #0x15'),
+            ('bics', 'r2, r4'), ('orrs', 'r2, r0'),
+            ('str', 'r2, [r1, #0xc]')]:
+        raise ValueError('list metadata tag update differs')
+    for address in (0x2a1024, 0x2a10b8):
+        if instructions(address, 6) != [
+                ('movs', 'r0, #5'), ('bl', '#0x28776a')]:
+            raise ValueError('request lifecycle list tag caller differs')
     if instructions(0x2df22e, 12) != [
             ('ldrb', 'r1, [r4, #4]'), ('lsls', 'r1, r1, #0x1f'),
             ('lsrs', 'r1, r1, #0x1f'), ('ldrb', 'r2, [r0, #2]'),
@@ -34,12 +902,25 @@ def verify(image):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('image', type=Path)
+    parser.add_argument('--descriptor-trace', type=Path,
+                        help='bounded passive descriptor-write/constructor observation')
+    parser.add_argument('--dcs1800', action='store_true')
     args = parser.parse_args()
+    if args.dcs1800 and not args.descriptor_trace:
+        parser.error('--dcs1800 requires --descriptor-trace')
     try:
         verify(args.image.read_bytes())
+        if args.descriptor_trace:
+            verify_descriptor_observation(args.descriptor_trace.read_text(), dcs1800=args.dcs1800)
     except (OSError, ValueError) as error:
         parser.exit(1, f'8210 radio contract FAIL: {error}\n')
     print('8210 own RX table, task-12 route and channel correlation PASS')
+    print('8210 neighbour descriptor sources PASS direct_literal_sites=6 '
+          'shared_ram_descriptors=1 rom_templates=0 runtime_mode_claim=0')
+    if args.descriptor_trace:
+        print('8210 descriptor observation PASS shared_initialization_writes=3 '
+              f'shared_populations=0 stack_mode4_calls={int(args.dcs1800)} '
+              'reply_contract_claim=0')
 
 
 if __name__ == '__main__':

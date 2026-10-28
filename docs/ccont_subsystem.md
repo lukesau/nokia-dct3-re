@@ -90,31 +90,98 @@ not prove that physical GENSIO or CCONT has zero latency.
 | `0x5` | watchdog and power control | Proven role; reload command semantics inferred from firmware. |
 | `0x6` | unidentified control | Compatibility storage. Every supported ROM writes the same `0x54,0x56` sequence, but no device-side effect is established. |
 | `0x7..0xa` | RTC second/minute/hour/day read surface | The reader at `0x2b068c` weights these fields by 1, 60, 3,600 and 86,400 respectively. Firmware polls the seconds field and separately writes zero to the day/epoch field during its software-date lifecycle. |
-| `0xb..0xc` | RTC alarm minute/hour | Partial one-shot comparison; hour bit 7 is a self-clearing disable/update strobe. An ordinary hour write arms the comparator. |
+| `0xb..0xc` | Shared RTC clock-load/alarm minute/hour latches | Hour bit 7 loads the running clock and self-clears after settling. An ordinary hour write arms the one-shot comparator. |
 | `0xd` | unidentified control | Compatibility storage; organically read as zero during boot. Effects are not recovered. |
 | `0xe` | interrupt/reset status | Cold power-key reset exposes ready bit 0 and PWRONX cause bit 1 (`0x03`); bit 0 persists while bit 1 and upper interrupt sources are write-one-to-clear. |
 | `0xf` | interrupt mask | Strongly inferred from firmware ISR behavior. |
 
 Writing PWRONX or upper interrupt-status bits clears them. The IRQ output is active when
 `status & ~mask & 0xf8` is nonzero; the low reset/presence bits do not assert
-it. MAD2 owns the resulting CPU interrupt assertion. The default-inactive
+it. This is a held level, not a pulse for each source: MAD2 acknowledgement
+does not release a still-active CCONT input. The physical NPE-3 Snooze gate
+validates redelivery across a stale mask-shadow sample and subsequent alarm
+delivery; see [the product contract](6210_bringup.md#snooze-delivery-contract).
+MAD2 owns the resulting CPU interrupt assertion. The default-inactive
 `CHARGER` input latches established source bit 3 on both connection and
 removal. Both edges use the same firmware debounce path.
 
 The ROM IRQ dispatcher at `0x2b08c6` independently handles status bit 4 as the
 second source, bit 5 as the minute source, and bit 7 as the alarm source. The
-device advances from a fixed `day 1, 12:00:00` reset state rather than host
-wall-clock time, making runs and save states reproducible. Firmware helpers at
+device initializes fresh storage to fixed `day 1, 12:00:00`, rather than host
+wall-clock time. Registers `0x07..0x0d`, the upper interrupt mask and the alarm
+armed latch are persisted through the device NVRAM interface and survive digital
+reset. A new process resumes without adding offline host time. Pending interrupts,
+watchdog and rail state are not persisted; save states retain full live state separately.
+Legacy four-byte counter files remain readable. Firmware helpers at
 `0x2b068c..0x2b080c` multiply the returned fields directly by 60 and 3600 and
 bound the seconds field at `0x3a`; this establishes binary rather than BCD
 encoding. The recovered alarm helper programs the minute/hour pair without a
-separate enable register. Alarm-hour bit 7 requests disable/update and clears
-after the latch settles; a normal hour write arms the one-shot comparison.
+separate enable register. Alarm-hour bit 7 transfers the minute/hour latches to
+the running clock, resets seconds and clears after the calibrated 1 ms latch delay;
+a normal hour write arms the one-shot comparison. The own-ROM 8890 helper at
+`0x2fd21c` uses this strobe to set user time. Physical 13:47 entry followed by a
+new emulator process retains 13:47 and reaches idle after security entry without
+time/date input. This proves powered RTC-domain continuity, not offline calendar
+advance or battery-removal behavior.
 Register `0xd` remains a clock-gate latch with unknown side effects.
+
+NSB-7 connected-call traffic separately exposes an unresolved write-side
+contract: repeated register07 writes00/0f moved the former modeled seconds
+counter backward, while a matched busy control advanced normally. Both
+started with the same RTC state. The binary read-surface evidence did not
+validate those write effects. The device now stores address07 writes in a
+separate acquisition-control latch, save-state registered but not retained
+as RTC NVRAM; reads still expose RTC seconds. An own-ROM NSB-7
+observation now confirms deliberate writes, not a stale ADC response: helper
+`0x305748` receives selector/mask `0x08ff`, then emits control `0x22`,
+command `0x38` and data `0x0f`/`0x00`. Callers `0x30813a` and `0x30818a`
+activate, temporarily clear and restore this value around ADC acquisition;
+`0x30805c` clears it when that acquisition finishes. This establishes an
+analog-acquisition lifecycle, not the physical meaning of the write.
+The 18-entry read table at `0x343ee0` and following 18-entry write table
+separate write-only selector `0x08` (command `0x38`) from read-only selector
+`0x09` (also command `0x38`). Selector `0x0c` is symmetric (`0x50` in both
+tables); there is no one-entry shift to apply to the table. Read-register
+identities must not be promoted into write-register identities without further
+evidence. The converter at `0x3080ba` emits zero below signed input 92;
+otherwise it emits `2 * min((input - 31) / 61, 127) + 1` using integer
+division. Helper `0x30dcb8` returns the quotient in R1 and remainder in R0.
+This establishes the encoding, not its electrical units.
+The direct caller at `0x2aeba6` supplies logical channel 8 and input 500
+(`0xff + 0xf5`), which encodes as `0x0f`. Completion at `0x29e6da`
+calls `0x30805c(11)` to finish the saved active channel. A halfword-aligned
+Thumb BL scan of the own image finds these direct calls to the activation
+and completion helpers, and no direct call to `0x3080e8`; this does not
+exclude indirect callers or establish code/data boundaries for every scan
+hit. Together with the runtime capture, the fixed acquisition parameter and
+pause/restore sequence rule out interpreting those writes as intentional
+wall-clock setting. The circuit controlled by the write remains unnamed.
+`tools/nsb7_ccont_write_observe.lua` observes only seconds 54..67, caps its
+records at 4,096 and performs no firmware writes. Its captured run passes
+`nsb7_host_outgoing_call_check.py`; this validates the call under observation,
+not the unresolved physical register semantics. The bounded evidence
+and independent signaling checks live in
+[the NSB-7 contract](8290_bringup.md#ccont-seconds-write-boundary-exposed-by-the-controls).
+
+`tools/run_ccont_rtc_retention.py RUN_DIR` runs the existing mapped-register
+RTC/IRQ fixture, then a new isolated process with a private copy of its NVRAM.
+It requires retained second/minute/day values without an analog-write reset,
+three ordered ticks and retained alarm latches. This is MMIO conformance,
+not proof of battery-removal behavior or cold handset clock provisioning.
+The loader accepts exactly the legacy four-byte counter record or the
+nine-byte retained-domain record. It checks the complete input before
+installing fields: short counters, truncated extensions, invalid armed/mask
+fields and trailing bytes are rejected without partially replacing defaults.
+The retention runner exercises these cases through actual MAME NVRAM loading,
+not an independent parser imitation. The trailing-byte negative fails on the
+old loader and passes after the end-of-file check; the physical 8890 cold-clock
+gate continues to pass with the supported record.
+The day/epoch byte may legitimately be zero after a firmware write; the
+storage format preserves register bytes rather than validating a calendar.
 
 The seconds register exposes bit 7 as the RTC-running status. Firmware checks
 that bit before accepting the physical clock, masks it from the numeric seconds,
-and uses bit 7 of the alarm-hour register as a polled disable/update strobe.
+and uses bit 7 of the alarm-hour register as a polled clock-load strobe.
 These two status semantics are required for task 1 to program an organic user
 alarm.
 
@@ -148,17 +215,23 @@ existing five-second input schedule.
 
 The complete v6.00 CCONT helper block `0x2b061c..0x2b0a16` aligns with v5.01
 `0x2ada48..0x2ade42`. This covers register reads/writes, RTC helpers, watchdog
-commands, power helpers and the IRQ acknowledge loop. The ROM shadow/default
-tables at v6.00 `0x2e2da8` and v5.01 `0x2d777c` are byte-identical. These are
+commands, power helpers and the IRQ acknowledge loop. The ROM read/write command
+tables at v6.00 `0x2e2da8` and v5.01 `0x2d777c` are byte-identical. The v6.00
+masked writer `0x2afa74` loads its command at table offset `0x12`
+(`0x2afa92`), independently confirming the second table's write-command role;
+reader `0x2afb44` loads from the first table. These are
 same-product controls for the register grammar, not independent chip
 documentation; command meanings that firmware never observes remain inferred.
 
 All five supported firmware controls contain one byte-lane-correct, 18-entry
 descriptor table and two literal references to it. All 90 decoded entries are
-identical: logical descriptors expose physical registers `0x2`, `0x3`, `0x4`
-and `0x7..0xf`; six logical slots are absent. ADC register `0x0`, watchdog
-register `0x5`, and boot writes to `0x1`/`0x6` use direct special paths outside
-that table. `docs/data/ccont_static_census.json` records every entry and table
+identical on the read side: logical descriptors expose physical registers
+`0x2`, `0x3`, `0x4` and `0x7..0xf`; six read slots are absent. The parallel
+write-command table also includes registers `0x0`, `0x1`, `0x4`, `0x5`,
+`0x6` and write-only logical selector `0x08` at physical address `0x07`.
+Special direct helpers can access the same serial addresses without using
+the descriptor table. `docs/data/ccont_static_census.json` records both
+command directions for every entry and table
 address. This establishes addressability, not semantics.
 
 Independent two-second organic traces of the same five ROMs decode 933 complete
@@ -171,6 +244,30 @@ ADC selectors; 3310 requests 0/2/3/4/5/7, while 3330 and 3410 request
 explicit boot calibration, not a claim that their PCB nets are identical.
 
 ## ADC selectors
+
+### Product Input Evidence
+
+Channel numbers, board nets, analogue transfer and a safe raw fixture are
+different contracts. None can substitute for another:
+
+| Profile | Independently supported fact | Limit on the configured input |
+| --- | --- | --- |
+| NSE-8 | Own service-manual net/transfer table; paired firmware source-routing table | Selector 1's physical mux remains unidentified. Safe samples are not factory calibration. |
+| NPM-5 | Own 150 kohm BSI pull-up, BLB-2 identification and 100 kohm/47 kohm BTEMP divider | Nominal 595/327 depends on the explicitly sourced 1.5 V BSI reference, not VBB. Other raw channels remain research defaults. |
+| NSE-6 | Own schematic directly connects BVOLT to VBAT | Nominal 554 borrows a stated typical CCONT transfer; no measured part calibration. |
+| NSM-5 | Own firmware accepts the recorded BSI/BTEMP windows | Recognition bounds alone do not establish voltage/resistance scaling. |
+| NAM-2 | Own manual identifies a 100 kohm BSI pull-up to VBB and a service voltage point | Retained raw `0x0b6` is not proved to represent 0.5 V. A supply voltage does not identify ADC reference. |
+| Other compatibility tuples | Explicit raw product inputs with the acceptance stated in their product documents | Matching a donor's values is not independent board-wiring or analogue evidence. |
+
+NAM-2's System Module DF9 is retained under
+`roms/research/nam2-service-manual/2100/03-nam2-syst.pdf`; see the source
+identities in `2100_bringup.md`. The NPM-5 schematic/reference calculation is
+in `5510_bringup.md#analog-evidence-and-startup-rejection`. These documents
+do not supply a universal physical calibration for every CCONT revision.
+No new nominal tuple should be promoted by searching values until a boot
+passes. For NAM-2, first identify the fitted ADC transfer and distinguish
+the service jig from an ordinary pack; the previous one-value experiment
+does not close that question.
 
 The 3210 v6.00 firmware directly calls `0x2b52cc` with selector `0` in boot
 battery reader `0x2a84b0`, while the later ADC monitor maps logical source 7
@@ -327,6 +424,58 @@ cause, sample selector-5 VCHAR above `0x64`, and settle organically in
 acting-dead mode `0x0005`. Resetting only the ARM and MAD2 core left attached
 peripherals in stale protocol states and was rejected.
 
+The separate physical Power input also reaches CCONT's always-powered
+PWRONX path, independently of MAD2 keypad GPIO. An active-low press while
+the digital rail is off restores that domain and publishes cause bit 1;
+it preserves RTC registers and pending upper interrupt sources. Presses
+while powered leave CCONT unchanged and continue through the ordinary
+firmware keypad path. Wake assertion has no recovered debounce/delay model.
+`verify-8890-power-cycle` independently proves firmware shutdown, a blank
+LCD, a ticking CCONT during CPU rail-off, physical PWRONX restart and a
+firmware status read containing ready/PWRONX without charger cause. Both
+native upload/HLE handoffs and subsequent physical security entry to idle
+are checked. The requalified NPE-3 and NSB-6 power gates require continuous
+RTC progression through wake and the independent acquisition-control write;
+neither accepts the former address07 seconds-reset interpretation. NSB-6's
+powered-off restore additionally retains exact RTC replay and endpoint silence.
+Retained device state is not a claim of untouched software time or cold
+calendar persistence. The DSP backend power-off boundary stops HLE service,
+packet, response, keepalive and speech timers, native DSP execution and its
+frame/slot timers, and the radio peer's burst clock. Wake uses the existing
+full digital reset to re-arm them. The 8890 gate checks at least six seconds
+of DSP/radio transport silence alongside continuous one-second RTC ticks.
+Complete per-block clock-gating outside this boundary remains unvalidated.
+
+`verify-8890-power-off-restore` separately saves with the rail off at 53 s,
+compares exact CPU PC/SP, full mapped RAM checksum and emulated time on
+load, and requires identical one-second RTC replay and blank LCD frames.
+Neither timeline may publish DSP/radio activity. The restored machine then
+completes the same physical PWRONX restart, own uploads, registration and
+security entry to idle. This validates emulator state restoration, not
+battery-backed persistence across process termination.
+
+The independent NPE-3 `verify-6210-power-cycle` gate covers the same shared
+PWRONX/backend boundary with unchanged own PMM, at least fifty seconds of off-state
+RTC ticks and DSP/radio silence, both own native-upload/HLE stages and
+physical Menu after registered-idle recovery. Its retained-location
+registration rewrites LAI but not status; no NSB-6 protocol ordering or
+security-editor requirement is imported.
+
+NSM-3 `verify-8210-power-cycle` independently covers physical rail-off,
+eight seconds of retained RTC ticks, coherent carrier-4 re-registration,
+both own-upload/HLE/self-test sequences and repeated physical security entry
+back to idle. Its explicit base-record PMM comparison is not factory
+provisioning. Like NPE-3 it rewrites retained LAI but not valid location status;
+the CCONT calendar day differs from the NPE-3/NSB-6 fixtures.
+
+`tools/power_domain_contract.py` owns the common rejection of known
+DSPIF publication/notification, native port, staged publication, radio LAPDm
+and HLE speech activity within rail-off windows. It is used by all three
+product checkers and both NSB-6 restore timelines. Product checkers retain
+physical ordering, minimum observation duration, RTC/calendar expectations,
+independent boot/registration evidence and post-wake input. Absence of these
+known events is not proof of every internal peripheral clock being gated.
+
 CCONT watchdog expiry uses the same digital-baseband reset domain. It resets
 the CPU, MAD2 peripherals, GENSIO, MBUS, DSPIF/peer, SIMI/card protocol state
 and LCD controller while retaining CCONT, flash and EEPROM. MAD2 watchdog
@@ -338,7 +487,17 @@ status read before expiry and the first after reboot are both `0x13`: existing
 ready/PWRONX state plus the pending RTC-second source survive exactly, while
 MAD2 clock initialization restarts. CCONT watchdog expiry therefore creates no
 new CCONT cause bit. Watchdog data zero remains the distinct commanded rail-off
-path.
+path. A zero write stores zero, stops the counter and removes the rails;
+`watchdog_tick` cannot expire a retained reload while the baseband is off.
+The long NPE-3 power-cycle gate observes continuous RTC and endpoint silence
+beyond the previous 49-second reload before physical PWRONX restart. The
+always-powered alarm comparator now restores the digital rails with its own
+bit-7 cause retained; an IRQ indication alone cannot release rail-off reset.
+NPE-3's physical off-alarm gates prove natural wake, Stop and both activation
+choices, including firmware-owned warm restart to registered idle. MCU warm
+reset retains SRAM and publishes software status `04`, rather than cold-power
+status `01`; the counter/IRQ/rail model contains no firmware addresses. See the
+[powered-off alarm boundary](6210_bringup.md#powered-off-alarm-boundary).
 
 WDDISX is modeled at the CCONT device boundary rather than by suppressing the
 phone's one-second tick. The NSE-8/9 documentation says an ordinary operational

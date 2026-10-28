@@ -3,7 +3,7 @@
 #ifndef MAME_NOKIA_NOKIA_CCONT_H
 #define MAME_NOKIA_NOKIA_CCONT_H
 
-class nokia_ccont_device : public device_t
+class nokia_ccont_device : public device_t, public device_nvram_interface
 {
 public:
 	nokia_ccont_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
@@ -15,6 +15,7 @@ public:
 	void select_w(int selected);
 	void set_adc_source(unsigned channel, uint16_t value);
 	void set_charger_input(unsigned channel, bool connected, uint16_t vchar = 0x03ff);
+	void set_power_key_input(bool pressed);
 	void set_ready(bool ready) { m_ready = ready; }
 	void set_wddisx_grounded(bool grounded) { m_wddisx_grounded = grounded; }
 	bool dsp_frame_clock_enabled() const { return (m_regs[6] & 0x02) != 0; }
@@ -24,6 +25,9 @@ protected:
 	virtual void device_start() override ATTR_COLD;
 	virtual void device_reset() override ATTR_COLD;
 	virtual void device_post_load() override;
+	virtual void nvram_default() override;
+	virtual bool nvram_read(util::read_stream &file) override;
+	virtual bool nvram_write(util::write_stream &file) override;
 
 private:
 	TIMER_CALLBACK_MEMBER(rtc_tick);
@@ -36,6 +40,7 @@ private:
 	devcb_write_line m_power_cb;
 	uint8_t m_cmd = 0;
 	uint8_t m_watchdog = 0;
+	uint8_t m_analog_acquisition_control = 0;
 	uint8_t m_regs[0x10] = {0};
 	uint16_t m_adc_source[8] = {0};
 	uint16_t m_adc_result = 0;

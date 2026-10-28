@@ -99,6 +99,8 @@ struct nokia_gsm_call_adapter_device::host_state
 	{
 		u32 epoch = 0;
 		u32 request_id = 0;
+		bool terminate = false;
+		bool request = false;
 		u8 data_coding_scheme = 0x0f;
 		std::array<u8, gsm::ss::maximum_ussd_length> data{};
 		u8 length = 0;
@@ -339,6 +341,20 @@ void nokia_gsm_call_adapter_device::device_start()
 						++m_host->dropped_events;
 					return;
 				}
+				if (type == "incoming_ussd_terminate")
+				{
+					host_state::queued_incoming_ussd item;
+					item.epoch = message["epoch"].GetUint();
+					item.request_id = message["request_id"].GetUint();
+					item.terminate = true;
+					if (!item.request_id) return;
+					std::lock_guard<std::mutex> lock(m_host->mutex);
+					if (m_host->queued_events() < MAXIMUM_QUEUED_EVENTS)
+						m_host->incoming_ussd.push_back(item);
+					else
+						++m_host->dropped_events;
+					return;
+				}
 				if (type == "incoming_ussd")
 				{
 					if (!message.HasMember("dcs") || !message["dcs"].IsUint() ||
@@ -346,6 +362,13 @@ void nokia_gsm_call_adapter_device::device_start()
 							!message.HasMember("data") || !message["data"].IsString())
 						return;
 					host_state::queued_incoming_ussd item;
+					if (message.HasMember("operation"))
+					{
+						if (!message["operation"].IsString()) return;
+						const std::string_view operation(message["operation"].GetString(), message["operation"].GetStringLength());
+						if (operation != "request" && operation != "notify") return;
+						item.request = operation == "request";
+					}
 					item.epoch = message["epoch"].GetUint();
 					item.request_id = message["request_id"].GetUint();
 					item.data_coding_scheme = u8(message["dcs"].GetUint());
@@ -498,6 +521,14 @@ void nokia_gsm_call_adapter_device::set_enabled(bool enabled)
 			enabled ? attotime::from_msec(10) : attotime::never);
 }
 
+void nokia_gsm_call_adapter_device::session_reset_w(int state)
+{
+	// A global MAME reset resets this device separately. Only session-local
+	// resets need forwarding, avoiding double-counting the initial reset wave.
+	if (state && machine().phase() == machine_phase::RUNNING)
+		device_reset();
+}
+
 void nokia_gsm_call_adapter_device::device_reset()
 {
 	m_last_published_request_id = 0;
@@ -512,8 +543,6 @@ void nokia_gsm_call_adapter_device::device_reset()
 	m_last_network_arfcn = 0xffff;
 	m_last_published_connected = false;
 	m_last_published_alerting = false;
-	m_last_network_registered = false;
-	m_last_network_arfcn = 0xffff;
 	m_incoming_request_id = 0;
 	m_incoming_digits.fill(0);
 	m_incoming_digits_length = 0;
@@ -522,7 +551,11 @@ void nokia_gsm_call_adapter_device::device_reset()
 	m_last_incoming_alerting = false;
 	m_incoming_started = false;
 	m_incoming_connected_once = false;
-	m_transport_epoch.store(1);
+	// Connections outlive both handset and radio-session resets. Never reuse
+	// their old correlation epoch when request counters restart at zero.
+	if (m_transport_initialized)
+		m_transport_epoch.fetch_add(1);
+	m_transport_initialized = true;
 	std::lock_guard<std::mutex> lock(m_host->mutex);
 	m_host->decisions.clear();
 	m_host->sms_decisions.clear();
@@ -532,8 +565,10 @@ void nokia_gsm_call_adapter_device::device_reset()
 	m_host->incoming.clear();
 	m_host->incoming_sms.clear();
 	m_host->incoming_ussd.clear();
-	m_host->republish = false;
-	m_host->ready_pending = false;
+	// HTTP clients can attach before the first machine reset.  They survive
+	// reset, so announce the reset epoch instead of losing their handshake.
+	m_host->republish = !m_host->connections.empty();
+	m_host->ready_pending = !m_host->connections.empty();
 	m_host->dropped_events = 0;
 }
 
@@ -618,10 +653,21 @@ TIMER_CALLBACK_MEMBER(nokia_gsm_call_adapter_device::poll_host)
 		publish_incoming_ussd_state("queued");
 	for (const auto &item : incoming_ussd)
 	{
+		if (item.terminate)
+		{
+			const bool accepted = item.epoch == m_transport_epoch.load() &&
+					item.request_id == m_incoming_ussd_request_id &&
+					m_radio_peer->terminate_host_incoming_ussd();
+			LOGMASKED(LOG_CALL_ADAPTER,
+					"gsm_call_adapter: incoming ussd termination id=%u result=%s t=%.6f\n",
+					item.request_id, accepted ? "accepted" : "rejected",
+					machine().time().as_double());
+			continue;
+		}
 		const bool accepted = item.epoch == m_transport_epoch.load() &&
 				m_incoming_ussd_request_id == 0 &&
 				m_radio_peer->queue_host_incoming_ussd(
-						item.data_coding_scheme, item.data.data(), item.length);
+						item.data_coding_scheme, item.data.data(), item.length, item.request);
 		LOGMASKED(LOG_CALL_ADAPTER,
 				"gsm_call_adapter: incoming ussd id=%u result=%s t=%.6f\n",
 				item.request_id, accepted ? "accepted" : "rejected",
@@ -636,7 +682,14 @@ TIMER_CALLBACK_MEMBER(nokia_gsm_call_adapter_device::poll_host)
 	if (m_incoming_ussd_request_id &&
 			!m_radio_peer->host_incoming_ussd_pending())
 	{
-		publish_incoming_ussd_state("delivered");
+		if (m_radio_peer->host_incoming_ussd_is_request())
+		{
+			const bool answered = m_radio_peer->host_incoming_ussd_reply().valid;
+			if (answered) publish_incoming_ussd_reply();
+			publish_incoming_ussd_state(answered ? "answered" : "cancelled");
+		}
+		else
+			publish_incoming_ussd_state("delivered");
 		m_incoming_ussd_request_id = 0;
 		m_incoming_ussd_queue_ticks = 0;
 	}
@@ -764,7 +817,13 @@ TIMER_CALLBACK_MEMBER(nokia_gsm_call_adapter_device::poll_host)
 	}
 	for (const auto &decision : sms_decisions)
 	{
-		const bool accepted = decision.epoch == m_transport_epoch.load() &&
+		const u32 epoch = m_transport_epoch.load();
+		if (decision.epoch != epoch)
+			LOGMASKED(LOG_CALL_ADAPTER,
+					"gsm_call_adapter: stale epoch=%u current=%u type=outgoing_sms_decision "
+					"id=%u result=rejected t=%.6f\n",
+					decision.epoch, epoch, decision.request_id, machine().time().as_double());
+		const bool accepted = decision.epoch == epoch &&
 				m_session->submit_outgoing_sms_decision(
 						decision.request_id, decision.outcome);
 		LOGMASKED(LOG_CALL_ADAPTER,
@@ -809,6 +868,10 @@ TIMER_CALLBACK_MEMBER(nokia_gsm_call_adapter_device::poll_host)
 				m_session->outgoing_request_id() : m_incoming_request_id);
 	else
 		m_voice_peer->end_host_media();
+	if (!connected && m_last_published_connected)
+		publish_state("media_closed");
+	if (!incoming_connected && m_last_incoming_connected)
+		publish_incoming_state("media_closed");
 	for (const auto &item : media)
 	{
 		if (item.epoch != m_transport_epoch.load())
@@ -823,16 +886,19 @@ TIMER_CALLBACK_MEMBER(nokia_gsm_call_adapter_device::poll_host)
 		const bool direction_matches = item.incoming ?
 				item.request_id == m_incoming_request_id :
 				item.request_id == m_session->outgoing_request_id();
+		const bool session_connected = item.incoming ? incoming_connected : connected;
 		const bool accepted = direction_matches &&
 				m_voice_peer->submit_host_downlink(
 						item.request_id, item.sequence, item.frame);
 		LOGMASKED(LOG_CALL_ADAPTER,
 				"gsm_call_adapter: media direction=downlink id=%u sequence=%u "
-				"result=%s source_time_us=%llu t=%.6f\n",
+				"result=%s source_time_us=%llu t=%.6f reason=%s\n",
 				item.request_id, item.sequence,
 				accepted ? "accepted" : "rejected",
 				item.source_time_us,
-				machine().time().as_double());
+				machine().time().as_double(),
+				accepted ? "accepted" : !direction_matches ? "wrong_request" :
+				!session_connected ? "session_closed" : "media_validation");
 	}
 	for (const auto &termination : terminations)
 	{
@@ -981,6 +1047,14 @@ void nokia_gsm_call_adapter_device::publish_ready()
 	writer.String("call_adapter_ready");
 	writer.Key("protocol_version");
 	writer.Uint(1);
+	// Snapshot call ownership before republishing individual transactions.
+	// An external backend cannot distinguish idle restoration from a pending
+	// call merely by waiting for an event that idle deliberately never emits.
+	writer.Key("calls_idle");
+	writer.Bool(!m_incoming_request_id &&
+			!m_session->outgoing_request_pending() &&
+			!m_session->outgoing_call_connected() &&
+			!m_session->outgoing_call_alerting());
 	writer.Key("epoch");
 	writer.Uint(m_transport_epoch.load());
 	writer.Key("capabilities");
@@ -1041,6 +1115,31 @@ void nokia_gsm_call_adapter_device::publish_incoming_sms_state(const char *phase
 			"gsm_call_adapter: incoming sms state id=%u epoch=%u phase=%s t=%.6f\n",
 			m_incoming_sms_request_id, m_transport_epoch.load(), phase,
 			machine().time().as_double());
+}
+
+void nokia_gsm_call_adapter_device::publish_incoming_ussd_reply()
+{
+	const auto &reply = m_radio_peer->host_incoming_ussd_reply();
+	std::string data;
+	for (unsigned index = 0; index < reply.ussd_length; ++index)
+		data += util::string_format("%02x", reply.ussd[index]);
+	rapidjson::StringBuffer buffer;
+	rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+	writer.StartObject();
+	writer.Key("type"); writer.String("incoming_ussd_response");
+	writer.Key("request_id"); writer.Uint(m_incoming_ussd_request_id);
+	writer.Key("epoch"); writer.Uint(m_transport_epoch.load());
+	writer.Key("dcs"); writer.Uint(reply.data_coding_scheme);
+	writer.Key("data"); writer.String(data.c_str());
+	writer.Key("empty"); writer.Bool(!reply.has_parameters);
+	writer.EndObject();
+	std::lock_guard<std::mutex> lock(m_host->mutex);
+	for (const auto &connection : m_host->connections)
+		connection->send_message(buffer.GetString(), 1);
+	LOGMASKED(LOG_CALL_ADAPTER,
+			"gsm_call_adapter: incoming ussd reply id=%u epoch=%u dcs=%02x data=%s empty=%u t=%.6f\n",
+			m_incoming_ussd_request_id, m_transport_epoch.load(), reply.data_coding_scheme,
+			data.c_str(), reply.has_parameters ? 0 : 1, machine().time().as_double());
 }
 
 void nokia_gsm_call_adapter_device::publish_incoming_ussd_state(const char *phase)
@@ -1360,6 +1459,8 @@ void nokia_gsm_call_adapter_device::publish_request()
 			index < m_session->outgoing_called_digits_length(); ++index)
 		digits += char('0' + m_session->outgoing_called_digits()[index]);
 	writer.String(digits.c_str(), digits.size());
+	writer.Key("decision_pending");
+	writer.Bool(m_session->outgoing_decision_pending());
 	writer.EndObject();
 
 	unsigned clients = 0;

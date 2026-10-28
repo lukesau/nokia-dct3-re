@@ -1,8 +1,65 @@
 import hashlib
+import io
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 from PIL import Image
 from tools import run_noki6210_acceptance as runner
+
+
+class SleepObserverArgumentsTest(unittest.TestCase):
+    def test_rejects_unrelated_or_competing_observers_before_rom_access(self):
+        for arguments in (['--scenario', 'menu', '--trace-sleep'],
+                          ['--scenario', 'outgoing-call', '--trace-sleep', '--trace-dsp-control']):
+            with patch.object(runner.sys, 'argv', ['acceptance', 'unused-run', *arguments]), \
+                    patch.object(runner.sys, 'stderr', io.StringIO()), \
+                    patch.object(runner, 'assess') as assess:
+                with self.assertRaises(SystemExit) as error:
+                    runner.main()
+                self.assertEqual(error.exception.code, 2)
+                assess.assert_not_called()
+
+
+class RetainedSecurityTest(unittest.TestCase):
+    def exercise(self, corrupt=False):
+        with tempfile.TemporaryDirectory() as directory:
+            base=Path(directory)
+            source=base/'source'
+            storage=source/'nvram/npe3hle'
+            storage.mkdir(parents=True)
+            (storage/'sim_card').write_bytes(b'card')
+            (storage/'flash').write_bytes(b'flash')
+            (source/'cfg').mkdir()
+            script=base/'input.lua'
+            script.write_text('-- physical input\n')
+            target=base/'cold'
+
+            def launch(*args, **kwargs):
+                self.assertEqual((target/'nvram/npe3hle/flash').read_bytes(),b'flash')
+                (target/'error.log').write_text('trace')
+                if corrupt:
+                    (storage/'flash').write_bytes(b'changed')
+
+            with patch.object(runner.subprocess,'run',side_effect=launch), \
+                    patch.object(runner,'check_output'), \
+                    patch.object(runner,'events',return_value='trace'), \
+                    patch.object(runner,'verify'):
+                result=runner.run_retained_security(source,target,
+                    ['mame','-autoboot_script','old','-seconds_to_run','1'],script,84,{})
+            self.assertEqual(result[0],'trace')
+            self.assertEqual(result[1],b'card')
+            self.assertEqual(set(result[2]['initial_storage']),
+                             {'npe3hle/sim_card','npe3hle/flash'})
+            self.assertEqual(result[2]['command'][-1],'84')
+            self.assertEqual(result[2]['command'][2],str(script))
+
+    def test_exact_storage_copy(self):
+        self.exercise()
+
+    def test_predecessor_flash_mutation_is_rejected(self):
+        with self.assertRaisesRegex(ValueError,'changed predecessor storage'):
+            self.exercise(corrupt=True)
 
 
 class MenuAcceptanceTest(unittest.TestCase):
@@ -34,11 +91,148 @@ class MenuAcceptanceTest(unittest.TestCase):
 
 
 class ApplicationAcceptanceTest(unittest.TestCase):
+    def test_event_filter_retains_host_transaction_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'error.log'
+            line='gsm_call_adapter: incoming ussd state id=1 epoch=1 phase=delivered\n'
+            path.write_text('unrelated verbose output\n'+line)
+            self.assertEqual(runner.events(path),line)
+
+    def test_fdn_profiles_require_coherent_cell_and_are_admitted(self):
+        for scenario in runner.FDN_SCENARIOS:
+            with self.subTest(scenario=scenario), \
+                    patch('sys.argv',['runner','unused','--scenario',scenario]), \
+                    patch('sys.stderr',new_callable=io.StringIO),self.assertRaises(SystemExit):
+                runner.main()
+            with self.subTest(scenario=scenario), \
+                    patch('sys.argv',['runner','unused','--scenario',scenario,'--coherent-cell']), \
+                    patch.object(runner.Path,'read_bytes',return_value=b''), \
+                    patch.object(runner,'assess',side_effect=RuntimeError('admitted')), \
+                    self.assertRaisesRegex(RuntimeError,'admitted'):
+                runner.main()
+
+    def test_foreign_cell_requires_supported_service_scenario(self):
+        for scenario in ('outgoing-call', 'incoming-sms'):
+            with self.subTest(scenario=scenario), \
+                    patch('sys.argv', ['runner', 'unused', '--scenario', scenario, '--foreign-cell']), \
+                    patch.object(runner.Path, 'read_bytes', return_value=b''), \
+                    patch.object(runner, 'assess', side_effect=RuntimeError('admitted')), \
+                    self.assertRaisesRegex(RuntimeError, 'admitted'):
+                runner.main()
+        with patch('sys.argv', ['runner', 'unused', '--scenario', 'security', '--foreign-cell']), \
+                patch('sys.stderr', new_callable=io.StringIO), self.assertRaises(SystemExit) as error:
+            runner.main()
+        self.assertEqual(error.exception.code, 2)
+
+    def test_pin_phonebook_and_states_are_admitted_with_coherent_network(self):
+        for scenario in ('phonebook', 'state-idle', 'state-call', 'state-sms',
+                         'host-rejected-sms', 'host-silent-sms'):
+            with self.subTest(scenario=scenario), \
+                    patch('sys.argv', ['runner', 'unused', '--scenario', scenario,
+                                      '--pin-enabled', '--coherent-cell']), \
+                    patch.object(runner.Path, 'read_bytes', return_value=b''), \
+                    patch.object(runner, 'assess', side_effect=RuntimeError('admitted')), \
+                    self.assertRaisesRegex(RuntimeError, 'admitted'):
+                runner.main()
+
+    def test_pin_service_requires_coherent_network_and_supported_fixture(self):
+        for arguments in (['--scenario', 'host-incoming-sms', '--pin-enabled'],
+                          ['--scenario', 'menu', '--pin-enabled', '--coherent-cell']):
+            with self.subTest(arguments=arguments), patch('sys.argv', ['runner', 'unused'] + arguments), \
+                    patch('sys.stderr', new_callable=io.StringIO), self.assertRaises(SystemExit) as error:
+                runner.main()
+            self.assertEqual(error.exception.code, 2)
+
+    def test_retained_location_is_product_specific_not_fresh_registration(self):
+        text = '\n'.join((
+            'read-binary fid=6f7e offset=0 length=11',
+            'TX packet type=56 payload=160 data=0023',
+            'TX packet type=02 radio_phase=candidate_channel_change data=040000000000005050000023',
+            'TX packet type=0c radio_phase=random_access',
+            'RX enqueue type=89 payload=8 data=0100000000000000',
+            'TX packet type=1b data=0080013f4905087200f110000133080910101032547698',
+            'LAPDm Location Updating Accept acknowledged nr=1',
+            'update-binary fid=6f7e offset=4 length=5',
+            'LAPDm Channel Release acknowledged nr=2',
+            'TX packet type=02 radio_phase=release_channel_change data=040000000000001a600000230000000f'))
+        storage = bytearray(3524)
+        storage[1604:1609] = bytes.fromhex('00f1100001')
+        runner.check_registration(text, storage, preserved_location=True)
+        foreign = bytes.fromhex('32f4510001')
+        foreign_text = text.replace('00f1100001', foreign.hex())
+        foreign_storage = bytearray(storage)
+        foreign_storage[1604:1609] = foreign
+        runner.check_registration(foreign_text, foreign_storage, preserved_location=True,
+                                  expected_lai=foreign)
+        with self.assertRaises(ValueError):
+            runner.check_registration(foreign_text, foreign_storage, preserved_location=True)
+        pin_text = text.replace('data=040000', 'data=041202')
+        runner.check_registration(pin_text, storage, preserved_location=True,
+                                  channel_header='1202')
+        with self.assertRaises(ValueError):
+            runner.check_registration(pin_text, storage, preserved_location=True)
+        with self.assertRaises(ValueError):
+            runner.check_registration(text, storage, preserved_location=True,
+                                      channel_header='1202')
+        with self.assertRaises(ValueError):
+            runner.check_registration(text, storage)
+        for broken in (text.replace('read-binary fid=6f7e', 'read-binary fid=6f3a'),
+                       text + '\nupdate-binary fid=6f7e offset=10 length=1',
+                       text.replace('05087200f1100001', '05087000f000fffe'),
+                       text.replace('update-binary fid=6f7e offset=4', 'update-binary fid=6f3a offset=4')):
+            with self.subTest(text=broken), self.assertRaises(ValueError):
+                runner.check_registration(broken, storage, preserved_location=True)
+
+    def test_host_sms_frame_rejects_blank_or_wrong_geometry(self):
+        for size in ((96, 60), (84, 48)):
+            with self.assertRaisesRegex(ValueError, 'Message sent'):
+                runner.check_host_sms_sent(Image.new('L', size, 255))
+
+    def test_accessory_requires_observed_high_unattached_decision(self):
+        frame = Image.new('L', (96, 60), 255)
+        with patch.object(runner, 'OPERATOR_SHA256', hashlib.sha256(frame.tobytes()).hexdigest()):
+            runner.check_accessory('6210_accessory_decision: state=0f sample=03ff', frame)
+            for text in ('', '6210_accessory_decision: state=10 sample=0000',
+                         '6210_accessory_decision: state=0f sample=0000'):
+                with self.assertRaises(ValueError):
+                    runner.check_accessory(text, frame)
+
+    def test_sim_persistence_can_precede_or_follow_radio_release(self):
+        records = [
+            'TX packet type=56 payload=160 data=0023',
+            'TX packet type=02 radio_phase=candidate_channel_change data=040000000000005050000023',
+            'TX packet type=0c radio_phase=random_access',
+            'RX enqueue type=89 payload=8 data=0100000000000000',
+            'TX packet type=1b data=0080013f4905087000f000fffe33080910101032547698',
+            'LAPDm Location Updating Accept acknowledged nr=1',
+            'LAPDm Channel Release acknowledged nr=2',
+            'TX packet type=02 radio_phase=release_channel_change data=040000000000001a600000230000000f']
+        updates = ['update-binary fid=6f7e offset=4 length=5',
+                   'update-binary fid=6f7e offset=10 length=1']
+        storage = bytearray(3524)
+        storage[1604:1609] = bytes.fromhex('00f1100001')
+        for index in (6, 7, 8):
+            runner.check_registration('\n'.join(records[:index] + updates + records[index:]), storage)
+        foreign = bytes.fromhex('32f4510001')
+        storage[1604:1609] = foreign
+        text = '\n'.join(records + updates)
+        runner.check_registration(text, storage, expected_lai=foreign)
+        with self.assertRaisesRegex(ValueError, 'EF_LOCI'):
+            runner.check_registration(text, storage)
+        with self.assertRaisesRegex(ValueError, 'five octets'):
+            runner.check_registration(text, storage, expected_lai=foreign[:3])
+        with self.assertRaises(ValueError):
+            runner.check_registration('\n'.join(updates + records), storage)
+
     def test_artifact_failure_cannot_pass(self):
         for error in ('Disk quota exceeded', 'Error writing NVRAM file', 'Error generating PNG'):
             with self.assertRaisesRegex(ValueError, 'acceptance artifacts'):
                 runner.check_output(error)
         runner.check_output('Average speed: 450%')
+
+    def test_lua_error_cannot_pass(self):
+        with self.assertRaises(ValueError):
+            runner.check_output('[LUA ERROR] fixture failed')
 
     def test_registration_rejects_missing_exchange(self):
         with self.assertRaisesRegex(ValueError, 'ordered NPE-3'):
@@ -67,6 +261,19 @@ class ApplicationAcceptanceTest(unittest.TestCase):
                            '6210_phonebook_read_physical: action=contact', 'ins=dc'))
         with self.assertRaisesRegex(ValueError, 'without writing SIM'):
             runner.check_phonebook(write, read, b'', Image.new('L', (96, 60), 255))
+
+
+class CommandConstructionTest(unittest.TestCase):
+    def test_shared_cold_runner_preserves_existing_mame_arguments(self):
+        root=Path('/example/nokia')
+        for throttle in (False,True):
+            expected=[str(root/'mame/mame'),'npe3hle','-rompath',str(root/'roms'),
+                      '-nvram_directory','nvram','-cfg_directory','cfg','-noreadconfig',
+                      '-debug','-debugger','none','-autoboot_script',
+                      str(root/'tools/noki6210_security_input.lua'),'-autoboot_delay','0',
+                      '-seconds_to_run','37','-video','none','-sound','none',
+                      '-throttle' if throttle else '-nothrottle','-log','-verbose']
+            self.assertEqual(runner.build_command(root,None,'npe3hle','security_input',37,throttle),expected)
 
 
 if __name__ == '__main__':

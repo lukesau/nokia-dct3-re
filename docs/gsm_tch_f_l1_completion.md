@@ -28,6 +28,49 @@ not fabricated. Their Nokia DSP-side ownership remains an evidence question,
 but the standards-defined Layer 1 transport and scheduling contract is ready
 for those 184 information bits.
 
+## Error verdict limits
+
+`verify-gsm-tch-f-l1` exercises the laboratory profile of four inverted
+traffic bursts every 144 with three valid source-bit patterns and matched
+clean controls. Over 576 bursts, each stream decodes 143 frames. The clean
+controls preserve every payload. Each impaired stream changes seven decoded
+payloads; all-one and patterned source bits produce seven bad verdicts,
+whereas all-zero source bits produce none. These are reproducible decoder
+observations, not an independent standards conformance vector or a measured
+radio error distribution. A parity/tail pass cannot establish bit equality.
+
+A fresh v6.00 `verify-radio-a5-1-degraded` run with the strict cipher-replay
+requirement exposes the same acceptance boundary: exact replay passes
+(59 selected records), physical Answer/End and DSP release pass, but the
+uplink impairment-to-bad-frame predicate fails. The microphone remains
+silent (`mic_peak=0`, zero non-silent uplink blocks); burst inversion is
+observed in both directions while network speech is still reported good.
+Do not mark the complete degraded gate green, weaken its bad-frame
+predicate, or infer uplink integrity from parity acceptance. A controlled
+physical non-silent microphone run is the next discriminator; no codec or
+firmware state should be injected to satisfy the gate.
+
+The controlled physical-microphone discriminator passes without decoder
+changes: all 550 COBBA microphone blocks are non-silent, network peak 2256,
+64 impaired bursts per direction, 30 impairment-induced bad blocks and
+handset/network concealment 33/6 before recovery. A5, physical Answer/End,
+FACCH and isolated 1 kHz speaker capture also pass. This distinguishes the
+silent-input sensitivity from absent impairment handling; it does not make
+the silent-headless gate pass or establish correctness of undetected frames.
+
+The host fixture must expose the tone sink's monitor through a separately
+named `module-remap-source`. MAME's Pulse backend merges nodes by numeric
+sink/source index; a monitor can otherwise collide with its sink and leave
+no capture stream. The harness now selects/routes the distinct source and
+unloads it on cleanup. Runtime acceptance requires an actual MAME recording
+stream plus non-silent handset/network samples, not merely a saved mixer map.
+
+Consequently, impairment counters plus network concealment counts do not
+alone prove corruption-induced uplink BFI: startup and FACCH can also cause
+concealment. Runtime evidence must distinguish these from corruption, and
+the 3410 outgoing gate retains this scope limit. No payload-dependent forced
+BFI is added to make the diagnostic profile fail decoding.
+
 The parallel SDCCH boundary is documented in `gsm_a5_ciphering.md`. LAPDm
 blocks now cross the same 184-bit xCCH encoder/decoder and four ciphered normal
 bursts rather than applying A5 to decoded Layer 3.

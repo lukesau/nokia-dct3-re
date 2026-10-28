@@ -150,6 +150,7 @@ public:
 	virtual void service_pending_w(int state) override;
 	virtual void doorbell_w(int state) override;
 	virtual void reset_line_w(int released) override;
+	virtual void power_off() override;
 	virtual void shared_002_write_w(int state) override;
 	virtual void shared_006_write_w(int state) override;
 	virtual void shared_0fe_read_w(int state) override;
@@ -157,6 +158,13 @@ public:
 	virtual void shared_100_read_w(int state) override;
 	virtual void shared_100_write_w(int state) override;
 	virtual void mcu_shared_write(u16 byte_offset) override;
+
+	void set_transport_tag(char const *tag) { m_transport.set_tag(tag); }
+	void set_cobba_tag(char const *tag) { m_cobba.set_tag(tag); }
+	void set_staged_tag(char const *tag) { m_staged.set_tag(tag); }
+	void set_external_peer_tag(char const *tag) { m_external_peer.set_tag(tag); }
+	void set_radio_peer_tag(char const *tag) { m_radio_peer.set_tag(tag); }
+	void set_pcm_tag(char const *tag) { m_mad2_pcm.set_tag(tag); }
 
 protected:
 	virtual void device_start() override;
@@ -191,6 +199,7 @@ private:
 	required_device<nokia_mad2_pcm_device> m_mad2_pcm;
 	devcb_write16 m_mcu_control_word_cb;
 	emu_timer *m_service_timer = nullptr;
+	bool m_powered = true;
 	emu_timer *m_packet_timer = nullptr;
 	emu_timer *m_response_timer = nullptr;
 	emu_timer *m_keepalive_timer = nullptr;
@@ -204,6 +213,7 @@ private:
 	bool m_service_control_completion_sent = false;
 	bool m_service_code_block_published = false;
 	unsigned m_bootstrap_exchange_count = 0;
+	bool m_runtime_packets_started = false;
 	bootstrap_contract m_bootstrap;
 	u16 m_mcu_control_word = 0;
 	u16 m_mcu_control_wire = 0;

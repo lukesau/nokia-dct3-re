@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tools.radio_call_state_roundtrip_trace_check import check
+from tools.radio_call_state_roundtrip_trace_check import check, validate_cipher_progression
 
 
 GOOD = """
@@ -23,11 +23,11 @@ dsp_hle: speech stop control=060b uplink=174 downlink=168 t=30.720000
 
 
 class CallStateRoundtripTests(unittest.TestCase):
-    def run_check(self, text):
+    def run_check(self, text, require_cipher=False):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "error.log"
             path.write_text(text)
-            return check(path)
+            return check(path, require_cipher=require_cipher)
 
     def test_accepts_active_speech_roundtrip_and_teardown(self):
         result = self.run_check(GOOD)
@@ -37,6 +37,42 @@ class CallStateRoundtripTests(unittest.TestCase):
     def test_rejects_failed_roundtrip(self):
         with self.assertRaisesRegex(ValueError, "successful"):
             self.run_check(GOOD.replace("result=pass", "result=fail"))
+
+    def test_cipher_requirement_rejects_media_only_replay(self):
+        with self.assertRaisesRegex(ValueError, "cipher observations"):
+            self.run_check(GOOD, require_cipher=True)
+
+    def test_cipher_requirement_accepts_both_directions(self):
+        records = "".join(
+            f"radio_l1: kind=cipher direction={direction} algorithm=1 "
+            f"fn={frame} count={count}\n"
+            for direction in ("uplink", "downlink")
+            for frame, count in ((1234, 332), (1338, 2444))
+        )
+        text = GOOD.replace(
+            "state_replay: phase=reference event=end",
+            records + "state_replay: phase=reference event=end"
+        ).replace(
+            "state_replay: phase=restored event=end",
+            records + "state_replay: phase=restored event=end"
+        )
+        self.assertIn("replayed 6", self.run_check(text, require_cipher=True))
+
+    def test_rejects_identical_but_invalid_cipher_count(self):
+        records = [
+            f"radio_l1: kind=cipher direction={direction} algorithm=1 fn={frame} count=0"
+            for direction in ("uplink", "downlink") for frame in (1234, 1338)
+        ]
+        with self.assertRaisesRegex(ValueError, "COUNT mapping"):
+            validate_cipher_progression(records)
+
+    def test_rejects_repeated_cipher_frame(self):
+        records = [
+            f"radio_l1: kind=cipher direction={direction} algorithm=1 fn=1234 count=332"
+            for direction in ("uplink", "downlink") for _ in range(2)
+        ]
+        with self.assertRaisesRegex(ValueError, "non-progressing"):
+            validate_cipher_progression(records)
 
     def test_rejects_roundtrip_outside_speech(self):
         with self.assertRaisesRegex(ValueError, "bracketed"):
@@ -60,6 +96,36 @@ class CallStateRoundtripTests(unittest.TestCase):
                     1,
                 )
             )
+
+    def test_accepts_identical_cipher_burst_replay(self):
+        record = (
+            "radio_l1: kind=cipher direction=uplink algorithm=1 "
+            "fn=1234 count=17 t=29.200000\n"
+        )
+        text = GOOD.replace(
+            "state_replay: phase=reference event=end", record +
+            "state_replay: phase=reference event=end"
+        ).replace(
+            "state_replay: phase=restored event=end", record +
+            "state_replay: phase=restored event=end"
+        )
+        self.assertIn("replayed 3", self.run_check(text))
+
+    def test_rejects_restored_cipher_frame_number_divergence(self):
+        record = (
+            "radio_l1: kind=cipher direction=uplink algorithm=1 "
+            "fn=1234 count=17 t=29.200000\n"
+        )
+        text = GOOD.replace(
+            "state_replay: phase=reference event=end", record +
+            "state_replay: phase=reference event=end"
+        ).replace(
+            "state_replay: phase=restored event=end",
+            record.replace("fn=1234", "fn=1235") +
+            "state_replay: phase=restored event=end"
+        )
+        with self.assertRaisesRegex(ValueError, "diverged"):
+            self.run_check(text)
 
 
 if __name__ == "__main__":

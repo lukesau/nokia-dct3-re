@@ -13,6 +13,9 @@
 class nokia_gsm_session_device : public device_t
 {
 public:
+	// Invalidate host-side transactions whenever the session lifecycle resets.
+	auto reset_cb() { return m_reset_cb.bind(); }
+
 	static constexpr unsigned maximum_layer3_length =
 			nokia_gsm_network_device::maximum_layer3_length;
 
@@ -61,7 +64,8 @@ public:
 		physical_information,
 		multiparty_facility_result,
 		supplementary_facility,
-		supplementary_register
+		supplementary_register,
+		location_update_reject
 	};
 	enum class host_ussd_outcome : u8
 	{
@@ -135,6 +139,7 @@ public:
 	downlink_kind receive_layer3(
 			u8 sapi, const u8 *information, unsigned length);
 	bool begin_traffic_assignment();
+	bool terminate_network_ussd();
 	void radio_link_failed();
 	bool begin_handover(u16 target_arfcn, u8 target_bsic, u8 reference);
 	bool handover_channel_configured(u16 target_arfcn, u8 reference);
@@ -156,6 +161,10 @@ public:
 		return m_registered_mobile_identity_length;
 	}
 	bool outgoing_request_pending() const { return m_outgoing_request_pending; }
+	bool outgoing_decision_pending() const
+	{
+		return m_outgoing_request_pending && !m_outgoing_decision_accepted;
+	}
 	u32 outgoing_request_id() const { return m_outgoing_request_id; }
 	const std::array<u8, 32> &outgoing_called_digits() const
 	{
@@ -218,6 +227,7 @@ public:
 		return m_state == u8(state::awaiting_mobile_sms_sapi3_establishment);
 	}
 	void mobile_sms_sapi3_established();
+	bool mobile_link_release_acknowledged(u8 sapi);
 	bool call_connected() const
 	{
 		return m_state == u8(state::incoming_call_active);
@@ -327,10 +337,12 @@ private:
 		awaiting_mobile_ussd_host_response,
 		awaiting_network_ussd_register_acknowledgement,
 		awaiting_network_ussd_response,
-		awaiting_network_ussd_release_acknowledgement
+		awaiting_network_ussd_release_acknowledgement,
+		awaiting_location_update_reject_acknowledgement
 	};
 
 	void clear_pending_downlink();
+	downlink_kind location_update_reply();
 	// Close the dedicated channel: every transaction that finishes on a
 	// dedicated channel ends this way, so the ordering of the state change
 	// against the queued release lives in one place.
@@ -354,6 +366,7 @@ private:
 	output_finder<> m_call_alerting_output;
 	output_finder<> m_call_active_output;
 	output_finder<> m_release_waiting_output;
+	devcb_write_line m_reset_cb;
 	bool m_authentication_required = false;
 	bool m_authentication_for_service = false;
 	u8 m_cipher_algorithm = u8(gsm::a5::algorithm::a5_0);

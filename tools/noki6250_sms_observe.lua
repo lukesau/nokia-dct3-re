@@ -2,6 +2,9 @@
 local source = debug.getinfo(1, "S").source:sub(2)
 local directory = assert(source:match("^(.*[/])"))
 dofile(directory .. "noki6250_runtime_observe.lua")
+if os.getenv('NOKIA_DCT3_6250_PIN_ENTRY') == '1' then
+    dofile(directory .. 'noki6250_slow_pin_input.lua')
+end
 local machine = manager.machine
 local function cell(column, row)
     for _, field in pairs(machine.ioport.ports[":COL." .. column].fields) do
@@ -36,6 +39,18 @@ if os.getenv("NOKIA_DCT3_6250_SMS_REPLY") == "1" then
     }
 end
 local captures = {17, 20, 24, 28, 34, 37, 40, 44, 48}
+_G.noki6250_sms_input_delay = 0
+if os.getenv('NOKIA_DCT3_6250_PIN_ENTRY') == '1' and
+        os.getenv('NOKIA_DCT3_6250_SMS_REPLY') == '1' then
+    -- Preserve the reviewed reply sequence after late SIM initialization.
+    _G.noki6250_sms_input_delay = 6
+    for _, action in ipairs(actions) do
+        action[1] = action[1] + _G.noki6250_sms_input_delay
+    end
+    for index, time in ipairs(captures) do
+        captures[index] = time + _G.noki6250_sms_input_delay
+    end
+end
 local next_action, next_capture = 1, 1
 emu.register_periodic(function()
     local time = machine.time:as_double()

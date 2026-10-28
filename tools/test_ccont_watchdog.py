@@ -1,3 +1,4 @@
+from tools.dct3_products import composition_source
 import pathlib
 import unittest
 
@@ -21,11 +22,20 @@ class CcontWatchdogTest(unittest.TestCase):
         self.assertNotIn("data == 0x20", watchdog_case)
         self.assertNotIn("data == 0x31", watchdog_case)
         self.assertNotIn("data == 0x3f", watchdog_case)
-        self.assertNotIn("m_watchdog = 0", watchdog_case)
+        nonzero_case = watchdog_case.split("else", 1)[1]
+        self.assertNotIn("m_watchdog = 0", nonzero_case)
+
+    def test_zero_write_stops_watchdog_with_the_rails(self):
+        zero_case = self.source.split("if (data == 0x00)", 1)[1].split("else", 1)[0]
+        self.assertIn("m_regs[address] = 0", zero_case)
+        self.assertIn("m_watchdog = 0", zero_case)
+        self.assertIn("m_powered = false", zero_case)
+        tick = self.source.split("bool nokia_ccont_device::watchdog_tick()", 1)[1]
+        self.assertIn("!m_powered", tick)
 
     def test_wddisx_is_a_device_input(self):
         self.assertIn("m_wddisx_grounded || m_watchdog == 0", self.source)
-        phone = (ROOT / "driver/nokia_dct3.cpp").read_text()
+        phone = composition_source()
         self.assertIn("set_wddisx_grounded", phone)
         self.assertNotIn("NOKIA_DCT3_DISABLE_CCONT_WATCHDOG", phone)
         product = phone.split(
@@ -35,7 +45,7 @@ class CcontWatchdogTest(unittest.TestCase):
         self.assertNotIn("result.ccont_wddisx_grounded = true;", product)
 
     def test_expiry_resets_the_complete_digital_baseband_domain(self):
-        phone = (ROOT / "driver/nokia_dct3.cpp").read_text()
+        phone = composition_source()
         timer = phone.split(
             "TIMER_CALLBACK_MEMBER(nokia_dct3_state::timer_watchdog)", 1
         )[1].split("// MAD2 watchdog", 1)[0]

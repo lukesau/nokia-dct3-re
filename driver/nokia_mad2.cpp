@@ -55,6 +55,7 @@ void nokia_mad2_device::device_start()
 	save_item(NAME(m_external_status));
 	save_item(NAME(m_fiq_status));
 	save_item(NAME(m_irq_status));
+	save_item(NAME(m_irq_levels));
 	save_item(NAME(m_timer0_counter));
 	save_item(NAME(m_timer1_counter));
 	save_item(NAME(m_timer1_destination));
@@ -74,6 +75,7 @@ void nokia_mad2_device::device_reset()
 	m_regs[0x0c] = 0x0a;
 	m_fiq_status = 0;
 	m_irq_status = 0;
+	m_irq_levels = 0;
 	m_timer0_counter = 0;
 	m_timer1_counter = 0;
 	m_timer1_destination = 0x7fff;
@@ -251,9 +253,15 @@ void nokia_mad2_device::set_irq_line(unsigned line, bool state)
 	const u16 mask = line < 8 ? u16(1) << line : LINE_EXTENDED;
 	const u16 before = m_irq_status;
 	if (state)
+	{
+		m_irq_levels |= mask;
 		m_irq_status |= mask;
+	}
 	else
+	{
+		m_irq_levels &= ~mask;
 		m_irq_status &= ~mask;
+	}
 	if (before != m_irq_status && m_interrupt_trace && m_interrupt_trace_count++ < 4096)
 		LOGMASKED(LOG_MAD2, "mad2_interrupt: event=levels domain=IRQ line=%u active=%u pending_before=%03x pending_after=%03x t=%.9f\n",
 				line, state, before, m_irq_status, machine().time().as_double());
@@ -279,6 +287,9 @@ void nokia_mad2_device::ack_irq(u16 mask)
 	m_irq_status &= ~mask;
 	if (mask)
 		m_irq_ack_cb(mask);
+	// An acknowledgement cannot release a source whose external line is held.
+	// Source callbacks may clear their latch during the acknowledgement above.
+	m_irq_status |= m_irq_levels;
 	update_irq_line();
 	if (mask && m_interrupt_trace && m_interrupt_trace_count++ < 4096)
 		LOGMASKED(LOG_MAD2, "mad2_interrupt: event=ack domain=IRQ mask=%03x pending_before=%03x pending_after=%03x t=%.9f\n",
@@ -291,47 +302,48 @@ void nokia_mad2_device::set_fiq_mask_bits(u8 mask)
 	update_fiq_line();
 }
 
+bool nokia_mad2_device::fiq_pending_unmasked() const
+{
+	return (m_fiq_status & ~m_regs[0x0a] & 0xff) != 0 ||
+			((m_fiq_status & LINE_EXTENDED) && !(m_regs[0x16] & FIQ8_MASK));
+}
+
+bool nokia_mad2_device::irq_pending_unmasked() const
+{
+	return (m_irq_status & ~m_regs[0x0b] & 0xff) != 0 || (m_irq_status & LINE_EXTENDED);
+}
+
 void nokia_mad2_device::update_fiq_line()
 {
-	bool active = false;
-	if (m_regs[0x0c] & FIQ_ENABLE)
-	{
-		active = (m_fiq_status & ~m_regs[0x0a] & 0xff) != 0;
-		if ((m_fiq_status & LINE_EXTENDED) && !(m_regs[0x16] & FIQ8_MASK))
-			active = true;
-	}
+	const bool pending = fiq_pending_unmasked();
+	const bool active = pending && (m_regs[0x0c] & FIQ_ENABLE);
 	if (active != m_fiq_line_state && m_interrupt_trace && m_interrupt_trace_count++ < 4096)
 		LOGMASKED(LOG_MAD2, "mad2_interrupt: event=route domain=FIQ active=%u pending=%03x mask=%02x ctrl=%02x extctrl=%02x t=%.9f\n",
 				active, m_fiq_status, m_regs[0x0a], m_regs[0x0c], m_regs[0x16], machine().time().as_double());
 	m_fiq_line_state = active;
-	if (active)
+	if (pending)
 		leave_sleep("FIQ");
 	m_fiq_cb(active);
 }
 
 void nokia_mad2_device::update_irq_line()
 {
-	bool active = false;
-	if (m_regs[0x0c] & IRQ_ENABLE)
-	{
-		active = (m_irq_status & ~m_regs[0x0b] & 0xff) != 0;
-		if (m_irq_status & LINE_EXTENDED)
-			active = true;
-	}
+	const bool pending = irq_pending_unmasked();
+	const bool active = pending && (m_regs[0x0c] & IRQ_ENABLE);
 	if (active != m_irq_line_state && m_interrupt_trace && m_interrupt_trace_count++ < 4096)
 		LOGMASKED(LOG_MAD2, "mad2_interrupt: event=route domain=IRQ active=%u pending=%03x mask=%02x ctrl=%02x t=%.9f\n",
 				active, m_irq_status, m_regs[0x0b], m_regs[0x0c], machine().time().as_double());
 	m_irq_line_state = active;
-	if (active)
+	if (pending)
 		leave_sleep("IRQ");
 	m_irq_cb(active);
 }
 
 void nokia_mad2_device::enter_sleep()
 {
-	// A request made with an already-routed interrupt pending cannot stop the
-	// MCU clock: the wake condition is already true.
-	if (m_sleeping || m_fiq_line_state || m_irq_line_state)
+	// NAM-2's ordinary idle path stops the ARM with global delivery disabled.
+	// Local source masks qualify clock wake independently of those CPU gates.
+	if (m_sleeping || fiq_pending_unmasked() || irq_pending_unmasked())
 	{
 		if (m_clock_trace && m_clock_trace_count++ < 4096)
 			LOGMASKED(LOG_MAD2, "mad2_sleep: event=request_blocked fiq=%03x irq=%03x t=%.9f\n",
@@ -351,10 +363,15 @@ void nokia_mad2_device::leave_sleep(const char *domain)
 	if (!m_sleeping)
 		return;
 	m_sleeping = false;
+	// The documented 331x wake report is a separate latched source, not
+	// permission to change the global CPU delivery gates. Clear sleeping
+	// first so asserting this source cannot recursively report another wake.
+	if (m_sleep_wake_irq3)
+		assert_irq(3);
 	if (m_clock_trace && m_clock_trace_count++ < 4096)
-		LOGMASKED(LOG_MAD2, "mad2_sleep: event=wake domain=%s fiq=%03x irq=%03x timer0=%04x timer1=%04x t=%.9f\n",
+		LOGMASKED(LOG_MAD2, "mad2_sleep: event=wake domain=%s fiq=%03x irq=%03x timer0=%04x timer1=%04x t=%.9f ctrl=%02x\n",
 				domain, m_fiq_status, m_irq_status, m_timer0_counter,
-				m_timer1_counter, machine().time().as_double());
+				m_timer1_counter, machine().time().as_double(), m_regs[0x0c]);
 	m_sleep_cb(0);
 }
 

@@ -1,11 +1,18 @@
 -- Network-originated call; physical Answer/End, no firmware writes.
 local source = debug.getinfo(1, 'S').source:sub(2)
 dofile(assert(source:match('^(.*[/])')) .. 'noki6210_staged_observe.lua')
+if os.getenv('NOKIA_DCT3_6210_PIN_ENTRY') == '1' then
+    dofile(assert(source:match('^(.*[/])')) .. 'noki6210_security_input.lua')
+end
 local machine = manager.machine
 machine.devices[':maincpu'].debug:bpset(0x4fad30, nil,
     'logerror "6210_keypad_decoded: key=%02x\\n",r0;g')
 local input = coroutine.create(function()
-    if not emu.wait(24) then return end
+    if _G.noki6210_host_incoming then
+        if not emu.wait(32) then return end
+        machine.screens[':screen']:snapshot('6210_host_registered_idle.png')
+        if not emu.wait(6) then return end
+    elseif not emu.wait(24) then return end
     machine.screens[':screen']:snapshot('6210_incoming_ringing.png')
     for index, name in ipairs({'Send', 'End'}) do
         local key = assert(machine.ioport.ports[':COL.0'].fields[name])

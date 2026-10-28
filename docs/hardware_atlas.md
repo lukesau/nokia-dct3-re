@@ -44,6 +44,78 @@ not package count. The MAD2 internal blocks therefore remain separate reusable
 devices wired by the phone driver; a package-level MAD2 aggregate is deferred
 until those ownership boundaries stabilize.
 
+### Related-product specification leads
+
+Primary service manuals distinguish the ASIC blocks but generally do not
+publish their register specifications. Retain the following document identities
+as acquisition leads, not implemented contracts:
+
+| Primary source | Established information | Limit of transfer |
+| --- | --- | --- |
+| [NSE-5 System Module, Issue 1 07/99, page 2-36](https://electronicsandbooks.com/edt/manual/Hardware/N/Nokia/Phone/7110/CH2SYS%20%5B82%5D.pdf) | Names `DAS00308` as the FlexPool specification and `DAS00348` as the COBBA_GJP specification for SERRFI. The DSP multiplier is explicitly `TBD`. | These are document references, not acquired register-level specifications. Do not infer a 7110 DSP clock from another product. |
+| [NSB-5 System Module, Issue 1 03/01, page 35](https://www.manualslib.com/manual/2181590/Nokia-Nsb-5-Series.html?page=35) | Names the same two specifications and describes MAD2WD1's 13 MHz reference multiplied to 78 MHz for its DSP. | This is NSB-5 evidence, not a universal MAD2 clock or proof of NSE-2 wiring. |
+| [NSE-3 System Module, Original 11/97, page 3-45](https://www.manualshelf.com/manual/nokia/6110/5-user-guide-english/page-45.html) | Connects infrared/FBUS to AccIF, with several supported serial rates. | Does not identify DSP I/O ports `34/35/36`, their status bits, packing, interrupt source or configured rate. See `5110i_bringup.md`. |
+
+The named DAS documents remain unacquired. A document title in a service
+manual is not authority to implement guessed register semantics; likewise,
+serial frame recognition does not determine the peripheral clock.
+
+## Service-loader references
+
+The [preserved Twister collection](https://archive.org/details/Twister_Mobile_Phone_Flashing_Box)
+supplies independent service-tool binaries, not resident ROM dumps. The
+ignored collection's source chain is
+`roms/research/mad2-flash-loaders/provenance.json`: `New.zip` contains
+`Twister_New/UFS_Suite_Setup.zip`, whose installer is 41,426,398 bytes,
+SHA-256 `3e69edbcc9213a3484a1a79c526ba7e005ffb98ae6f2c0705da907b27d0b1f37`.
+Its ZIP member CRC is verified; the whole outer archive hash is not. The
+installer was never executed. Nine bounded wrapper records account for its
+complete overlay; unshield 1.6.2 lists 624 cabinet files and extracts the
+following five from group `DCTxBB5_TIA`:
+
+| File | Bytes | Admitted observation |
+| --- | ---: | --- |
+| `DCT3BT2.TIA` | 956 | Big-endian Thumb branch skips the `DCT3` header to relative offset `0e`. The decoded prologue constructs checksum span `03ba`; its halfword sum is zero modulo 16 bits. |
+| `WD1BT2.TIA` | 844 | Same bounded bootstrap shape, checksum span `034a` and zero sum. |
+| `I28F008.TIA` | 4,676 | Exact extracted identity only; programmer header/entry contract remains undecoded. |
+| `I28F160.TIA` | 6,092 | Exact extracted identity only; no fitted flash or product claim follows from its name. |
+| `M28W320C.TIA` | 5,996 | Exact extracted identity only; not a specification of every M28W320 variant. |
+
+Both bootstraps have an excluded trailing `0000`, with no assigned protocol
+meaning. File hashes are in `audit.json`; reproduce their identity and
+checksum checks with:
+
+```sh
+python3 tools/mad2_flash_loader_audit.py roms/research/mad2-flash-loaders/DCTxBB5_TIA
+```
+
+Both read the byte at `20000` and extract bits 5:4 as a four-way selector.
+The table bases are relative offsets `2c` (stack), `3c` (configuration base)
+and `4c` (serial offset). High-register `MOV ...,PC` uses PC+4, not the
+word-aligned base of a literal LDR; the audit checks each indexed-load site
+separately in both programs and reads the table data big-endian.
+
+| Selector | Stack | Configuration base | Serial status | Serial receive |
+| --- | --- | --- | --- | --- |
+| 0 | `00107ffc` | `000200d0` | `00020081` | `00020082` |
+| 1 | `00010400` | `00040000` | `00020003` | `00020004` |
+| 2 | `00010400` | `00040000` | `00020019` | `0002001a` |
+| 3 | `00010400` | `00040000` | `00020003` | `00020004` |
+
+These are conditional software selections, not identified silicon revisions.
+The driver's current synthetic ID byte `40` would select row 0; this does not
+validate that byte as a factory identity. DCT3's receive/transmit helpers are
+at relative `37c/386`; WD1's are `30c/316`. Their byte-matched bodies wait for
+receive bit 5 and exchange eight LSB-first transmit bits through bit 7 with
+bit-6 clear/set waits. Electrical ownership and cadence remain unproved;
+`mbus_controller.md` records the distinction from the existing byte interface.
+
+These artifacts can supply bounded register-use clues independently of the
+phone application firmware. They have not run in MAME or on captured hardware
+here, do not establish NAM-2 wake semantics, and must not supply guessed
+bootstrap results or calibration. Loading addresses, wire protocol and
+product applicability still require their own evidence.
+
 ## The chip
 
 The 3210 board uses MAD2PR1, containing the emulated **ARM7TDMI MCU** and an
@@ -91,16 +163,13 @@ zero-to-one transitions and corrupted the virgin PMM during compaction.
 
 The tracked MAME flash patch contains reusable ID-address and block-geometry
 attributes plus the generic one-way NOR-programming correction; operational
-code does not branch on Nokia part-number literals. The extracted
-`nokia_b3_flash_device` adapts one limitation of the generic core: the 3410
-firmware suspends an erase, accesses a different partition, and polls a fixed
-status address while the core exposes a single global command state. The
-adapter owns that timer and its save-state fields; the phone driver only maps
-accesses and selects the product capability. This remains transitional device
-debt, not a firmware-result override, and a generic partition/read-while-write
-flash model would replace it upstream. Its one-second erase interval is an explicit,
-unmeasured approximation. The firmware polls the ready bit, so no accepted
-behavior currently depends on the exact duration.
+code does not branch on Nokia part-number literals. The ST device owns its
+part-specific protection, global status, pending program/erase and suspend
+state; the phone routes native flash accesses directly. Fresh 3410 PMM
+compaction/cold reload passes without a fixed-address status adapter.
+`flash_storage.md` defines conformance, typical-versus-measured timing,
+reset-abort policy, literal ST CFI, persistent OTP and the remaining
+factory-identity/electrical limits.
 
 ## MAD2 I/O peripheral registers (`0x20000`, byte offsets)
 
@@ -121,7 +190,7 @@ profile; — = not established.
 | `0x0a/0x0b` | FIQ / IRQ mask | ✓ |
 | `0x0c` | interrupt control; bit 5 ninth-IRQ status, write bit 6 ninth-IRQ acknowledge | paired-ROM decode; source unknown |
 | `0x0d` | clock control; bit 1 pulses ARM clock-stop, bits 5--6 are SIMI-owned, with bit 5 wired to its clock input | paired-ROM decode; bit-6 effect unknown |
-| `0x0e` | **interrupt trigger** (r; read-only — why `assert_irq(4)` can't be SW-triggered) | ✓ |
+| `0x0e` | External three-bit status input (read-only); physical pin ownership unresolved | partial |
 | `0x0f–0x13` | programmable timer (divider/counter/compare) | ✓ |
 
 Timer 0's divider/counter/compare behavior is modeled with the retained
@@ -254,6 +323,16 @@ Register file (`nokia_ccont_device::serial_r/w`), addressed inside the serial co
 | `0xe` | **interrupt/reset status** | reset `0x03`: persistent bit 0 ready, clearable bit 1 PWRONX cause; upper bits `0xf8` are write-one-to-clear IRQ sources |
 | `0xf` | interrupt mask | |
 
+The separate active-low Power field reaches both keypad GPIO and CCONT's
+always-powered PWRONX input. It can restore the switched digital domain
+without a charger edge, retaining RTC registers and pending upper CCONT
+sources. `verify-8890-power-cycle` covers own-ROM shutdown, blank LCD,
+six seconds of DSP/radio endpoint silence with retained RTC ticks, physical
+restart, cause consumption and security input back to idle. Backend and
+radio timers stop on rail-off and re-arm through the full digital reset.
+Wake latency/debounce and complete peripheral rail clock-gating are not
+measured hardware contracts.
+
 **ADC selectors** (read via reg `0x0`/`0x2`/`0x3`): the driver deliberately exposes raw selectors
 `0..7`. Nokia's NSE-8 service manual establishes its non-standard wiring:
 selector 0 measures battery `Vb` through the CCONT `RSSI` input, selector 2
@@ -293,8 +372,9 @@ remain unmodeled.
 ## The DSP interface
 
 The MCU-to-DSP boundary is shared RAM at `0x10000` plus DSPIF at `0x30000`.
-The DSP core remains unemulated, but the shared-memory peer is no longer a
-phone-state constant shim:
+The research HLE composition supplies a shared-memory peer; the separate
+native NSE-1 configuration executes its recovered C54x image and uploads.
+The following publications describe the HLE boundary, not native execution:
 
 - **DSP shared RAM `0x10000–0x10fff`:** device-owned backing storage; the HLE
   peer publishes bootstrap-ready and busy transitions at `0x00..0x04`, `0xe0`,
@@ -302,7 +382,7 @@ phone-state constant shim:
   drains service pending word `0xe4`, raises IRQ4, and delivers inbound packets
   through FIQ0.
 - **DSPIF `0x30000`:** written at boot (`pc 0x2001a4`) and by the reachable service
-  command path (`0x290cf4`; command 4 at `0x29103c`, followed by doorbell byte 2). Stateful-SIM
+  command path (`0x290cf4`; command 4 at `0x29103c`, followed by MAD2 FIQ1 acknowledgement). Stateful-SIM
   runs reach this path with service commands `0x30` and `0x32`; the peer retains the register,
   and service-transport ring/service completion now use independent timers. Their observed
 ring-producer and service-pending triggers remain distinct from command 4.
@@ -392,6 +472,28 @@ plus the
 [NSE-3 PCM timing diagram](https://electronicsandbooks.com/edt/manual/Hardware/N/Nokia/Phone/6110/03SYS%20%5B73%5D.pdf).
 The falling-edge family contract is independently documented in the
 [Nokia 12 integrator manual](https://fcc.report/FCC-ID/LJPRX-9/393500.pdf).
+
+### COBBA part identity does not select PCM timing
+
+Two acquired, visually reviewed Nokia manuals identify the same N250
+part4370643, COBBA_GJP V4.1 V257BG64T/8, but document different PCM clocks:
+
+| Source | Part identification | PCM specification |
+| --- | --- | --- |
+| NSM-3 System Module, issue1 12/1999 | Printed/PDF53 | Printed/PDF24:1MHz data,8kHz frame,125 clocks/frame |
+| NSB-7 System Module, issue1 06/2000 | Printed65/PDF79 | Printed27/PDF41:512kHz data,8kHz frame,64 clocks/frame |
+
+The retained PDF hashes are respectively
+`dbd9e70549b6de726be9667a2451bda74b7317f84956b50e5c91fce3124939c0`
+and`eee14565ada962e5458cb8227622bdd6f64ffe89a5a15ff38fbccd95fe428e6d`.
+See `roms/research/nsm3/nsm3-system-module.pdf` and
+`roms/research/nsb7/nsb7-service-manual.pdf`; acquisition references remain
+in the product docs and ROM manifest. This is conflicting documentary
+evidence, not a measured proof of chip programmability or either physical
+rate. Operating configuration, undisclosed revision differences and source
+errata remain possible. Do not collapse product PCM profiles by part name.
+NPE-3's schematic identifies COBBA_GJP_V4.1 but does not settle its own rate;
+its mapped MCU parameter bits also do not independently supply that meaning.
 
 NSE-3 is now tracked as a future product profile rather than only as
 cross-family PCM evidence. Its Nokia system-module parts list names an Intel

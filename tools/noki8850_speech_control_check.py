@@ -1,0 +1,117 @@
+"""Recover the acquired NSM-2 speech field without sibling-ROM assumptions."""
+import argparse
+import hashlib
+from pathlib import Path
+import re
+
+from capstone import Cs, CS_ARCH_ARM, CS_MODE_THUMB, CS_MODE_BIG_ENDIAN
+
+
+def recover(image):
+    if hashlib.sha1(image).hexdigest() != '9f966787403b68a09530680ad911302403eb1521':
+        raise ValueError('requires acquired NSM-2 v5.31 MCU')
+
+    def read(address, size):
+        offset = address - 0x200000
+        if offset < 0 or offset + size > len(image):
+            raise ValueError('contract address outside image')
+        return image[offset:offset + size]
+
+    def u32(address):
+        return int.from_bytes(read(address, 4), 'big')
+
+    expected = {
+        0x2cb0de: ('cmp', 'r0, #0x34'),
+        0x2cb334: ('lsls', 'r0, r6, #9'),
+        0x2cb33c: ('lsls', 'r0, r0, #9'),
+        0x2cb33e: ('ldr', 'r1, [pc, #0x384]'),
+        0x2cb2f4: ('ldr', 'r6, [pc, #0x38]'),
+        0x2cb2f6: ('ldrh', 'r7, [r6, #2]'),
+        0x2cb2f8: ('ands', 'r1, r7'),
+        0x2cb2e6: ('strh', 'r0, [r6, #2]'),
+        0x2cb37c: ('ldr', 'r0, [pc, #0x36c]'),
+        0x2cb384: ('ldr', 'r1, [pc, #0x368]'),
+        0x2cb204: ('strh', 'r0, [r1]'),
+        0x2cb206: ('ldr', 'r2, [pc, #0x3a8]'),
+        0x2cb3ca: ('strh', 'r0, [r2]'),
+    }
+    decoder = Cs(CS_ARCH_ARM, CS_MODE_THUMB | CS_MODE_BIG_ENDIAN)
+    for address, pair in expected.items():
+        instruction = next(decoder.disasm(read(address, 4), address), None)
+        if instruction is None or (instruction.mnemonic, instruction.op_str) != pair:
+            raise ValueError(f'control instruction differs at {address:x}')
+    for selector, target in ((8, 0x2cb37c), (17, 0x2cb334)):
+        if u32(0x2cb0ec + selector * 4) != target:
+            raise ValueError('selector table differs')
+    literals = {0x2cb330: 0x135664, 0x2cb6c4: 0xfdff,
+                0x2cb6e8: 0x135668, 0x2cb6ec: 0xffff8000,
+                0x2cb5b0: 0x100a8}
+    if any(u32(address) != value for address, value in literals.items()):
+        raise ValueError('control literals differ')
+    return {'command': 8, 'field_selector': 17, 'field': 0x0200,
+            'field_shadow': 0x135666, 'command_shadow': 0x135668,
+            'writer': 0x2cb3ca, 'runtime_validated': False,
+            'native_speech_validated': False}
+
+
+def verify_call(text, incoming=False):
+    cursor = 0
+    for pattern in (
+        r'8850_incoming_physical: action=Call / Send\b' if incoming else
+        r'8850_call_physical: action=send\b',
+        r'dsp_control_write: data=860b pc=002cb3ca r4=00000008 ',
+        r'8850_incoming_physical: action=End\b' if incoming else
+        r'8850_call_physical: action=end\b',
+        r'dsp_control_write: data=840a pc=002cb3ca r4=00000008 ',
+    ):
+        match = re.search(pattern, text[cursor:])
+        if match is None:
+            raise ValueError(f'missing ordered call-control event: {pattern}')
+        cursor += match.end()
+    return {'call_field': 0x0200, 'runtime_validated': True,
+            'native_speech_validated': False}
+
+
+def verify_pcm(text, incoming=False):
+    verify_call(text, incoming)
+    if 'speech blocked by unsupported PCM link' in text:
+        raise ValueError('unsupported PCM link')
+    ticks = re.findall(r'dsp_hle: speech tick uplink=(\d+) downlink=(\d+) '
+                       r'pcm=(\d+) pcm_clock=1000000/8000 pcm_shape=125 ', text)
+    end = (r'8850_incoming_physical: action=End\b' if incoming else
+           r'8850_call_physical: action=end\b')
+    # Incoming bearer release can stop cadence before the later 840a write.
+    # verify_call still requires that physical End owns the eventual disable.
+    control = r'(?:040a|060b)' if incoming else '040a'
+    stop = re.search(end + r'.*?'
+                     r'dsp_hle: speech stop control=' + control + r' uplink=(\d+) '
+                     r'downlink=(\d+)', text, re.S)
+    if not ticks or stop is None or min(map(int, stop.groups())) < 100:
+        raise ValueError('missing sustained bidirectional PCM and physical stop')
+    if any(int(pcm) != int(up) for up, down, pcm in ticks):
+        raise ValueError('PCM and uplink cadence differ')
+    return {'uplink': int(stop[1]), 'downlink': int(stop[2]),
+            'hle_pcm_validated': True, 'waveform_validated': False,
+            'native_speech_validated': False}
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('rom', type=Path)
+    parser.add_argument('--log', type=Path)
+    parser.add_argument('--pcm', action='store_true')
+    parser.add_argument('--incoming', action='store_true')
+    args = parser.parse_args()
+    if args.pcm and not args.log:
+        parser.error('--pcm requires --log')
+    if args.incoming and not args.log:
+        parser.error('--incoming requires --log')
+    print(recover(args.rom.read_bytes()))
+    if args.log:
+        print(verify_call(args.log.read_text(errors='replace'), args.incoming))
+        if args.pcm:
+            print(verify_pcm(args.log.read_text(errors='replace'), args.incoming))
+
+
+if __name__ == '__main__':
+    main()

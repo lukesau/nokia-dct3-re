@@ -12,24 +12,29 @@ PUK_OFFSET = 3500
 ATTEMPTS_OFFSET = 3516
 ENABLED_OFFSET = 3520
 NVRAM_SIZE = 3524
+PLMN_NVRAM_SIZE = 3560
+CURRENT_NVRAM_SIZE = 3562
+AOC_NVRAM_SIZE = 3570
 
 
 def padded_pin(pin: str) -> bytes:
     return pin.encode("ascii").ljust(8, b"\xff")
 
 
-def statuses(trace: str, instruction: int) -> list[tuple[int, int, int]]:
+def statuses(trace: str, instruction: int, chv: int = 1) -> list[tuple[int, int, int]]:
+    if chv not in (1, 2):
+        raise ValueError('CHV selector must be 1 or 2')
     pattern = re.compile(
         rf"SIM status ins={instruction:02x} sw=([0-9a-f]{{4}}) "
         r"chv=(\d+)/(\d+) puk=(\d+)/(\d+) enabled=(\d+)", re.I)
-    return [(int(match[1], 16), int(match[2]), int(match[4]))
+    return [(int(match[1], 16), int(match[1 + chv]), int(match[3 + chv]))
             for match in pattern.finditer(trace)]
 
 
 def validate(trace: str, nvram: bytes, mode: str, expected_pin: str,
              previous_trace: str = "") -> None:
-    if len(nvram) != NVRAM_SIZE:
-        raise ValueError(f"SIM NVRAM has {len(nvram)} bytes, expected {NVRAM_SIZE}")
+    if len(nvram) not in (NVRAM_SIZE, PLMN_NVRAM_SIZE, CURRENT_NVRAM_SIZE, AOC_NVRAM_SIZE):
+        raise ValueError(f"SIM NVRAM has {len(nvram)} bytes, expected {NVRAM_SIZE}, {PLMN_NVRAM_SIZE}, {CURRENT_NVRAM_SIZE} or {AOC_NVRAM_SIZE}")
     if mode != "disabled" and nvram[ENABLED_OFFSET] != 1:
         raise ValueError("CHV1 is not persistently enabled")
 

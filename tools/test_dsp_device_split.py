@@ -1,3 +1,4 @@
+from tools.dct3_products import composition_source
 import pathlib
 import unittest
 
@@ -18,12 +19,13 @@ class DspDeviceSplitTest(unittest.TestCase):
         cls.session = (ROOT / "driver/nokia_gsm_session.cpp").read_text() + (ROOT / "driver/nokia_gsm_session.h").read_text()
         cls.lapdm = (ROOT / "driver/nokia_lapdm_link.cpp").read_text() + (ROOT / "driver/nokia_lapdm_link.h").read_text()
         cls.radio = (ROOT / "driver/nokia_radio_peer.cpp").read_text() + (ROOT / "driver/nokia_radio_peer.h").read_text()
-        cls.phone = (ROOT / "driver/nokia_dct3.cpp").read_text()
+        cls.phone = composition_source()
         cls.mad2 = ((ROOT / "driver/nokia_mad2.cpp").read_text() +
                     (ROOT / "driver/nokia_mad2.h").read_text())
         cls.c54x = ((ROOT / "cpu/tms320c54x/tms320c54x.cpp").read_text() +
                     (ROOT / "cpu/tms320c54x/tms320c54x.h").read_text())
-        cls.c54x_test = (ROOT / "driver/tms320c54x_test.cpp").read_text()
+        cls.c54x_test = '\n'.join(path.read_text() for path in
+                                  sorted((ROOT / 'driver').glob('tms320c54x_test*.cpp')))
 
     def test_transport_has_no_service_protocol(self):
         for token in ("DISCOVERY_NODE", "registration_sent", "channel_map", "0x64, 0x01"):

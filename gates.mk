@@ -7,7 +7,7 @@
 # flow is not yet modelled by the gate matrix, so it is copied rather than
 # rebuilt. Those are the remaining migration work.
 
-# 343 gates: 200 generated from typed steps, 143 copied verbatim (shell).
+# 874 gates: 652 generated from typed steps, 222 copied verbatim (shell).
 
 # Shell guards shared by gates that rewrite provisioned state.
 #
@@ -44,37 +44,203 @@ DCT3_PRESS_220_300 := NOKIA_DCT3_POST_READY_KEY_DURATION_MS=220 NOKIA_DCT3_POST_
 DCT3_PRESS_220_350 := NOKIA_DCT3_POST_READY_KEY_DURATION_MS=220 NOKIA_DCT3_POST_READY_KEY_GAP_MS=350
 DCT3_PRESS_240_350 := NOKIA_DCT3_POST_READY_KEY_DURATION_MS=240 NOKIA_DCT3_POST_READY_KEY_GAP_MS=350
 
-.PHONY: verify-6210-stage verify-6210-runtime verify-6210-outgoing-call \
-	verify-6210-incoming-call verify-6210-incoming-sms verify-6210-outgoing-sms \
-	verify-6210-security verify-6210-registration verify-6210-calculator \
-	verify-6210-phonebook verify-6210-menu verify-8210-registration \
+.PHONY: verify-5210-pin-phone-memory-multiple \
+	verify-5210-pin-phone-memory-erase verify-5210-pin-phone-memory-edit \
+	verify-5210-pin-phone-memory verify-8850-pin-host-ussd-empty-reply \
+	verify-8850-pin-host-ussd-network-restore \
+	verify-8850-pin-host-ussd-network-request verify-8850-pin-host-ussd-restore \
+	verify-8850-pin-host-outgoing-ussd verify-8850-pin-host-incoming-ussd \
+	verify-6210-mbus-service verify-6210-mbus-byte-events \
+	verify-6210-mbus-version-ingress verify-8210-host-incoming-call \
+	verify-8210-host-outgoing-call verify-8210-host-incoming-sms \
+	verify-8210-host-outgoing-sms verify-8210-host-rejected-sms \
+	verify-8210-host-silent-sms verify-8210-sip-idle-restore \
+	verify-8210-sip-outgoing-busy verify-8210-sip-outgoing-unavailable \
+	verify-8890-pcs-incoming-speech-control verify-8890-pcs-speech-control \
+	verify-8890-incoming-speech-control verify-8890-speech-control \
+	verify-8850-sip-incoming-alerting-restore verify-8850-sip-incoming-restore \
+	verify-8850-sip-incoming-media verify-8850-sip-outgoing-pending-restore \
+	verify-8850-sip-outgoing-restore verify-8850-sip-outgoing-media \
+	verify-8210-sip-outgoing-media verify-8210-dcs-late-pin-sip-outgoing-media \
+	verify-8210-dcs-late-pin-sip-incoming-media \
+	verify-8210-dcs-late-pin-sip-outgoing-restore \
+	verify-8210-dcs-late-pin-sip-pending-outgoing-restore \
+	verify-8210-dcs-late-pin-sip-incoming-restore \
+	verify-8210-dcs-late-pin-sip-alerting-incoming-restore \
+	verify-8210-dcs-late-pin-sip-outgoing-waveform \
+	verify-8210-dcs-late-pin-sip-incoming-waveform \
+	verify-8290-sip-outgoing-pending-restore \
+	verify-8290-sip-incoming-alerting-restore \
+	verify-8290-sip-incoming-media-restore verify-8290-sip-outgoing-media-restore \
+	verify-8290-sip-incoming-waveform verify-8290-sip-outgoing-waveform \
+	verify-8890-pcs-sip-outgoing-pending-restore \
+	verify-8890-pcs-sip-incoming-alerting-restore \
+	verify-8890-pcs-sip-outgoing-connected-restore \
+	verify-8890-pcs-sip-incoming-connected-restore \
+	verify-8890-pcs-sip-outgoing-media verify-8890-pcs-sip-incoming-media \
+	verify-8890-pcs-sip-outgoing-waveform verify-8890-pcs-sip-incoming-waveform \
+	verify-8890-sip-incoming-waveform verify-8890-sip-outgoing-waveform \
+	verify-8850-sip-incoming-waveform verify-8850-sip-outgoing-waveform \
+	verify-8210-sip-outgoing-waveform verify-8210-sip-incoming-media \
+	verify-8210-sip-incoming-waveform verify-8210-sip-outgoing-restore \
+	verify-8210-sip-pending-outgoing-restore verify-8210-sip-incoming-restore \
+	verify-8210-sip-alerting-incoming-restore verify-8210-sip-cancel \
+	verify-6250-sip-idle-restore verify-6250-sip-alerting-incoming-restore \
+	verify-6250-sip-pending-outgoing-restore verify-6250-sip-cancel \
+	verify-6250-sip-outgoing-busy verify-6250-sip-outgoing-unavailable \
+	verify-6210-power-cycle verify-8890-power-off-restore \
+	verify-8890-minute-redraw verify-8890-calendar-non-leap \
+	verify-8890-calendar-year-end verify-8890-calendar-leap-day \
+	verify-8890-calendar-rollover verify-8890-calendar-restore \
+	verify-8890-cold-clock verify-8890-power-cycle verify-8850-sip-idle-restore \
+	verify-8850-sip-outgoing-busy verify-8850-sip-outgoing-unavailable \
+	verify-8850-sip-cancel verify-8890-sip-idle-restore \
+	verify-8890-sip-alerting-incoming-restore \
+	verify-8890-sip-pending-outgoing-restore verify-8890-sip-outgoing-busy \
+	verify-8890-sip-outgoing-unavailable verify-8890-sip-cancel \
+	verify-8890-host-rejected-sms verify-8890-host-silent-sms \
+	verify-8890-host-incoming-sms verify-8890-host-outgoing-sms verify-8850-ussd \
+	verify-8850-sim-toolkit-call-decline verify-8850-sim-toolkit-call \
+	verify-8850-sim-toolkit-sms verify-8850-sim-toolkit-menu-state \
+	verify-8850-sim-toolkit-menu verify-8850-sim-toolkit-interactive \
+	verify-8850-sim-toolkit verify-8850-call-divert verify-8890-sim-toolkit \
+	verify-8890-sim-toolkit-interactive verify-8890-sim-toolkit-menu-state \
+	verify-8890-sim-toolkit-menu verify-8890-sim-toolkit-sms \
+	verify-8890-sim-toolkit-call verify-8890-sim-toolkit-call-decline \
+	verify-8890-sim-toolkit-busy verify-8890-ussd verify-8890-call-divert \
+	verify-5510-package verify-6210-sip-cancel verify-6210-sip-outgoing-busy \
+	verify-6210-sip-connected-signaling \
+	verify-6210-sip-incoming-connected-signaling \
+	verify-6210-sip-outgoing-unavailable \
+	verify-6210-sip-alerting-incoming-restore \
+	verify-6210-sip-pending-outgoing-restore verify-6210-sip-idle-restore \
+	verify-6210-stage verify-6210-runtime verify-6210-outgoing-call \
+	verify-6210-dsp-control-observation verify-6210-incoming-call \
+	verify-6210-pcm-missing verify-6210-incoming-sms \
+	verify-6210-host-incoming-sms verify-6210-host-outgoing-sms \
+	verify-6210-host-rejected-sms verify-6210-host-silent-sms \
+	verify-6210-host-silent-sms-realtime verify-6210-outgoing-sms \
+	verify-6210-accessory verify-6210-cold-repeat verify-6210-state-idle \
+	verify-6210-state-call verify-6210-state-sms verify-6210-ussd \
+	verify-6210-call-divert verify-6210-call-divert-lifecycle \
+	verify-6210-state-divert verify-6210-sim-toolkit verify-6210-security \
+	verify-6210-slow-pin-registration verify-6210-pin-retry \
+	verify-6210-pin-retry-cold verify-6210-puk-recovery \
+	verify-6210-puk-retry-cold verify-6210-puk-permanent verify-6210-pin2-change \
+	verify-6210-pin2-change-cold verify-6210-pin2-retry-cold \
+	verify-6210-pin2-exhaustion verify-6210-puk2-recovery \
+	verify-6210-puk2-retry-cold verify-6210-puk2-permanent verify-6210-fdn-cycle \
+	verify-6210-fdn-retry-cold verify-6210-fdn-records \
+	verify-6210-fdn-record-edit verify-6210-fdn-record-erase \
+	verify-6210-fdn-record-retry verify-6210-fdn-dial-controls \
+	verify-6210-host-ussd-notify verify-6210-host-ussd-request \
+	verify-6210-host-ussd-restore verify-6210-ussd-continued \
+	verify-6210-home-plmn-reject verify-6210-forbidden-plmn-persistence \
+	verify-6210-pin-host-incoming-call verify-6210-pin-host-incoming-sms \
+	verify-6210-pin-host-outgoing-call verify-6210-pin-host-outgoing-sms \
+	verify-6210-sms-status-persistence verify-6210-pin-phonebook \
+	verify-6210-pin-host-rejected-sms verify-6210-pin-host-silent-sms \
+	verify-6210-pin-state-idle verify-6210-pin-state-call \
+	verify-6210-pin-state-sms verify-6210-registration \
+	verify-6210-foreign-registration verify-6210-foreign-outgoing-call \
+	verify-6210-foreign-incoming-sms verify-6210-calculator verify-6210-phonebook \
+	verify-6210-menu verify-8210-call-divert verify-8210-sim-toolkit-call-decline \
+	verify-8210-sim-toolkit-call verify-8210-sim-toolkit-sms \
+	verify-8210-sim-toolkit-menu-state verify-8210-sim-toolkit-menu \
+	verify-8210-sim-toolkit-input verify-8210-sim-toolkit-inkey \
+	verify-8210-sim-toolkit verify-8210-ussd verify-8210-dcs-registration \
+	verify-8210-dcs-idle-state verify-8210-dcs-incoming-sms \
+	verify-8210-dcs-sms-state verify-8210-dcs-outgoing-sms \
+	verify-8210-dcs-outgoing-call verify-8210-dcs-call-state \
+	verify-8210-dcs-incoming-call verify-8210-dcs-phonebook \
+	verify-8210-slow-pin-registration verify-8210-dcs-late-pin-registration \
+	verify-8210-dcs-late-pin-state-idle \
+	verify-8210-dcs-late-pin-host-incoming-call \
+	verify-8210-dcs-late-pin-host-incoming-sms \
+	verify-8210-dcs-late-pin-host-outgoing-sms \
+	verify-8210-dcs-late-pin-host-rejected-sms \
+	verify-8210-dcs-late-pin-host-silent-sms \
+	verify-8210-dcs-late-pin-host-outgoing-call \
+	verify-8210-dcs-late-pin-state-call verify-8210-dcs-late-pin-state-sms \
+	verify-8210-dcs-late-pin-phonebook \
+	verify-8210-dcs-late-pin-sms-status-persistence \
+	verify-8210-dcs-pin-delay-matrix verify-8210-dcs-early-pin-host-incoming-call \
+	verify-8210-dcs-host-incoming-sms verify-8210-dcs-early-pin-host-incoming-sms \
+	verify-8210-dcs-host-outgoing-sms verify-8210-dcs-early-pin-host-outgoing-sms \
+	verify-8210-dcs-host-rejected-sms verify-8210-dcs-host-outgoing-call \
+	verify-8210-dcs-early-pin-host-outgoing-call verify-8210-dcs-host-silent-sms \
+	verify-8210-dcs-early-pin-state-idle verify-8210-dcs-early-pin-state-call \
+	verify-8210-dcs-early-pin-state-sms verify-8210-dcs-early-pin-phonebook \
+	verify-8210-dcs-early-pin-host-rejected-sms \
+	verify-8210-dcs-early-pin-host-silent-sms verify-8210-pin-host-incoming-call \
+	verify-8210-pin-host-incoming-sms verify-8210-pin-host-outgoing-call \
+	verify-8210-pin-host-outgoing-sms verify-8210-sms-status-persistence \
+	verify-8210-dcs-early-pin-sms-status-persistence verify-8210-pin-phonebook \
+	verify-8210-pin-state-idle verify-8210-pin-state-call \
+	verify-8210-pin-state-sms verify-8850-sim-pin-registration \
+	verify-8850-pin-host-incoming-call verify-8850-pin-host-incoming-sms \
+	verify-8850-pin-host-outgoing-call verify-8850-pin-host-outgoing-sms \
+	verify-8850-pin-phonebook verify-8850-pin-host-rejected-sms \
+	verify-8850-pin-host-silent-sms verify-8850-pin-state-idle \
+	verify-8850-pin-state-call verify-8850-pin-state-sms \
+	verify-8890-sim-pin-registration verify-8890-pin-host-incoming-call \
+	verify-8890-pin-host-incoming-sms verify-8890-pin-host-outgoing-call \
+	verify-8890-pin-host-outgoing-sms verify-8890-pin-phonebook \
+	verify-8890-pin-host-rejected-sms verify-8890-pin-host-silent-sms \
+	verify-8890-pin-state-idle verify-8890-pin-state-call \
+	verify-8890-pin-state-sms verify-8890-pin-pcs-registration \
+	verify-8890-pin-pcs-host-incoming-call verify-8890-pin-pcs-host-outgoing-call \
+	verify-8890-pin-pcs-host-incoming-sms verify-8890-pin-pcs-host-outgoing-sms \
+	verify-8890-pin-pcs-host-rejected-sms verify-8890-pin-pcs-host-silent-sms \
+	verify-8890-pin-pcs-state-idle verify-8890-pin-pcs-state-call \
+	verify-8890-pin-pcs-state-sms verify-8210-registration \
 	verify-8210-outgoing-call verify-8210-incoming-call verify-8210-incoming-sms \
 	verify-8210-outgoing-sms verify-8210-calculator verify-8210-phonebook \
 	verify-7110-keypad-controller verify-sed1565 verify-7110-verifier \
-	verify-7110-bootstrap verify-6210-keypad-controller verify-6210-verifier \
-	verify-6210-bootstrap verify-8210-verifier verify-8210-bootstrap \
-	verify-gsm-fr-codec verify-gsm-tch-f-l1 verify-gsm-a3a8 verify-gsm-a5 \
-	verify-gsm-xcch-l1 verify-gsm-mobility verify-gsm-sms-transport \
+	verify-7110-bootstrap verify-6210-keypad-controller \
+	verify-3310-native-verifier verify-6210-verifier verify-6210-bootstrap \
+	verify-8210-verifier verify-8210-bootstrap verify-gsm-fr-codec \
+	verify-gsm-tch-f-l1 verify-gsm-a3a8 verify-gsm-a5 verify-gsm-xcch-l1 \
+	verify-gsm-mobility verify-gsm-sms-transport \
 	verify-radio-periodic-location-update \
 	verify-radio-periodic-location-update-state \
 	verify-3410-radio-periodic-location-update verify-dsp-speech-control-static \
-	verify-6110-static verify-6110-v548-static verify-6110-bootstrap-capture \
-	verify-dct3-type-1f-static verify-3210-v501 verify-dsp-memory-upload verify \
-	verify-ccont verify-ccont-watchdog verify-gensio verify-display \
-	verify-dsp-transport verify-cobba-control verify-dsp-bootstrap-3310 \
-	verify-3310-radio-boundary verify-3330-radio-boundary \
-	verify-3310-radio-registration verify-3330-radio-registration \
-	verify-3330-radio-registration-preserved verify-3330-radio-registration-state \
-	verify-3330-radio-unsuitable-cells verify-3410-radio-registration \
-	verify-3410-radio-registration-preserved verify-3410-radio-registration-state \
-	verify-3410-radio-unsuitable-cells verify-5210-frontier \
-	verify-5210-radio-registration verify-5210-menu \
-	verify-5210-radio-authentication verify-5210-radio-a5-1-incoming-call \
-	verify-5210-radio-call-state verify-5210-power-lifecycle \
-	verify-5210-charger-wake verify-5210-sim-phonebook \
-	verify-5210-radio-supplementary verify-5210-radio-paging \
-	verify-5210-radio-paging-negatives verify-5210-radio-incoming-sms \
-	verify-5210-messages verify-5210-radio-incoming-call-ringing \
+	verify-6110-static verify-6110-v548-static verify-5110i-boundary \
+	verify-5110i-static verify-5110i-native-verifier \
+	verify-5110i-native-verifier-erased verify-5110i-input-frontier \
+	verify-5110i-nominal-boot verify-5110i-nominal-input \
+	verify-5110i-sim-bootstrap verify-5110i-phonecode-boundary \
+	verify-5110i-phonecode-accept verify-5110i-menu verify-5110i-phonebook \
+	verify-5110i-sms-store verify-5110i-sms-persistence verify-5110i-sms-delete \
+	verify-5110i-sim-pin verify-5110i-sim-pin-persistence \
+	verify-5110i-sim-pin-blocked verify-5110i-sim-puk-recovery verify-5110i-fdn \
+	verify-5110i-fdn-records verify-5110i-fdn-edit-lifecycle \
+	verify-5110i-fdn-dial-policy verify-5110i-pin2-change verify-5110i-puk1-retry \
+	verify-5110i-puk1-exhaustion verify-5110i-native-ui-state \
+	verify-5110i-sim-write-state verify-5110i-sms-write-state \
+	verify-5110i-pin-state verify-5110i-pin-buffered-state \
+	verify-5110i-pin-status-state verify-5110i-pin-block-state \
+	verify-5110i-puk-state verify-5110i-pin1-change \
+	verify-5110i-pin-request-lifecycle verify-5110i-pin2-retry \
+	verify-5110i-pin2-blocked verify-5110i-puk2-recovery verify-5110i-puk2-retry \
+	verify-5110i-puk2-exhaustion verify-5110i-native-processing \
+	verify-6150-static verify-6110-bootstrap-capture verify-dct3-type-1f-static \
+	verify-3210-v501 verify-dsp-memory-upload verify verify-ccont \
+	verify-ccont-watchdog verify-gensio verify-display verify-dsp-transport \
+	verify-cobba-control verify-dsp-bootstrap-3310 verify-3310-radio-boundary \
+	verify-3330-radio-boundary verify-3310-radio-registration \
+	verify-3330-radio-registration verify-3330-radio-registration-preserved \
+	verify-3330-radio-registration-state verify-3330-radio-unsuitable-cells \
+	verify-3410-radio-registration verify-3410-radio-registration-preserved \
+	verify-3410-radio-registration-state verify-3410-radio-unsuitable-cells \
+	verify-5210-frontier verify-5210-radio-registration verify-5210-menu \
+	verify-5210-radio-authentication verify-5210-radio-a5-1-degraded-state \
+	verify-5210-radio-a5-1-incoming-call verify-5210-radio-call-state \
+	verify-5210-power-lifecycle verify-5210-charger-wake \
+	verify-5210-sim-phonebook verify-5210-radio-supplementary \
+	verify-5210-radio-paging verify-5210-radio-paging-negatives \
+	verify-5210-radio-incoming-sms verify-5210-messages \
+	verify-5210-radio-incoming-call-ringing \
 	verify-5210-radio-incoming-call-answered \
 	verify-5210-radio-incoming-call-lifecycle verify-5210-radio-media-resilience \
 	verify-5210-radio-outgoing-call-lifecycle verify-5210-radio-outgoing-sms \
@@ -111,24 +277,26 @@ DCT3_PRESS_240_350 := NOKIA_DCT3_POST_READY_KEY_DURATION_MS=240 NOKIA_DCT3_POST_
 	verify-3410-radio-paging-negatives verify-3310-radio-incoming-call-boundary \
 	verify-3310-radio-incoming-call-ui verify-3310-radio-incoming-call-lifecycle \
 	verify-3330-radio-incoming-call-lifecycle \
-	verify-3410-radio-incoming-call-lifecycle \
-	verify-3410-radio-a5-1-incoming-call verify-3330-radio-media-resilience \
-	verify-3310-radio-media-resilience verify-radio-incoming-call \
-	verify-radio-incoming-ringing verify-radio-incoming-call-answered \
-	verify-radio-incoming-call-lifecycle verify-radio-handover \
-	verify-radio-handover-failure-state verify-3310-radio-handover \
-	verify-3310-radio-handover-failure-state verify-3330-radio-handover \
-	verify-3330-radio-handover-failure-state verify-3410-radio-handover \
-	verify-3410-radio-handover-failure-state verify-radio-a5-1-handover \
-	verify-radio-a5-1-handover-failure-state verify-3310-radio-a5-1-handover \
-	verify-3310-radio-a5-1-handover-failure-state verify-3330-radio-a5-1-handover \
-	verify-3330-radio-a5-1-handover-failure-state verify-3410-radio-a5-1-handover \
-	verify-3410-radio-a5-1-handover-failure-state verify-radio-supplementary-call \
-	verify-radio-two-call verify-radio-second-outgoing-call \
-	verify-radio-call-divert verify-radio-call-divert-lifecycle \
-	verify-radio-call-divert-incoming verify-radio-call-divert-busy \
-	verify-radio-call-divert-unreachable verify-radio-call-divert-no-reply \
-	verify-radio-ussd verify-radio-ussd-outcomes verify-radio-network-ussd \
+	verify-3410-radio-incoming-call-lifecycle verify-3410-radio-a5-1-degraded \
+	verify-3410-radio-a5-1-outgoing-degraded \
+	verify-3410-radio-a5-1-degraded-state verify-3410-radio-a5-1-incoming-call \
+	verify-3330-radio-media-resilience verify-3310-radio-media-resilience \
+	verify-radio-incoming-call verify-radio-incoming-ringing \
+	verify-radio-incoming-call-answered verify-radio-incoming-call-lifecycle \
+	verify-radio-handover verify-radio-handover-failure-state \
+	verify-3310-radio-handover verify-3310-radio-handover-failure-state \
+	verify-3330-radio-handover verify-3330-radio-handover-failure-state \
+	verify-3410-radio-handover verify-3410-radio-handover-failure-state \
+	verify-radio-a5-1-handover verify-radio-a5-1-handover-failure-state \
+	verify-3310-radio-a5-1-handover verify-3310-radio-a5-1-handover-failure-state \
+	verify-3330-radio-a5-1-handover verify-3330-radio-a5-1-handover-failure-state \
+	verify-3410-radio-a5-1-handover verify-3410-radio-a5-1-handover-failure-state \
+	verify-radio-supplementary-call verify-radio-two-call \
+	verify-radio-second-outgoing-call verify-radio-call-divert \
+	verify-radio-call-divert-lifecycle verify-radio-call-divert-incoming \
+	verify-radio-call-divert-busy verify-radio-call-divert-unreachable \
+	verify-radio-call-divert-no-reply verify-radio-ussd \
+	verify-radio-ussd-outcomes verify-radio-network-ussd \
 	verify-radio-two-call-negatives verify-radio-a5-1-incoming-call \
 	verify-radio-a5-1-state verify-radio-a5-1-sdcch-state \
 	verify-radio-a5-1-outgoing-call verify-radio-outgoing-call-lifecycle \
@@ -156,9 +324,11 @@ DCT3_PRESS_240_350 := NOKIA_DCT3_POST_READY_KEY_DURATION_MS=240 NOKIA_DCT3_POST_
 	verify-3310-radio-outgoing-call-host-termination \
 	verify-3330-radio-outgoing-call-host-termination \
 	verify-3310-radio-outgoing-call-lifecycle \
+	verify-3310-radio-a5-1-degraded-state verify-3310-radio-a5-1-degraded \
 	verify-3310-radio-a5-1-incoming-call verify-3310-radio-a5-1-outgoing-call \
 	verify-3330-radio-outgoing-call-lifecycle \
-	verify-3330-radio-a5-1-incoming-call verify-3330-radio-a5-1-outgoing-call \
+	verify-3330-radio-a5-1-degraded-state verify-3330-radio-a5-1-incoming-call \
+	verify-3330-radio-a5-1-outgoing-call \
 	verify-3410-radio-outgoing-call-lifecycle \
 	verify-3410-radio-a5-1-outgoing-call \
 	verify-radio-incoming-call-lifecycle-v501 verify-radio-call-state-roundtrip \
@@ -166,8 +336,10 @@ DCT3_PRESS_240_350 := NOKIA_DCT3_POST_READY_KEY_DURATION_MS=240 NOKIA_DCT3_POST_
 	verify-radio-a5-1-degraded verify-radio-physical-uplink \
 	verify-radio-outgoing-call-host-physical-media \
 	verify-3310-radio-physical-duplex verify-5210-radio-physical-duplex \
-	verify-3410-radio-physical-duplex verify-3410-radio-outgoing-physical-duplex \
-	verify-3330-radio-physical-duplex verify-3330-radio-outgoing-physical-duplex \
+	verify-3410-radio-physical-duplex \
+	verify-3410-radio-a5-1-degraded-physical-duplex \
+	verify-3410-radio-outgoing-physical-duplex verify-3330-radio-physical-duplex \
+	verify-3330-radio-outgoing-physical-duplex \
 	verify-5210-radio-outgoing-physical-duplex verify-radio-physical-uplink-one \
 	verify-radio-incoming-sms-host-adapter verify-radio-incoming-sms-host-restore \
 	verify-radio-outgoing-sms-host-adapter verify-radio-outgoing-sms-host-restore \
@@ -175,7 +347,9 @@ DCT3_PRESS_240_350 := NOKIA_DCT3_POST_READY_KEY_DURATION_MS=240 NOKIA_DCT3_POST_
 	verify-radio-incoming-ussd-host-adapter \
 	verify-radio-incoming-ussd-host-restore verify-radio-outgoing-sms \
 	verify-radio-outgoing-sms-reject verify-radio-outgoing-sms-smsc \
-	verify-radio-outgoing-sms-timeout verify-radio-outgoing-sms-timeout-state \
+	verify-radio-outgoing-sms-timeout verify-radio-outgoing-sms-rp-timeout \
+	verify-radio-outgoing-sms-rp-timeout-state \
+	verify-radio-outgoing-sms-timeout-state \
 	verify-radio-outgoing-sms-delivery-report verify-radio-outgoing-sms-v501 \
 	verify-3310-radio-outgoing-sms verify-3330-radio-outgoing-sms \
 	verify-3410-radio-outgoing-sms verify-radio-incoming-sms \
@@ -213,12 +387,643 @@ DCT3_PRESS_240_350 := NOKIA_DCT3_POST_READY_KEY_DURATION_MS=240 NOKIA_DCT3_POST_
 	verify-sim-toolkit-malformed verify-sim-toolkit-timeout verify-sim-hotplug \
 	verify-sim-hotplug-v501 verify-sim-hotplug-toolkit \
 	verify-sim-hotplug-state-roundtrip verify-sim-toolkit-v501 \
-	verify-sim-toolkit-3310 verify-sim-toolkit-3330 verify-sim-toolkit-5210 \
+	verify-sim-toolkit-3310 verify-sim-toolkit-3330 \
+	verify-5210-radio-measurement-static verify-5210-late-pin-boundary \
+	verify-5210-pin-outgoing-sms verify-5210-pin-phonebook verify-5210-pin-ussd \
+	verify-5210-pin-sms-wait-state verify-5210-pin-host-incoming-call \
+	verify-5210-pin-host-outgoing-call verify-5210-pin-incoming-sip-state \
+	verify-5210-pin-outgoing-sip-state verify-5210-pin-host-incoming-media-state \
+	verify-5210-pin-host-incoming-call-state \
+	verify-5210-pin-host-outgoing-media-state \
+	verify-5210-pin-host-outgoing-call-state verify-5210-pin-incoming-call-sip \
+	verify-5210-pin-outgoing-call-sip verify-5210-pin-host-silent-sms \
+	verify-5210-pin-host-rejected-sms verify-5210-pin-host-incoming-sms \
+	verify-5210-pin-host-outgoing-sms verify-5210-pin-outgoing-call-state \
+	verify-5210-pin-outgoing-call verify-5210-pin-sms-state \
+	verify-5210-pin-call-state verify-5210-pin-idle-state \
+	verify-5210-pin-incoming-sms verify-5210-pin-incoming-call \
+	verify-5210-late-pin-registration verify-5210-sim-pin-registration \
+	verify-sim-toolkit-interactive-5210 verify-sim-toolkit-5210 \
 	verify-sim-toolkit-state-roundtrip verify-sim-toolkit-removal \
-	verify-sim-phonebook verify-sim-pin verify-sim-pin-unblock \
-	verify-sim-pin-state-roundtrip verify-sim-pin-removal verify-sim-pin-toggle \
-	verify-sim-pin-change verify-sim-pin-change-reject verify-sim-pin-v501 \
-	verify-frontier-stability verify-structure-subset verify-structure
+	verify-simi-restore verify-sim-nvram-atomic verify-sim-phonebook \
+	verify-sim-pin verify-sim-pin-unblock verify-sim-pin-state-roundtrip \
+	verify-sim-pin-removal verify-sim-pin-toggle verify-sim-pin-change \
+	verify-sim-pin-change-reject verify-sim-pin-v501 verify-frontier-stability \
+	verify-structure-subset verify-structure verify-radio-outgoing-call-sip \
+	verify-3330-radio-outgoing-call-sip verify-3330-radio-incoming-call-sip \
+	verify-3330-radio-incoming-call-sip-connected-restore \
+	verify-3330-radio-incoming-call-sip-cancel \
+	verify-3330-radio-incoming-call-sip-alerting-restore \
+	verify-3410-radio-outgoing-call-sip verify-3410-radio-incoming-call-sip \
+	verify-3410-radio-incoming-call-sip-connected-restore \
+	verify-3410-radio-incoming-call-sip-alerting-restore \
+	verify-3410-radio-incoming-call-sip-cancel \
+	verify-5210-radio-outgoing-call-sip verify-5210-radio-incoming-call-sip \
+	verify-5210-radio-incoming-call-sip-connected-restore \
+	verify-5210-radio-incoming-call-sip-cancel \
+	verify-5210-radio-incoming-call-sip-alerting-restore \
+	verify-radio-incoming-call-sip verify-radio-incoming-call-sip-idle-restore \
+	verify-3310-radio-incoming-call-sip-connected-restore \
+	verify-3310-radio-incoming-call-sip-alerting-restore \
+	verify-3310-radio-outgoing-call-sip-busy-redial \
+	verify-3310-radio-outgoing-call-sip-unavailable-redial \
+	verify-3330-radio-incoming-call-sip-idle-restore \
+	verify-3310-radio-incoming-call-sip-idle-restore \
+	verify-5210-radio-incoming-call-sip-idle-restore \
+	verify-3410-radio-incoming-call-sip-idle-restore \
+	verify-3330-radio-outgoing-call-sip-busy \
+	verify-3330-radio-outgoing-call-sip-unavailable \
+	verify-5210-radio-outgoing-call-sip-busy \
+	verify-5210-radio-outgoing-call-sip-unavailable \
+	verify-3410-radio-outgoing-call-sip-busy \
+	verify-3410-radio-outgoing-call-sip-unavailable \
+	verify-3330-radio-outgoing-call-sip-connected-restore \
+	verify-3330-radio-outgoing-call-sip-pending-restore \
+	verify-5210-radio-outgoing-call-sip-connected-restore \
+	verify-5210-radio-outgoing-call-sip-pending-restore \
+	verify-3410-radio-outgoing-call-sip-connected-restore \
+	verify-3410-radio-outgoing-call-sip-pending-restore \
+	verify-3330-radio-outgoing-call-sip-waveform \
+	verify-3330-radio-incoming-call-sip-waveform \
+	verify-5210-radio-outgoing-call-sip-waveform \
+	verify-5210-radio-incoming-call-sip-waveform \
+	verify-3410-radio-outgoing-call-sip-waveform \
+	verify-3410-radio-incoming-call-sip-waveform \
+	verify-3310-radio-incoming-call-sip-waveform \
+	verify-radio-incoming-call-sip-waveform verify-3310-radio-incoming-call-sip \
+	verify-3310-radio-outgoing-call-sip-waveform \
+	verify-radio-outgoing-call-sip-waveform \
+	verify-3310-radio-outgoing-call-sip-connected-restore \
+	verify-radio-outgoing-call-sip-connected-restore \
+	verify-3310-radio-outgoing-call-sip-pending-restore \
+	verify-radio-outgoing-call-sip-pending-restore \
+	verify-radio-incoming-call-sip-alerting-restore \
+	verify-radio-incoming-call-sip-restore \
+	verify-3310-radio-incoming-call-sip-cancel \
+	verify-radio-incoming-call-sip-cancel verify-radio-outgoing-call-sip-busy \
+	verify-radio-outgoing-call-sip-forbidden \
+	verify-radio-outgoing-call-sip-not-found \
+	verify-radio-outgoing-call-sip-service-unavailable \
+	verify-radio-outgoing-call-sip-global-busy \
+	verify-radio-outgoing-call-sip-timeout-response verify-8210-power-cycle \
+	verify-6250-coherent-idle-state verify-6250-coherent-call-state \
+	verify-6250-coherent-sms-state verify-6250-pin-state-idle \
+	verify-6250-pin-state-call verify-6250-pin-state-sms verify-6250-alarm \
+	verify-6250-alarm-cold verify-6250-alarm-awake-restore \
+	verify-6250-alarm-off-restore verify-6250-alarm-off-restore-yes \
+	verify-6250-alarm-snooze verify-6250-alarm-off-no \
+	verify-6250-alarm-off-snooze-no verify-6250-alarm-off-snooze-yes \
+	verify-6250-alarm-off-snooze-restore \
+	verify-6250-alarm-snooze-countdown-restore \
+	verify-6250-alarm-snooze-countdown-restore-yes verify-6250-alarm-off-yes \
+	verify-6250-calendar-cold verify-6250-power-cycle verify-6250-ussd \
+	verify-6250-call-divert verify-6210-sim-toolkit-call-decline \
+	verify-6210-sim-toolkit-call verify-6210-sim-toolkit-sms \
+	verify-6210-sim-toolkit-menu verify-6210-sim-toolkit-interactive \
+	verify-6250-sim-toolkit-interactive verify-6250-sim-toolkit-menu \
+	verify-6250-sim-toolkit-sms verify-6250-sim-toolkit-call \
+	verify-6250-sim-toolkit-call-decline verify-6250-sim-toolkit \
+	verify-6250-call-divert-lifecycle verify-6250-call-divert-cold \
+	verify-6210-call-divert-cold verify-6250-state-divert \
+	verify-6250-coherent-registration verify-6250-slow-pin-registration \
+	verify-6250-pin-retry verify-6250-pin-retry-cold verify-6250-puk-recovery \
+	verify-6250-wrong-puk-recovery verify-6250-permanent-puk-loss \
+	verify-6250-pin2-change verify-6250-pin2-change-cold \
+	verify-6250-pin2-retry-cold verify-6250-pin2-exhaustion \
+	verify-6250-puk2-recovery verify-6250-wrong-puk2-recovery \
+	verify-6250-puk2-permanent verify-6250-pin-request \
+	verify-6250-pin-change-cold verify-6250-fdn-cycle verify-6250-fdn-record-cold \
+	verify-6250-fdn-record-lifecycle verify-6250-fdn-rejections \
+	verify-6250-fdn-dial-controls verify-6250-pin-host-incoming-call \
+	verify-6250-pin-host-incoming-sms verify-6250-pin-host-outgoing-call \
+	verify-6250-pin-host-outgoing-sms verify-6250-pin-phonebook \
+	verify-6250-pin-host-rejected-sms verify-6250-pin-host-silent-sms \
+	verify-6250-coherent-host-incoming-call \
+	verify-6250-coherent-host-outgoing-call \
+	verify-6250-coherent-host-incoming-sms verify-6250-coherent-host-outgoing-sms \
+	verify-6250-a51-host-incoming-sms-signaling \
+	verify-6250-a51-host-outgoing-sms-signaling \
+	verify-6250-a51-host-incoming-call-signaling \
+	verify-6250-a51-host-outgoing-call-signaling \
+	verify-6250-coherent-host-rejected-sms verify-6250-coherent-host-silent-sms \
+	verify-8890-code-change verify-8890-alarm-wake-security \
+	verify-8890-alarm-wake-restore verify-8890-alarm verify-8890-alarm-snooze \
+	verify-6210-alarm verify-6210-alarm-off-no verify-6210-alarm-off-restore \
+	verify-6210-alarm-off-restore-yes verify-6210-alarm-off-yes \
+	verify-6210-alarm-cold verify-6210-alarm-snooze \
+	verify-6210-alarm-off-snooze-no verify-6210-alarm-off-snooze-yes \
+	verify-6210-alarm-snooze-countdown-restore verify-6250-calendar-midnight \
+	verify-6210-calendar-cold verify-6210-calendar-midnight \
+	verify-6210-calendar-leap-day verify-6210-calendar-nonleap \
+	verify-6210-calendar-year-end verify-6210-sip-connected-outgoing-restore \
+	verify-radio-outgoing-call-sip-unavailable \
+	verify-6250-sip-connected-signaling \
+	verify-6250-sip-incoming-connected-signaling \
+	verify-6250-sip-connected-outgoing-restore \
+	verify-6250-sip-connected-incoming-restore verify-8890-sip-outgoing-media \
+	verify-8890-sip-incoming-media verify-8890-sip-connected-outgoing-restore \
+	verify-8890-sip-connected-incoming-restore \
+	verify-6210-sip-connected-incoming-restore verify-mad2-wake-gates
+
+verify-5210-pin-phone-memory-multiple: normalize-5210 build
+	$(VENV)/bin/python tools/run_noki5210_acceptance.py $(RUN_DIR)/save --scenario pin-phone-memory --mame $(MAME_DIR)/mame
+	$(VENV)/bin/python tools/run_noki5210_acceptance.py $(RUN_DIR)/add --scenario pin-phone-memory-add --preserved-nvram $(RUN_DIR)/save/nvram --mame $(MAME_DIR)/mame
+	$(VENV)/bin/python tools/run_noki5210_acceptance.py $(RUN_DIR)/erase --scenario pin-phone-memory-erase-first --preserved-nvram $(RUN_DIR)/add/nvram --mame $(MAME_DIR)/mame
+
+verify-5210-pin-phone-memory-erase: normalize-5210 build
+	$(VENV)/bin/python tools/run_noki5210_acceptance.py $(RUN_DIR)/save --scenario pin-phone-memory --mame $(MAME_DIR)/mame
+	$(VENV)/bin/python tools/run_noki5210_acceptance.py $(RUN_DIR)/cancel --scenario pin-phone-memory-erase-cancel --preserved-nvram $(RUN_DIR)/save/nvram --mame $(MAME_DIR)/mame
+	$(VENV)/bin/python tools/run_noki5210_acceptance.py $(RUN_DIR)/erase --scenario pin-phone-memory-erase --preserved-nvram $(RUN_DIR)/cancel/nvram --mame $(MAME_DIR)/mame
+
+verify-5210-pin-phone-memory-edit: normalize-5210 build
+	$(VENV)/bin/python tools/run_noki5210_acceptance.py $(RUN_DIR)/save --scenario pin-phone-memory --mame $(MAME_DIR)/mame
+	$(VENV)/bin/python tools/run_noki5210_acceptance.py $(RUN_DIR)/edit --scenario pin-phone-memory-edit --preserved-nvram $(RUN_DIR)/save/nvram --mame $(MAME_DIR)/mame
+
+verify-5210-pin-phone-memory: normalize-5210 build
+	$(VENV)/bin/python tools/run_noki5210_acceptance.py $(RUN_DIR) --scenario pin-phone-memory --mame $(MAME_DIR)/mame
+
+verify-8850-pin-host-ussd-empty-reply: build
+	$(VENV)/bin/python tools/run_noki8850_pin_registration.py $(RUN_DIR) --scenario host-incoming-ussd-empty --mame $(MAME_DIR)/mame
+
+verify-8850-pin-host-ussd-network-restore: build
+	$(VENV)/bin/python tools/run_noki8850_pin_registration.py $(RUN_DIR) --scenario host-incoming-ussd-restore --mame $(MAME_DIR)/mame
+
+verify-8850-pin-host-ussd-network-request: build
+	$(VENV)/bin/python tools/run_noki8850_pin_registration.py $(RUN_DIR) --scenario host-incoming-ussd-request --mame $(MAME_DIR)/mame
+
+verify-8850-pin-host-ussd-restore: build
+	$(VENV)/bin/python tools/run_noki8850_pin_registration.py $(RUN_DIR) --scenario host-outgoing-ussd-restore --mame $(MAME_DIR)/mame
+
+verify-8850-pin-host-outgoing-ussd: build
+	$(VENV)/bin/python tools/run_noki8850_pin_registration.py $(RUN_DIR) --scenario host-outgoing-ussd --mame $(MAME_DIR)/mame
+
+verify-8850-pin-host-incoming-ussd: build
+	$(VENV)/bin/python tools/run_noki8850_pin_registration.py $(RUN_DIR) --scenario host-incoming-ussd --mame $(MAME_DIR)/mame
+
+verify-6210-mbus-service: build
+	$(PYTHON) tools/run_noki6210_mbus_service.py $(RUN_DIR) --mame-dir $(MAME_DIR)
+
+verify-6210-mbus-byte-events: build
+	$(PYTHON) tools/run_mame_isolated.py --mame-dir $(MAME_DIR) --run-dir $(RUN_DIR) -- npe3mbus -rompath $(abspath roms) -video none -sound none -nothrottle -seconds_to_run 10 -log -verbose -autoboot_delay 0 -autoboot_script $(abspath tools/mbus_input_probe.lua)
+	$(PYTHON) tools/mbus_input_check.py $(RUN_DIR)/error.log
+
+verify-6210-mbus-version-ingress: build
+	$(PYTHON) tools/run_mame_isolated.py --mame-dir $(MAME_DIR) --run-dir $(RUN_DIR) -- npe3mbus -rompath $(abspath roms) -video none -sound none -nothrottle -seconds_to_run 24 -log -verbose -autoboot_delay 0 -autoboot_script $(abspath tools/noki6210_mbus_version_probe.lua)
+	$(PYTHON) tools/mbus_input_check.py $(RUN_DIR)/error.log --version-query
+
+verify-8210-host-incoming-call: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario host-incoming-call --mame $(MAME_DIR)/mame
+
+verify-8210-host-outgoing-call: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario host-outgoing-call --mame $(MAME_DIR)/mame
+
+verify-8210-host-incoming-sms: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario host-incoming-sms --mame $(MAME_DIR)/mame
+
+verify-8210-host-outgoing-sms: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario host-outgoing-sms --mame $(MAME_DIR)/mame
+
+verify-8210-host-rejected-sms: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario host-rejected-sms --mame $(MAME_DIR)/mame
+
+verify-8210-host-silent-sms: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario host-silent-sms --mame $(MAME_DIR)/mame
+
+# shell: optional PJSIP stack; exact base-record idle restore before a fresh epoch-2 unanswered call
+verify-8210-sip-idle-restore: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki8210_sip_cancel.py $(RUN_DIR) --restore-idle --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional PJSIP stack; physical NSM-3 base-record comparison on carrier 4, real SIP 486, no media
+verify-8210-sip-outgoing-busy: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki8210_sip_cancel.py $(RUN_DIR) --outgoing-busy --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional PJSIP stack; physical NSM-3 base-record comparison on carrier 4, SIP 480 cause-18 clearing, no media
+verify-8210-sip-outgoing-unavailable: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki8210_sip_cancel.py $(RUN_DIR) --outgoing-unavailable --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: own PCS1900 registration and physical incoming Answer/End correlate NSB-6 control; not PCM or native speech
+verify-8890-pcs-incoming-speech-control: build
+	$(VENV)/bin/python tools/run_noki8890_pin_registration.py $(RUN_DIR) --without-pin --pcs1900 --scenario host-incoming-call --mame '$(abspath $(MAME_DIR))/mame'
+	$(VENV)/bin/python -m tools.noki8890_speech_control_check roms/noki8890/8890_12.20_ppmc.fls --log $(RUN_DIR)/error.log --incoming
+
+# shell: own PCS1900 registration and physical outgoing Send/End correlate NSB-6 control; not PCM or native speech
+verify-8890-pcs-speech-control: build
+	$(VENV)/bin/python tools/run_noki8890_pin_registration.py $(RUN_DIR) --without-pin --pcs1900 --scenario host-outgoing-call --mame '$(abspath $(MAME_DIR))/mame'
+	$(VENV)/bin/python -m tools.noki8890_speech_control_check roms/noki8890/8890_12.20_ppmc.fls --log $(RUN_DIR)/error.log
+
+# shell: own PMM, physical incoming host Answer/End and NSB-6 speech-control correlation; not PCM or native speech
+verify-8890-incoming-speech-control: build
+	$(VENV)/bin/python tools/run_noki8890_pin_registration.py $(RUN_DIR) --without-pin --scenario host-incoming-call --mame '$(abspath $(MAME_DIR))/mame'
+	$(VENV)/bin/python -m tools.noki8890_speech_control_check roms/noki8890/8890_12.20_ppmc.fls --log $(RUN_DIR)/error.log --incoming
+
+# shell: own PMM, physical outgoing host call and ROM-pinned NSB-6 DSP speech-control writes; not PCM or native speech
+verify-8890-speech-control: build
+	$(VENV)/bin/python tools/run_noki8890_pin_registration.py $(RUN_DIR) --without-pin --scenario host-outgoing-call --mame '$(abspath $(MAME_DIR))/mame'
+	$(VENV)/bin/python -m tools.noki8890_speech_control_check roms/noki8890/8890_12.20_ppmc.fls --log $(RUN_DIR)/error.log
+
+# shell: optional PJSIP; exact ringing NSM-2 restoration rejects the stale invite without Answer, CONNECT, media or redelivery
+verify-8850-sip-incoming-alerting-restore: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki8850_sip_cancel.py $(RUN_DIR) --incoming-media --restore-incoming --restore-phase alerting --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional PJSIP; physical NSM-2 Answer, exact connected architecture restore, fresh host epoch and SIP/GSM clearing without redelivery
+verify-8850-sip-incoming-restore: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki8850_sip_cancel.py $(RUN_DIR) --incoming-media --restore-incoming --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional PJSIP; own NSM-2 physical Answer/End, full incoming lifecycle and HLE media, not waveform or native speech
+verify-8850-sip-incoming-media: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki8850_sip_cancel.py $(RUN_DIR) --incoming-media --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional PJSIP; exact pending NSM-2 restoration requires CANCEL/487 and GSM clearing, without redial, CONNECT or accepted media
+verify-8850-sip-outgoing-pending-restore: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki8850_sip_cancel.py $(RUN_DIR) --outgoing-media --restore-outgoing --pending-outgoing --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional PJSIP; exact NSM-2 architecture restore clears the old SIP dialog with a fresh host epoch and no redial
+verify-8850-sip-outgoing-restore: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki8850_sip_cancel.py $(RUN_DIR) --outgoing-media --restore-outgoing --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional PJSIP stack; own NSM-2 PCM/endpoints and physical outgoing SIP HLE media, not waveform or native speech
+verify-8850-sip-outgoing-media: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki8850_sip_cancel.py $(RUN_DIR) --outgoing-media --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional PJSIP stack; own NSM-3 PCM/endpoints, physical outgoing SIP 200 and HLE media transport, not native speech
+verify-8210-sip-outgoing-media: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki8210_sip_cancel.py $(RUN_DIR) --outgoing-media --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional PJSIP stack; own NSM-3 late physical PIN and DCS823 outgoing HLE media transport, not native speech
+verify-8210-dcs-late-pin-sip-outgoing-media: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki8210_sip_cancel.py $(RUN_DIR) --late-pin-dcs --outgoing-media --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional PJSIP stack; own NSM-3 late physical PIN and DCS823 incoming HLE media transport, not native speech
+verify-8210-dcs-late-pin-sip-incoming-media: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki8210_sip_cancel.py $(RUN_DIR) --late-pin-dcs --incoming-media --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional PJSIP stack; late physical PIN/DCS823 connected outgoing handset restore, external dialog discarded
+verify-8210-dcs-late-pin-sip-outgoing-restore: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki8210_sip_cancel.py $(RUN_DIR) --late-pin-dcs --outgoing-media --restore-outgoing --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional PJSIP stack; late physical PIN/DCS823 alerting outgoing handset restore, CANCEL/487 without redial
+verify-8210-dcs-late-pin-sip-pending-outgoing-restore: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki8210_sip_cancel.py $(RUN_DIR) --late-pin-dcs --outgoing-media --restore-outgoing --restore-outgoing-phase alerting --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional PJSIP stack; late physical PIN/DCS823 connected incoming handset restore, external dialog discarded
+verify-8210-dcs-late-pin-sip-incoming-restore: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki8210_sip_cancel.py $(RUN_DIR) --late-pin-dcs --incoming-media --restore-incoming --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional PJSIP stack; late physical PIN/DCS823 alerting incoming handset restore, no Answer or dialog replay
+verify-8210-dcs-late-pin-sip-alerting-incoming-restore: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki8210_sip_cancel.py $(RUN_DIR) --late-pin-dcs --incoming-media --restore-incoming --restore-incoming-phase alerting --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional PJSIP/PulseAudio/FFmpeg; own NSM-3 late-PIN DCS outgoing microphone/earpiece tones, HLE not native speech
+verify-8210-dcs-late-pin-sip-outgoing-waveform: build
+	env SIP_PRODUCT=8210 SIP_DIRECTION=outgoing SIP_LATE_PIN_DCS=1 RUN_DIR='$(RUN_DIR)' SIP_PJSUA_BIN='$(SIP_PJSUA_BIN)' SIP_PYTHON_PATH='$(SIP_PYTHON_PATH)' bash tools/run_sip_physical_audio_gate.sh
+
+# shell: optional PJSIP/PulseAudio/FFmpeg; own NSM-3 late-PIN DCS incoming microphone/earpiece tones, HLE not native speech
+verify-8210-dcs-late-pin-sip-incoming-waveform: build
+	env SIP_PRODUCT=8210 SIP_DIRECTION=incoming SIP_LATE_PIN_DCS=1 RUN_DIR='$(RUN_DIR)' SIP_PJSUA_BIN='$(SIP_PJSUA_BIN)' SIP_PYTHON_PATH='$(SIP_PYTHON_PATH)' bash tools/run_sip_physical_audio_gate.sh
+
+# shell: optional PJSIP and explicit own-source SIP_WAVEFORM_NVRAM_DIR; current PCM-enabled NSB-7 unanswered outgoing exact restoration, CANCEL/487, no CONNECT/media/redial
+verify-8290-sip-outgoing-pending-restore: build
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(PYTHON) tools/run_noki8290_sip_media.py '$(RUN_DIR)' --nvram-source '$(SIP_WAVEFORM_NVRAM_DIR)' --pjsua '$(SIP_PJSUA_BIN)' --restore-outgoing-pending
+
+# shell: optional PJSIP and explicit own-source SIP_WAVEFORM_NVRAM_DIR; current PCM-enabled NSB-7 unanswered incoming exact restoration, SIP rejection, no Answer/media/readmission
+verify-8290-sip-incoming-alerting-restore: build
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(PYTHON) tools/run_noki8290_sip_media.py '$(RUN_DIR)' --nvram-source '$(SIP_WAVEFORM_NVRAM_DIR)' --pjsua '$(SIP_PJSUA_BIN)' --restore-incoming-alerting
+
+# shell: optional local PJSIP and explicit own-source SIP_WAVEFORM_NVRAM_DIR; physical NSB-7 Answer, pre-save HLE PCM, exact connected save/load, old-dialog BYE and no repeated admission
+verify-8290-sip-incoming-media-restore: build
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(PYTHON) tools/run_noki8290_sip_media.py '$(RUN_DIR)' --nvram-source '$(SIP_WAVEFORM_NVRAM_DIR)' --pjsua '$(SIP_PJSUA_BIN)' --restore-incoming-media
+
+# shell: optional local PJSIP and explicit own-source SIP_WAVEFORM_NVRAM_DIR; connected NSB-7 exact save/load, pre-save clocked HLE media, old-dialog BYE and no redial
+verify-8290-sip-outgoing-media-restore: build
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(PYTHON) tools/run_noki8290_sip_media.py '$(RUN_DIR)' --nvram-source '$(SIP_WAVEFORM_NVRAM_DIR)' --pjsua '$(SIP_PJSUA_BIN)' --restore-outgoing-media
+
+# shell: optional PJSIP/PulseAudio/FFmpeg and explicit SIP_WAVEFORM_NVRAM_DIR from own qualified NSB-7 provisioning; physical Answer/End and HLE microphone/earpiece tones, not native speech
+verify-8290-sip-incoming-waveform: build
+	env SIP_PRODUCT=8290 SIP_DIRECTION=incoming SIP_WAVEFORM_NVRAM_DIR='$(SIP_WAVEFORM_NVRAM_DIR)' RUN_DIR='$(RUN_DIR)' SIP_PJSUA_BIN='$(SIP_PJSUA_BIN)' SIP_PYTHON_PATH='$(SIP_PYTHON_PATH)' bash tools/run_sip_physical_audio_gate.sh
+
+# shell: optional PJSIP/PulseAudio/FFmpeg and explicit SIP_WAVEFORM_NVRAM_DIR from own qualified NSB-7 provisioning; physical dialing/End and HLE microphone/earpiece tones, not native speech
+verify-8290-sip-outgoing-waveform: build
+	env SIP_PRODUCT=8290 SIP_DIRECTION=outgoing SIP_WAVEFORM_NVRAM_DIR='$(SIP_WAVEFORM_NVRAM_DIR)' RUN_DIR='$(RUN_DIR)' SIP_PJSUA_BIN='$(SIP_PJSUA_BIN)' SIP_PYTHON_PATH='$(SIP_PYTHON_PATH)' bash tools/run_sip_physical_audio_gate.sh
+
+# shell: optional PJSIP; own PCS1900 pre-save registration, pending outgoing snapshot replay, real CANCEL/487, zero external media and one cause41 clear without redial
+verify-8890-pcs-sip-outgoing-pending-restore: build
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(PYTHON) tools/run_noki8890_sip_cancel.py '$(RUN_DIR)' --pcs1900 --restore-outgoing-pending --pjsua '$(SIP_PJSUA_BIN)'
+
+# shell: optional PJSIP; own PCS1900 ringing snapshot replay, old INVITE rejection, zero Answer/CONNECT/media, clear before physical Exit and own-band idle recovery
+verify-8890-pcs-sip-incoming-alerting-restore: build
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(PYTHON) tools/run_noki8890_sip_cancel.py '$(RUN_DIR)' --pcs1900 --restore-incoming-alerting --pjsua '$(SIP_PJSUA_BIN)'
+
+# shell: optional PJSIP; own PCS1900 pre-save registration/media, connected outgoing snapshot replay, old SIP dialog BYE and one cause41 clear without redial
+verify-8890-pcs-sip-outgoing-connected-restore: build
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(PYTHON) tools/run_noki8890_sip_cancel.py '$(RUN_DIR)' --pcs1900 --restore-outgoing-connected-media --pjsua '$(SIP_PJSUA_BIN)'
+
+# shell: optional PJSIP; own PCS1900 physical Answer, pre-save registration/media, connected incoming snapshot replay and old-dialog disposal without readmission
+verify-8890-pcs-sip-incoming-connected-restore: build
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(PYTHON) tools/run_noki8890_sip_cancel.py '$(RUN_DIR)' --pcs1900 --restore-incoming-connected-media --pjsua '$(SIP_PJSUA_BIN)'
+
+# shell: optional PJSIP; own NSB-6 PCS1900 acquisition, physical Send/End, real SIP and clocked HLE PCM; not native speech
+verify-8890-pcs-sip-outgoing-media: build
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(PYTHON) tools/run_noki8890_sip_cancel.py '$(RUN_DIR)' --pcs1900 --outgoing-media --pjsua '$(SIP_PJSUA_BIN)'
+
+# shell: optional PJSIP; own NSB-6 PCS1900 acquisition, physical Answer/End, real SIP and clocked HLE PCM; not native speech
+verify-8890-pcs-sip-incoming-media: build
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(PYTHON) tools/run_noki8890_sip_cancel.py '$(RUN_DIR)' --pcs1900 --incoming-media --pjsua '$(SIP_PJSUA_BIN)'
+
+# shell: optional PJSIP/PulseAudio/FFmpeg; independent own NSB-6 PCS1900 physical call and sustained microphone/earpiece tones, not native DSP speech
+verify-8890-pcs-sip-outgoing-waveform: build
+	env SIP_PRODUCT=8890 SIP_PCS1900=1 SIP_DIRECTION=outgoing RUN_DIR='$(RUN_DIR)' SIP_PJSUA_BIN='$(SIP_PJSUA_BIN)' SIP_PYTHON_PATH='$(SIP_PYTHON_PATH)' bash tools/run_sip_physical_audio_gate.sh
+
+# shell: optional PJSIP/PulseAudio/FFmpeg; independent own NSB-6 PCS1900 physical Answer/End and sustained microphone/earpiece tones, not native DSP speech
+verify-8890-pcs-sip-incoming-waveform: build
+	env SIP_PRODUCT=8890 SIP_PCS1900=1 SIP_DIRECTION=incoming RUN_DIR='$(RUN_DIR)' SIP_PJSUA_BIN='$(SIP_PJSUA_BIN)' SIP_PYTHON_PATH='$(SIP_PYTHON_PATH)' bash tools/run_sip_physical_audio_gate.sh
+
+# shell: optional PJSIP/PulseAudio/FFmpeg; own NSB-6 incoming Answer/End and microphone/earpiece tones through its documented PCM bus, HLE not native speech
+verify-8890-sip-incoming-waveform: build
+	env SIP_PRODUCT=8890 SIP_DIRECTION=incoming RUN_DIR='$(RUN_DIR)' SIP_PJSUA_BIN='$(SIP_PJSUA_BIN)' SIP_PYTHON_PATH='$(SIP_PYTHON_PATH)' bash tools/run_sip_physical_audio_gate.sh
+
+# shell: optional PJSIP/PulseAudio/FFmpeg; own NSB-6 outgoing physical microphone/earpiece tones through local SIP, HLE not native speech
+verify-8890-sip-outgoing-waveform: build
+	env SIP_PRODUCT=8890 SIP_DIRECTION=outgoing RUN_DIR='$(RUN_DIR)' SIP_PJSUA_BIN='$(SIP_PJSUA_BIN)' SIP_PYTHON_PATH='$(SIP_PYTHON_PATH)' bash tools/run_sip_physical_audio_gate.sh
+
+# shell: optional PJSIP/PulseAudio/FFmpeg; own NSM-2 incoming physical Answer/End and bidirectional HLE audio tones, not native speech
+verify-8850-sip-incoming-waveform: build
+	env SIP_PRODUCT=8850 SIP_DIRECTION=incoming RUN_DIR='$(RUN_DIR)' SIP_PJSUA_BIN='$(SIP_PJSUA_BIN)' SIP_PYTHON_PATH='$(SIP_PYTHON_PATH)' bash tools/run_sip_physical_audio_gate.sh
+
+# shell: optional PJSIP/PulseAudio/FFmpeg; own NSM-2 microphone/earpiece tones through local SIP, HLE not native speech
+verify-8850-sip-outgoing-waveform: build
+	env SIP_PRODUCT=8850 SIP_DIRECTION=outgoing RUN_DIR='$(RUN_DIR)' SIP_PJSUA_BIN='$(SIP_PJSUA_BIN)' SIP_PYTHON_PATH='$(SIP_PYTHON_PATH)' bash tools/run_sip_physical_audio_gate.sh
+
+# shell: optional PJSIP/PulseAudio/FFmpeg; own NSM-3 HLE microphone/earpiece tones through local SIP, not native DSP speech
+verify-8210-sip-outgoing-waveform: build
+	env SIP_PRODUCT=8210 SIP_DIRECTION=outgoing RUN_DIR='$(RUN_DIR)' SIP_PJSUA_BIN='$(SIP_PJSUA_BIN)' SIP_PYTHON_PATH='$(SIP_PYTHON_PATH)' bash tools/run_sip_physical_audio_gate.sh
+
+# shell: optional PJSIP; own NSM-3 physical incoming Answer/End and HLE media transport, no native DSP speech
+verify-8210-sip-incoming-media: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki8210_sip_cancel.py $(RUN_DIR) --incoming-media --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional PJSIP/PulseAudio/FFmpeg; own NSM-3 incoming physical Answer/End and HLE microphone/earpiece tones, not native DSP speech
+verify-8210-sip-incoming-waveform: build
+	env SIP_PRODUCT=8210 SIP_DIRECTION=incoming RUN_DIR='$(RUN_DIR)' SIP_PJSUA_BIN='$(SIP_PJSUA_BIN)' SIP_PYTHON_PATH='$(SIP_PYTHON_PATH)' bash tools/run_sip_physical_audio_gate.sh
+
+# shell: optional PJSIP; exact connected NSM-3 architecture restore, real SIP BYE and epoch-2 firmware clearing without redial
+verify-8210-sip-outgoing-restore: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki8210_sip_cancel.py $(RUN_DIR) --outgoing-media --restore-outgoing --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional PJSIP; exact alerting NSM-3 architecture restore, SIP CANCEL/487 and epoch-2 clearing without CONNECT/media/redial
+verify-8210-sip-pending-outgoing-restore: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki8210_sip_cancel.py $(RUN_DIR) --outgoing-media --restore-outgoing --restore-outgoing-phase alerting --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional PJSIP; physical incoming Answer, exact NSM-3 architecture restore, SIP BYE and fresh-epoch clearing without dialog replay
+verify-8210-sip-incoming-restore: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki8210_sip_cancel.py $(RUN_DIR) --incoming-media --restore-incoming --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional PJSIP; exact alerting NSM-3 architecture restore, real INVITE rejection and fresh-epoch clearing without Answer/CONNECT/media/replay
+verify-8210-sip-alerting-incoming-restore: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki8210_sip_cancel.py $(RUN_DIR) --incoming-media --restore-incoming --restore-incoming-phase alerting --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional PJSIP stack; labelled acquired base-record comparison, coherent ARFCN4 cell and unanswered call
+verify-8210-sip-cancel: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki8210_sip_cancel.py $(RUN_DIR) --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional PJSIP stack; exact idle restoration before a new unanswered SIP dialog, not dialog restoration
+verify-6250-sip-idle-restore: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki6250_sip_cancel.py $(RUN_DIR) --restore-idle --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional PJSIP stack; exact ringing NHM-3 restore rejects external INVITE, no Answer/media
+verify-6250-sip-alerting-incoming-restore: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki6250_sip_cancel.py $(RUN_DIR) --restore-incoming-alerting --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional PJSIP stack; physical 123/Send then pending SIP 180 restoration, no redial/media
+verify-6250-sip-pending-outgoing-restore: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki6250_sip_cancel.py $(RUN_DIR) --restore-outgoing-pending --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional PJSIP stack; declared initial-record PMM comparison and unanswered coherent ARFCN19 call
+verify-6250-sip-cancel: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki6250_sip_cancel.py $(RUN_DIR) --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional PJSIP stack; physical NHM-3 outgoing busy on coherent carrier 19, no media
+verify-6250-sip-outgoing-busy: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki6250_sip_cancel.py $(RUN_DIR) --outgoing-busy --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional PJSIP stack; physical NHM-3 cause-18 clearing on coherent carrier 19, no media
+verify-6250-sip-outgoing-unavailable: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki6250_sip_cancel.py $(RUN_DIR) --outgoing-unavailable --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+verify-6210-power-cycle: build
+	$(VENV)/bin/python tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario power-cycle --mame $(MAME_DIR)/mame
+
+verify-8890-power-off-restore: build
+	$(PYTHON) tools/run_noki8890_power_cycle.py $(RUN_DIR) --restore-off --mame $(MAME_DIR)/mame
+
+verify-8890-minute-redraw: build
+	$(VENV)/bin/python tools/run_noki8890_cold_clock.py $(RUN_DIR) --minute-redraw --mame $(MAME_DIR)/mame
+
+verify-8890-calendar-non-leap: build
+	$(VENV)/bin/python tools/run_noki8890_calendar.py $(RUN_DIR) --boundary non-leap --mame $(MAME_DIR)/mame
+
+verify-8890-calendar-year-end: build
+	$(VENV)/bin/python tools/run_noki8890_calendar.py $(RUN_DIR) --boundary year-end --mame $(MAME_DIR)/mame
+
+verify-8890-calendar-leap-day: build
+	$(VENV)/bin/python tools/run_noki8890_calendar.py $(RUN_DIR) --boundary leap-day --mame $(MAME_DIR)/mame
+
+verify-8890-calendar-rollover: build
+	$(VENV)/bin/python tools/run_noki8890_calendar.py $(RUN_DIR) --mame $(MAME_DIR)/mame
+
+verify-8890-calendar-restore: build
+	$(VENV)/bin/python tools/run_noki8890_calendar.py $(RUN_DIR) --restore --mame $(MAME_DIR)/mame
+
+verify-8890-cold-clock: build
+	$(VENV)/bin/python tools/run_noki8890_cold_clock.py $(RUN_DIR) --mame $(MAME_DIR)/mame
+
+verify-8890-power-cycle: build
+	$(PYTHON) tools/run_noki8890_power_cycle.py $(RUN_DIR) --mame $(MAME_DIR)/mame
+
+# shell: optional PJSIP stack; exact own-PMM idle restore before fresh epoch-2 unanswered call
+verify-8850-sip-idle-restore: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki8850_sip_cancel.py $(RUN_DIR) --restore-idle --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional PJSIP stack; physical own-PMM NSM-2 outgoing busy on carrier 1, no media
+verify-8850-sip-outgoing-busy: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki8850_sip_cancel.py $(RUN_DIR) --outgoing-busy --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional PJSIP stack; physical own-PMM NSM-2 SIP 480 cause-18 clearing, no media
+verify-8850-sip-outgoing-unavailable: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki8850_sip_cancel.py $(RUN_DIR) --outgoing-unavailable --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional external PJSIP stack with private own-PMM NSM-2 storage; no Answer/media
+verify-8850-sip-cancel: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki8850_sip_cancel.py $(RUN_DIR) --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional external PJSIP stack; exact idle restore before fresh epoch-2 unanswered call
+verify-8890-sip-idle-restore: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki8890_sip_cancel.py $(RUN_DIR) --restore-idle --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional PJSIP stack; exact ringing handset restore rejects external dialog, no Answer/media
+verify-8890-sip-alerting-incoming-restore: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki8890_sip_cancel.py $(RUN_DIR) --restore-incoming-alerting --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional PJSIP stack; exact pending outgoing restore cancels SIP 180 without redial/media
+verify-8890-sip-pending-outgoing-restore: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki8890_sip_cancel.py $(RUN_DIR) --restore-outgoing-pending --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional PJSIP stack; physical own-PMM NSB-6 outgoing busy on configured GSM900 carrier 60, no media
+verify-8890-sip-outgoing-busy: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki8890_sip_cancel.py $(RUN_DIR) --outgoing-busy --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional PJSIP stack; physical own-PMM NSB-6 SIP 480 cause-18 clearing on carrier 60, no media
+verify-8890-sip-outgoing-unavailable: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki8890_sip_cancel.py $(RUN_DIR) --outgoing-unavailable --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional external PJSIP stack with private own-PMM NSB-6 storage; no Answer/media
+verify-8890-sip-cancel: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki8890_sip_cancel.py $(RUN_DIR) --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+verify-8890-host-rejected-sms: build
+	$(PYTHON) tools/run_noki8890_host_sms.py $(RUN_DIR) --direction outgoing --outcome rp_error --mame $(MAME_DIR)/mame
+
+verify-8890-host-silent-sms: build
+	$(PYTHON) tools/run_noki8890_host_sms.py $(RUN_DIR) --direction outgoing --outcome rp_silence --mame $(MAME_DIR)/mame
+
+verify-8890-host-incoming-sms: build
+	$(PYTHON) tools/run_noki8890_host_sms.py $(RUN_DIR) --direction incoming --mame $(MAME_DIR)/mame
+
+verify-8890-host-outgoing-sms: build
+	$(PYTHON) tools/run_noki8890_host_sms.py $(RUN_DIR) --direction outgoing --mame $(MAME_DIR)/mame
+
+verify-8850-ussd: build
+	$(PYTHON) tools/run_noki8xxx_supplementary.py 8850 $(RUN_DIR) --service ussd --mame $(MAME_DIR)/mame
+
+verify-8850-sim-toolkit-call-decline: build
+	$(PYTHON) tools/run_noki8xxx_supplementary.py 8850 $(RUN_DIR) --service toolkit-call-decline --mame $(MAME_DIR)/mame
+
+verify-8850-sim-toolkit-call: build
+	$(PYTHON) tools/run_noki8xxx_supplementary.py 8850 $(RUN_DIR) --service toolkit-call --mame $(MAME_DIR)/mame
+
+verify-8850-sim-toolkit-sms: build
+	$(PYTHON) tools/run_noki8xxx_supplementary.py 8850 $(RUN_DIR) --service toolkit-sms --mame $(MAME_DIR)/mame
+
+verify-8850-sim-toolkit-menu-state: build
+	$(PYTHON) tools/run_noki8xxx_supplementary.py 8850 $(RUN_DIR) --service toolkit-menu-state --mame $(MAME_DIR)/mame
+
+verify-8850-sim-toolkit-menu: build
+	$(PYTHON) tools/run_noki8xxx_supplementary.py 8850 $(RUN_DIR) --service toolkit-menu --mame $(MAME_DIR)/mame
+
+verify-8850-sim-toolkit-interactive: build
+	$(PYTHON) tools/run_noki8xxx_supplementary.py 8850 $(RUN_DIR) --service toolkit-interactive --mame $(MAME_DIR)/mame
+
+verify-8850-sim-toolkit: build
+	$(PYTHON) tools/run_noki8xxx_supplementary.py 8850 $(RUN_DIR) --service toolkit --mame $(MAME_DIR)/mame
+
+verify-8850-call-divert: build
+	$(PYTHON) tools/run_noki8xxx_supplementary.py 8850 $(RUN_DIR) --service divert --mame $(MAME_DIR)/mame
+
+verify-8890-sim-toolkit: build
+	$(PYTHON) tools/run_noki8890_toolkit_retained.py $(RUN_DIR) --mame $(MAME_DIR)/mame
+
+verify-8890-sim-toolkit-interactive: build
+	$(PYTHON) tools/run_noki8890_toolkit_retained.py $(RUN_DIR) --interactive --mame $(MAME_DIR)/mame
+
+verify-8890-sim-toolkit-menu-state: build
+	$(PYTHON) tools/run_noki8890_toolkit_retained.py $(RUN_DIR) --menu-state --mame $(MAME_DIR)/mame
+
+verify-8890-sim-toolkit-menu: build
+	$(PYTHON) tools/run_noki8890_toolkit_retained.py $(RUN_DIR) --menu --mame $(MAME_DIR)/mame
+
+verify-8890-sim-toolkit-sms: build
+	$(PYTHON) tools/run_noki8890_toolkit_retained.py $(RUN_DIR) --sms --mame $(MAME_DIR)/mame
+
+verify-8890-sim-toolkit-call: build
+	$(PYTHON) tools/run_noki8890_toolkit_retained.py $(RUN_DIR) --call --mame $(MAME_DIR)/mame
+
+verify-8890-sim-toolkit-call-decline: build
+	$(PYTHON) tools/run_noki8890_toolkit_retained.py $(RUN_DIR) --call-decline --mame $(MAME_DIR)/mame
+
+verify-8890-sim-toolkit-busy: build
+	$(PYTHON) tools/run_noki8xxx_supplementary.py 8890 $(RUN_DIR) --service toolkit-busy --mame $(MAME_DIR)/mame
+
+verify-8890-ussd: build
+	$(PYTHON) tools/run_noki8xxx_supplementary.py 8890 $(RUN_DIR) --service ussd --mame $(MAME_DIR)/mame
+
+verify-8890-call-divert: build
+	$(PYTHON) tools/run_noki8xxx_supplementary.py 8890 $(RUN_DIR) --service divert --mame $(MAME_DIR)/mame
+
+verify-5510-package:
+	$(PYTHON) tools/noki5510_package_check.py roms/archive-dct3-packages/NPM5_353_mcu.exe --output-dir roms/5510-npm5-v353
+
+# shell: optional external PJSIP stack with isolated NPE-3 storage and configuration
+verify-6210-sip-cancel: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki6210_sip_cancel.py $(RUN_DIR) --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional external PJSIP stack; physical NPE-3 outgoing busy with no media
+verify-6210-sip-outgoing-busy: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki6210_sip_cancel.py $(RUN_DIR) --outgoing-busy --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+verify-6210-sip-connected-signaling: build
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(PYTHON) tools/run_noki6210_sip_cancel.py $(RUN_DIR) --outgoing-connected-signaling --pjsua $(SIP_PJSUA_BIN) --mame $(MAME_DIR)/mame
+
+verify-6210-sip-incoming-connected-signaling: build
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(PYTHON) tools/run_noki6210_sip_cancel.py $(RUN_DIR) --incoming-connected-signaling --pjsua $(SIP_PJSUA_BIN) --mame $(MAME_DIR)/mame
+
+# shell: optional external PJSIP stack; physical NPE-3 outgoing cause-18 clearing with no media
+verify-6210-sip-outgoing-unavailable: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki6210_sip_cancel.py $(RUN_DIR) --outgoing-unavailable --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional external PJSIP stack; exact ringing NPE-3 restore clears dialog without Answer or media
+verify-6210-sip-alerting-incoming-restore: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki6210_sip_cancel.py $(RUN_DIR) --restore-incoming-alerting --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional external PJSIP stack; pending NPE-3 dialog cleared after exact handset restore, no media
+verify-6210-sip-pending-outgoing-restore: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki6210_sip_cancel.py $(RUN_DIR) --restore-outgoing-pending --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame'
+
+# shell: optional external PJSIP stack; exact idle restore before fresh unanswered call
+verify-6210-sip-idle-restore: build
+	@test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(VENV)/bin/python tools/run_noki6210_sip_cancel.py $(RUN_DIR) --pjsua '$(SIP_PJSUA_BIN)' --mame '$(abspath $(MAME_DIR))/mame' --restore-idle
 
 verify-6210-stage: build
 	$(PYTHON) tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario stage --mame $(MAME_DIR)/mame
@@ -229,20 +1034,194 @@ verify-6210-runtime: build
 verify-6210-outgoing-call: build
 	$(PYTHON) tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario outgoing-call --mame $(MAME_DIR)/mame
 
+verify-6210-dsp-control-observation: build
+	$(PYTHON) tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario outgoing-call --coherent-cell --trace-dsp-control --mame $(MAME_DIR)/mame
+
 verify-6210-incoming-call: build
 	$(PYTHON) tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario incoming-call --mame $(MAME_DIR)/mame
+
+verify-6210-pcm-missing: build
+	$(PYTHON) tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario incoming-pcm-missing --mame $(MAME_DIR)/mame
 
 verify-6210-incoming-sms: build
 	$(PYTHON) tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario incoming-sms --mame $(MAME_DIR)/mame
 
+verify-6210-host-incoming-sms: build
+	$(VENV)/bin/python tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario host-incoming-sms --mame $(MAME_DIR)/mame
+
+verify-6210-host-outgoing-sms: build
+	$(VENV)/bin/python tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario host-outgoing-sms --mame $(MAME_DIR)/mame
+
+verify-6210-host-rejected-sms: build
+	$(VENV)/bin/python tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario host-rejected-sms --mame $(MAME_DIR)/mame
+
+verify-6210-host-silent-sms: build
+	$(VENV)/bin/python tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario host-silent-sms --mame $(MAME_DIR)/mame
+
+verify-6210-host-silent-sms-realtime: build
+	$(VENV)/bin/python tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario host-silent-sms --throttle --mame $(MAME_DIR)/mame
+
 verify-6210-outgoing-sms: build
 	$(PYTHON) tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario outgoing-sms --mame $(MAME_DIR)/mame
 
+verify-6210-accessory: build
+	$(PYTHON) tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario accessory --mame $(MAME_DIR)/mame
+
+verify-6210-cold-repeat: build
+	$(VENV)/bin/python tools/run_noki6210_acceptance.py $(RUN_DIR)/first --scenario accessory --mame $(MAME_DIR)/mame
+	$(VENV)/bin/python tools/run_noki6210_acceptance.py $(RUN_DIR)/second --scenario accessory --mame $(MAME_DIR)/mame
+	$(VENV)/bin/python tools/noki6210_cold_repeat_check.py $(RUN_DIR)/first $(RUN_DIR)/second
+
+verify-6210-state-idle: build
+	$(PYTHON) tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario state-idle --mame $(MAME_DIR)/mame
+
+verify-6210-state-call: build
+	$(PYTHON) tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario state-call --mame $(MAME_DIR)/mame
+
+verify-6210-state-sms: build
+	$(PYTHON) tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario state-sms --mame $(MAME_DIR)/mame
+
+verify-6210-ussd: build
+	$(PYTHON) tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario ussd --mame $(MAME_DIR)/mame
+
+verify-6210-call-divert: build
+	$(PYTHON) tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario divert --mame $(MAME_DIR)/mame
+
+verify-6210-call-divert-lifecycle: build
+	$(PYTHON) tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario divert-lifecycle --mame $(MAME_DIR)/mame
+
+verify-6210-state-divert: build
+	$(PYTHON) tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario state-divert --mame $(MAME_DIR)/mame
+
+# shell: own NPE-3 Phase-2+ SIM, proactive DISPLAY TEXT and physical clearance
+verify-6210-sim-toolkit: build
+	$(PYTHON) tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario toolkit --mame '$(abspath $(MAME_DIR))/mame'
+
 verify-6210-security: build
-	$(PYTHON) tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario security --mame $(MAME_DIR)/mame
+	$(VENV)/bin/python tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario security --mame $(MAME_DIR)/mame
+
+verify-6210-slow-pin-registration: build
+	$(VENV)/bin/python tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario security --coherent-cell --mame $(MAME_DIR)/mame
+
+verify-6210-pin-retry: build
+	$(VENV)/bin/python tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario security-retry --coherent-cell --mame $(MAME_DIR)/mame
+
+verify-6210-pin-retry-cold: build
+	$(VENV)/bin/python tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario security-retry-cold --coherent-cell --mame $(MAME_DIR)/mame
+
+verify-6210-puk-recovery: build
+	$(VENV)/bin/python tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario security-block-cold --coherent-cell --mame $(MAME_DIR)/mame
+
+verify-6210-puk-retry-cold: build
+	$(VENV)/bin/python tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario security-block-cold --coherent-cell --wrong-puk-first --mame $(MAME_DIR)/mame
+
+verify-6210-puk-permanent: build
+	$(VENV)/bin/python tools/run_noki6210_puk_exhaustion.py $(RUN_DIR) --mame $(MAME_DIR)/mame
+
+verify-6210-pin2-change: build
+	$(VENV)/bin/python tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario pin2-change --coherent-cell --mame $(MAME_DIR)/mame
+
+verify-6210-pin2-change-cold: build
+	$(VENV)/bin/python tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario pin2-change-cold --coherent-cell --mame $(MAME_DIR)/mame
+
+verify-6210-pin2-retry-cold: build
+	$(VENV)/bin/python tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario pin2-retry-cold --coherent-cell --mame $(MAME_DIR)/mame
+
+verify-6210-pin2-exhaustion: build
+	$(VENV)/bin/python tools/run_noki6210_pin2_exhaustion.py $(RUN_DIR) --mame $(MAME_DIR)/mame
+
+verify-6210-puk2-recovery: build
+	$(VENV)/bin/python tools/run_noki6210_pin2_exhaustion.py $(RUN_DIR) --recover --mame $(MAME_DIR)/mame
+
+verify-6210-puk2-retry-cold: build
+	$(VENV)/bin/python tools/run_noki6210_pin2_exhaustion.py $(RUN_DIR) --recover --wrong-puk-first --mame $(MAME_DIR)/mame
+
+verify-6210-puk2-permanent: build
+	$(VENV)/bin/python tools/run_noki6210_puk2_exhaustion.py $(RUN_DIR) --mame $(MAME_DIR)/mame
+
+verify-6210-fdn-cycle: build
+	$(VENV)/bin/python tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario fdn-cycle --coherent-cell --mame $(MAME_DIR)/mame
+
+verify-6210-fdn-retry-cold: build
+	$(VENV)/bin/python tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario fdn-retry-cold --coherent-cell --mame $(MAME_DIR)/mame
+
+verify-6210-fdn-records: build
+	$(VENV)/bin/python tools/run_noki6210_fdn_records.py $(RUN_DIR) --mame $(MAME_DIR)/mame
+
+verify-6210-fdn-record-edit: build
+	$(VENV)/bin/python tools/run_noki6210_fdn_records.py $(RUN_DIR) --edit --mame $(MAME_DIR)/mame
+
+verify-6210-fdn-record-erase: build
+	$(VENV)/bin/python tools/run_noki6210_fdn_records.py $(RUN_DIR) --erase --mame $(MAME_DIR)/mame
+
+verify-6210-fdn-record-retry: build
+	$(VENV)/bin/python tools/run_noki6210_fdn_records.py $(RUN_DIR) --wrong-write-first --mame $(MAME_DIR)/mame
+
+verify-6210-fdn-dial-controls: build
+	$(VENV)/bin/python tools/run_noki6210_fdn_dial.py $(RUN_DIR) --mame $(MAME_DIR)/mame
+
+verify-6210-host-ussd-notify: build
+	$(VENV)/bin/python tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario host-incoming-ussd --coherent-cell --mame $(MAME_DIR)/mame
+
+verify-6210-host-ussd-request: build
+	$(VENV)/bin/python tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario host-incoming-ussd-request --coherent-cell --mame $(MAME_DIR)/mame
+
+verify-6210-host-ussd-restore: build
+	$(VENV)/bin/python tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario host-incoming-ussd-restore --coherent-cell --mame $(MAME_DIR)/mame
+
+verify-6210-ussd-continued: build
+	$(VENV)/bin/python tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario ussd-continued --coherent-cell --mame $(MAME_DIR)/mame
+
+verify-6210-home-plmn-reject: build
+	$(VENV)/bin/python tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario home-plmn-reject --coherent-cell --mame $(MAME_DIR)/mame
+
+verify-6210-forbidden-plmn-persistence: build
+	$(VENV)/bin/python tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario plmn-reject --coherent-cell --mame $(MAME_DIR)/mame
+
+verify-6210-pin-host-incoming-call: build
+	$(VENV)/bin/python tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario host-incoming-call --coherent-cell --pin-enabled --mame $(MAME_DIR)/mame
+
+verify-6210-pin-host-incoming-sms: build
+	$(VENV)/bin/python tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario host-incoming-sms --coherent-cell --pin-enabled --mame $(MAME_DIR)/mame
+
+verify-6210-pin-host-outgoing-call: build
+	$(VENV)/bin/python tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario host-outgoing-call --coherent-cell --pin-enabled --mame $(MAME_DIR)/mame
+
+verify-6210-pin-host-outgoing-sms: build
+	$(VENV)/bin/python tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario host-outgoing-sms --coherent-cell --pin-enabled --mame $(MAME_DIR)/mame
+
+verify-6210-sms-status-persistence: build
+	$(VENV)/bin/python tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario host-sms-status --coherent-cell --pin-enabled --mame $(MAME_DIR)/mame
+
+verify-6210-pin-phonebook: build
+	$(VENV)/bin/python tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario phonebook --coherent-cell --pin-enabled --mame $(MAME_DIR)/mame
+
+verify-6210-pin-host-rejected-sms: build
+	$(VENV)/bin/python tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario host-rejected-sms --coherent-cell --pin-enabled --mame $(MAME_DIR)/mame
+
+verify-6210-pin-host-silent-sms: build
+	$(VENV)/bin/python tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario host-silent-sms --coherent-cell --pin-enabled --mame $(MAME_DIR)/mame
+
+verify-6210-pin-state-idle: build
+	$(VENV)/bin/python tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario state-idle --coherent-cell --pin-enabled --mame $(MAME_DIR)/mame
+
+verify-6210-pin-state-call: build
+	$(VENV)/bin/python tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario state-call --coherent-cell --pin-enabled --mame $(MAME_DIR)/mame
+
+verify-6210-pin-state-sms: build
+	$(VENV)/bin/python tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario state-sms --coherent-cell --pin-enabled --mame $(MAME_DIR)/mame
 
 verify-6210-registration: build
 	$(PYTHON) tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario registration --mame $(MAME_DIR)/mame
+
+verify-6210-foreign-registration: build
+	$(PYTHON) tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario foreign-registration --mame $(MAME_DIR)/mame
+
+verify-6210-foreign-outgoing-call: build
+	$(PYTHON) tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario outgoing-call --foreign-cell --mame $(MAME_DIR)/mame
+
+verify-6210-foreign-incoming-sms: build
+	$(PYTHON) tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario incoming-sms --foreign-cell --mame $(MAME_DIR)/mame
 
 verify-6210-calculator: build
 	$(PYTHON) tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario calculator --mame $(MAME_DIR)/mame
@@ -252,6 +1231,278 @@ verify-6210-phonebook: build
 
 verify-6210-menu: build
 	$(PYTHON) tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario menu --mame $(MAME_DIR)/mame
+
+# shell: isolated own NSM-3 PMM comparison and physical call-divert interrogation
+verify-8210-call-divert: build
+	$(PYTHON) tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario divert --mame '$(abspath $(MAME_DIR))/mame'
+
+verify-8210-sim-toolkit-call-decline: build
+	$(PYTHON) tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario toolkit-call-decline --mame $(MAME_DIR)/mame
+
+verify-8210-sim-toolkit-call: build
+	$(PYTHON) tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario toolkit-call --mame $(MAME_DIR)/mame
+
+verify-8210-sim-toolkit-sms: build
+	$(PYTHON) tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario toolkit-sms --mame $(MAME_DIR)/mame
+
+verify-8210-sim-toolkit-menu-state: build
+	$(PYTHON) tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario toolkit-menu-state --mame $(MAME_DIR)/mame
+
+verify-8210-sim-toolkit-menu: build
+	$(PYTHON) tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario toolkit-menu --mame $(MAME_DIR)/mame
+
+verify-8210-sim-toolkit-input: build
+	$(PYTHON) tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario toolkit-input --mame $(MAME_DIR)/mame
+
+verify-8210-sim-toolkit-inkey: build
+	$(PYTHON) tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario toolkit-inkey --mame $(MAME_DIR)/mame
+
+verify-8210-sim-toolkit: build
+	$(PYTHON) tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario toolkit --mame $(MAME_DIR)/mame
+
+# shell: isolated own NSM-3 PMM comparison and physical USSD lifecycle
+verify-8210-ussd: build
+	$(PYTHON) tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario ussd --mame '$(abspath $(MAME_DIR))/mame'
+
+verify-8210-dcs-registration: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario registration --dcs1800 --mame $(MAME_DIR)/mame
+
+verify-8210-dcs-idle-state: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario idle-state --dcs1800 --mame $(MAME_DIR)/mame
+
+verify-8210-dcs-incoming-sms: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario incoming-sms --dcs1800 --mame $(MAME_DIR)/mame
+
+verify-8210-dcs-sms-state: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario sms-state --dcs1800 --mame $(MAME_DIR)/mame
+
+verify-8210-dcs-outgoing-sms: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario outgoing-sms --dcs1800 --mame $(MAME_DIR)/mame
+
+verify-8210-dcs-outgoing-call: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario outgoing-call --dcs1800 --mame $(MAME_DIR)/mame
+
+verify-8210-dcs-call-state: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario call-state --dcs1800 --mame $(MAME_DIR)/mame
+
+verify-8210-dcs-incoming-call: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario incoming-call --dcs1800 --mame $(MAME_DIR)/mame
+
+verify-8210-dcs-phonebook: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario phonebook --dcs1800 --mame $(MAME_DIR)/mame
+
+verify-8210-slow-pin-registration: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario registration --pin-enabled --mame $(MAME_DIR)/mame
+
+verify-8210-dcs-late-pin-registration: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario registration --dcs1800 --pin-enabled --pin-start 8 --timing-result-observe --mame $(MAME_DIR)/mame
+
+verify-8210-dcs-late-pin-state-idle: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario idle-state --dcs1800 --pin-enabled --pin-start 8 --mame $(MAME_DIR)/mame
+
+verify-8210-dcs-late-pin-host-incoming-call: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario host-incoming-call --dcs1800 --pin-enabled --pin-start 8 --mame $(MAME_DIR)/mame
+
+verify-8210-dcs-late-pin-host-incoming-sms: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario host-incoming-sms --dcs1800 --pin-enabled --pin-start 8 --mame $(MAME_DIR)/mame
+
+verify-8210-dcs-late-pin-host-outgoing-sms: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario host-outgoing-sms --dcs1800 --pin-enabled --pin-start 8 --mame $(MAME_DIR)/mame
+
+verify-8210-dcs-late-pin-host-rejected-sms: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario host-rejected-sms --dcs1800 --pin-enabled --pin-start 8 --mame $(MAME_DIR)/mame
+
+verify-8210-dcs-late-pin-host-silent-sms: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario host-silent-sms --dcs1800 --pin-enabled --pin-start 8 --mame $(MAME_DIR)/mame
+
+verify-8210-dcs-late-pin-host-outgoing-call: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario host-outgoing-call --dcs1800 --pin-enabled --pin-start 8 --mame $(MAME_DIR)/mame
+
+verify-8210-dcs-late-pin-state-call: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario call-state --dcs1800 --pin-enabled --pin-start 8 --mame $(MAME_DIR)/mame
+
+verify-8210-dcs-late-pin-state-sms: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario sms-state --dcs1800 --pin-enabled --pin-start 8 --mame $(MAME_DIR)/mame
+
+verify-8210-dcs-late-pin-phonebook: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario phonebook --dcs1800 --pin-enabled --pin-start 8 --mame $(MAME_DIR)/mame
+
+verify-8210-dcs-late-pin-sms-status-persistence: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario host-sms-status --dcs1800 --pin-enabled --pin-start 8 --mame $(MAME_DIR)/mame
+
+verify-8210-dcs-pin-delay-matrix: build
+	$(VENV)/bin/python tools/run_noki8210_pin_delay_matrix.py $(RUN_DIR) --mame $(MAME_DIR)/mame
+
+verify-8210-dcs-early-pin-host-incoming-call: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario host-incoming-call --dcs1800 --pin-enabled --pin-start 7 --mame $(MAME_DIR)/mame
+
+verify-8210-dcs-host-incoming-sms: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario host-incoming-sms --dcs1800 --mame $(MAME_DIR)/mame
+
+verify-8210-dcs-early-pin-host-incoming-sms: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario host-incoming-sms --dcs1800 --pin-enabled --pin-start 7 --mame $(MAME_DIR)/mame
+
+verify-8210-dcs-host-outgoing-sms: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario host-outgoing-sms --dcs1800 --mame $(MAME_DIR)/mame
+
+verify-8210-dcs-early-pin-host-outgoing-sms: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario host-outgoing-sms --dcs1800 --pin-enabled --pin-start 7 --mame $(MAME_DIR)/mame
+
+verify-8210-dcs-host-rejected-sms: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario host-rejected-sms --dcs1800 --mame $(MAME_DIR)/mame
+
+verify-8210-dcs-host-outgoing-call: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario host-outgoing-call --dcs1800 --mame $(MAME_DIR)/mame
+
+verify-8210-dcs-early-pin-host-outgoing-call: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario host-outgoing-call --dcs1800 --pin-enabled --pin-start 7 --mame $(MAME_DIR)/mame
+
+verify-8210-dcs-host-silent-sms: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario host-silent-sms --dcs1800 --mame $(MAME_DIR)/mame
+
+verify-8210-dcs-early-pin-state-idle: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario idle-state --dcs1800 --pin-enabled --pin-start 7 --mame $(MAME_DIR)/mame
+
+verify-8210-dcs-early-pin-state-call: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario call-state --dcs1800 --pin-enabled --pin-start 7 --mame $(MAME_DIR)/mame
+
+verify-8210-dcs-early-pin-state-sms: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario sms-state --dcs1800 --pin-enabled --pin-start 7 --mame $(MAME_DIR)/mame
+
+verify-8210-dcs-early-pin-phonebook: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario phonebook --dcs1800 --pin-enabled --pin-start 7 --mame $(MAME_DIR)/mame
+
+verify-8210-dcs-early-pin-host-rejected-sms: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario host-rejected-sms --dcs1800 --pin-enabled --pin-start 7 --mame $(MAME_DIR)/mame
+
+verify-8210-dcs-early-pin-host-silent-sms: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario host-silent-sms --dcs1800 --pin-enabled --pin-start 7 --mame $(MAME_DIR)/mame
+
+verify-8210-pin-host-incoming-call: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario host-incoming-call --pin-enabled --mame $(MAME_DIR)/mame
+
+verify-8210-pin-host-incoming-sms: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario host-incoming-sms --pin-enabled --mame $(MAME_DIR)/mame
+
+verify-8210-pin-host-outgoing-call: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario host-outgoing-call --pin-enabled --mame $(MAME_DIR)/mame
+
+verify-8210-pin-host-outgoing-sms: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario host-outgoing-sms --pin-enabled --mame $(MAME_DIR)/mame
+
+verify-8210-sms-status-persistence: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario host-sms-status --pin-enabled --mame $(MAME_DIR)/mame
+
+verify-8210-dcs-early-pin-sms-status-persistence: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario host-sms-status --dcs1800 --pin-enabled --pin-start 7 --mame $(MAME_DIR)/mame
+
+verify-8210-pin-phonebook: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario phonebook --pin-enabled --mame $(MAME_DIR)/mame
+
+verify-8210-pin-state-idle: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario idle-state --pin-enabled --mame $(MAME_DIR)/mame
+
+verify-8210-pin-state-call: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario call-state --pin-enabled --mame $(MAME_DIR)/mame
+
+verify-8210-pin-state-sms: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario sms-state --pin-enabled --mame $(MAME_DIR)/mame
+
+verify-8850-sim-pin-registration: build
+	$(VENV)/bin/python tools/run_noki8850_pin_registration.py $(RUN_DIR) --mame $(MAME_DIR)/mame
+
+verify-8850-pin-host-incoming-call: build
+	$(VENV)/bin/python tools/run_noki8850_pin_registration.py $(RUN_DIR) --scenario host-incoming-call --mame $(MAME_DIR)/mame
+
+verify-8850-pin-host-incoming-sms: build
+	$(VENV)/bin/python tools/run_noki8850_pin_registration.py $(RUN_DIR) --scenario host-incoming-sms --mame $(MAME_DIR)/mame
+
+verify-8850-pin-host-outgoing-call: build
+	$(VENV)/bin/python tools/run_noki8850_pin_registration.py $(RUN_DIR) --scenario host-outgoing-call --mame $(MAME_DIR)/mame
+
+verify-8850-pin-host-outgoing-sms: build
+	$(VENV)/bin/python tools/run_noki8850_pin_registration.py $(RUN_DIR) --scenario host-outgoing-sms --mame $(MAME_DIR)/mame
+
+verify-8850-pin-phonebook: build
+	$(VENV)/bin/python tools/run_noki8850_pin_registration.py $(RUN_DIR) --scenario phonebook --mame $(MAME_DIR)/mame
+
+verify-8850-pin-host-rejected-sms: build
+	$(VENV)/bin/python tools/run_noki8850_pin_registration.py $(RUN_DIR) --scenario host-rejected-sms --mame $(MAME_DIR)/mame
+
+verify-8850-pin-host-silent-sms: build
+	$(VENV)/bin/python tools/run_noki8850_pin_registration.py $(RUN_DIR) --scenario host-silent-sms --mame $(MAME_DIR)/mame
+
+verify-8850-pin-state-idle: build
+	$(VENV)/bin/python tools/run_noki8850_pin_registration.py $(RUN_DIR) --scenario idle-state --mame $(MAME_DIR)/mame
+
+verify-8850-pin-state-call: build
+	$(VENV)/bin/python tools/run_noki8850_pin_registration.py $(RUN_DIR) --scenario call-state --mame $(MAME_DIR)/mame
+
+verify-8850-pin-state-sms: build
+	$(VENV)/bin/python tools/run_noki8850_pin_registration.py $(RUN_DIR) --scenario sms-state --mame $(MAME_DIR)/mame
+
+verify-8890-sim-pin-registration: build
+	$(VENV)/bin/python tools/run_noki8890_pin_registration.py $(RUN_DIR) --mame $(MAME_DIR)/mame
+
+verify-8890-pin-host-incoming-call: build
+	$(VENV)/bin/python tools/run_noki8890_pin_registration.py $(RUN_DIR) --scenario host-incoming-call --mame $(MAME_DIR)/mame
+
+verify-8890-pin-host-incoming-sms: build
+	$(VENV)/bin/python tools/run_noki8890_pin_registration.py $(RUN_DIR) --scenario host-incoming-sms --mame $(MAME_DIR)/mame
+
+verify-8890-pin-host-outgoing-call: build
+	$(VENV)/bin/python tools/run_noki8890_pin_registration.py $(RUN_DIR) --scenario host-outgoing-call --mame $(MAME_DIR)/mame
+
+verify-8890-pin-host-outgoing-sms: build
+	$(VENV)/bin/python tools/run_noki8890_pin_registration.py $(RUN_DIR) --scenario host-outgoing-sms --mame $(MAME_DIR)/mame
+
+verify-8890-pin-phonebook: build
+	$(VENV)/bin/python tools/run_noki8890_pin_registration.py $(RUN_DIR) --scenario phonebook --mame $(MAME_DIR)/mame
+
+verify-8890-pin-host-rejected-sms: build
+	$(VENV)/bin/python tools/run_noki8890_pin_registration.py $(RUN_DIR) --scenario host-rejected-sms --mame $(MAME_DIR)/mame
+
+verify-8890-pin-host-silent-sms: build
+	$(VENV)/bin/python tools/run_noki8890_pin_registration.py $(RUN_DIR) --scenario host-silent-sms --mame $(MAME_DIR)/mame
+
+verify-8890-pin-state-idle: build
+	$(VENV)/bin/python tools/run_noki8890_pin_registration.py $(RUN_DIR) --scenario idle-state --mame $(MAME_DIR)/mame
+
+verify-8890-pin-state-call: build
+	$(VENV)/bin/python tools/run_noki8890_pin_registration.py $(RUN_DIR) --scenario call-state --mame $(MAME_DIR)/mame
+
+verify-8890-pin-state-sms: build
+	$(VENV)/bin/python tools/run_noki8890_pin_registration.py $(RUN_DIR) --scenario sms-state --mame $(MAME_DIR)/mame
+
+verify-8890-pin-pcs-registration: build
+	$(VENV)/bin/python tools/run_noki8890_pin_registration.py $(RUN_DIR) --pcs1900 --mame $(MAME_DIR)/mame
+
+verify-8890-pin-pcs-host-incoming-call: build
+	$(VENV)/bin/python tools/run_noki8890_pin_registration.py $(RUN_DIR) --pcs1900 --scenario host-incoming-call --mame $(MAME_DIR)/mame
+
+verify-8890-pin-pcs-host-outgoing-call: build
+	$(VENV)/bin/python tools/run_noki8890_pin_registration.py $(RUN_DIR) --pcs1900 --scenario host-outgoing-call --mame $(MAME_DIR)/mame
+
+verify-8890-pin-pcs-host-incoming-sms: build
+	$(VENV)/bin/python tools/run_noki8890_pin_registration.py $(RUN_DIR) --pcs1900 --scenario host-incoming-sms --mame $(MAME_DIR)/mame
+
+verify-8890-pin-pcs-host-outgoing-sms: build
+	$(VENV)/bin/python tools/run_noki8890_pin_registration.py $(RUN_DIR) --pcs1900 --scenario host-outgoing-sms --mame $(MAME_DIR)/mame
+
+verify-8890-pin-pcs-host-rejected-sms: build
+	$(VENV)/bin/python tools/run_noki8890_pin_registration.py $(RUN_DIR) --scenario host-rejected-sms --pcs1900 --mame $(MAME_DIR)/mame
+
+verify-8890-pin-pcs-host-silent-sms: build
+	$(VENV)/bin/python tools/run_noki8890_pin_registration.py $(RUN_DIR) --scenario host-silent-sms --pcs1900 --mame $(MAME_DIR)/mame
+
+verify-8890-pin-pcs-state-idle: build
+	$(VENV)/bin/python tools/run_noki8890_pin_registration.py $(RUN_DIR) --pcs1900 --scenario idle-state --mame $(MAME_DIR)/mame
+
+verify-8890-pin-pcs-state-call: build
+	$(VENV)/bin/python tools/run_noki8890_pin_registration.py $(RUN_DIR) --pcs1900 --scenario call-state --mame $(MAME_DIR)/mame
+
+verify-8890-pin-pcs-state-sms: build
+	$(VENV)/bin/python tools/run_noki8890_pin_registration.py $(RUN_DIR) --pcs1900 --scenario sms-state --mame $(MAME_DIR)/mame
 
 verify-8210-registration: build
 	$(PYTHON) tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario registration --mame $(MAME_DIR)/mame
@@ -291,6 +1542,9 @@ verify-7110-bootstrap: build
 
 verify-6210-keypad-controller: build
 	$(PYTHON) tools/npe3_keypad_check.py $(MAME_DIR)/mame $(MAME_DIR)/roms $(RUN_DIR)
+
+verify-3310-native-verifier: build
+	$(PYTHON) tools/nsm3_verifier_check.py $(MAME_DIR)/mame roms/noki3310/3310f639e.fls $(RUN_DIR) --product 3310
 
 verify-6210-verifier: build
 	$(PYTHON) tools/nsm3_verifier_check.py $(MAME_DIR)/mame roms/noki6210/6210_556c.fls $(RUN_DIR) --product 6210
@@ -365,6 +1619,159 @@ verify-6110-static: normalize-6110
 verify-6110-v548-static: normalize-6110-v548
 	$(VENV)/bin/python tools/nse3_v548_static_check.py --rom3 roms/noki6110/6110_nse3_v548_rom3_ppmb.fls --rom4 roms/noki6110/6110_nse3_v548_rom4_ppmb.fls --json run_census/nse3_v548_static_boundary.json
 
+verify-5110i-boundary: verify-5110i-static build
+	$(VENV)/bin/python tools/run_nse2_boundary.py $(RUN_DIR) --mame $(MAME_DIR)/mame
+
+verify-5110i-static:
+	$(VENV)/bin/python tools/nse2_package_check.py roms/archive-dct3-packages/nse2_553.zip --compare-package roms/archive-dct3-packages/nse2_553.exe --output roms/noki5110i
+
+verify-5110i-native-verifier: verify-5110i-static build
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR) --mame $(MAME_DIR)/mame --record-checksum-only
+
+verify-5110i-native-verifier-erased: verify-5110i-static build
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR) --mame $(MAME_DIR)/mame
+
+verify-5110i-input-frontier: verify-5110i-static build
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR) --mame $(MAME_DIR)/mame --record-checksum-only --physical-menu
+
+verify-5110i-nominal-boot: verify-5110i-static build
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR) --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat
+
+verify-5110i-nominal-input: verify-5110i-static build
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR) --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --physical-menu
+
+verify-5110i-sim-bootstrap: verify-5110i-static build
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR) --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --seconds 12
+
+verify-5110i-phonecode-boundary: verify-5110i-static build
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR) --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --security-code --seconds 20
+
+verify-5110i-phonecode-accept: verify-5110i-static build
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR) --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --security-code --phone-retry-zero --seconds 20
+
+verify-5110i-menu: verify-5110i-static build
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR) --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --security-code --phone-retry-zero --post-auth-menu --seconds 24
+
+verify-5110i-phonebook: verify-5110i-static build
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR)/save --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --security-code --phone-retry-zero --post-auth-menu --phonebook --seconds 30
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR)/reload --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --security-code --phone-retry-zero --post-auth-menu --phonebook-reload $(RUN_DIR)/save/nvram/nse2r4v/sim_card --seconds 30
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR)/empty --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --security-code --phone-retry-zero --post-auth-menu --phonebook-search --seconds 30
+
+verify-5110i-sms-store: verify-5110i-static build
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR) --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --security-code --phone-retry-zero --sms-store --seconds 30
+
+verify-5110i-sms-persistence: verify-5110i-static build
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR)/save --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --security-code --phone-retry-zero --sms-store --seconds 30
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR)/cold --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --security-code --phone-retry-zero --sms-reload $(RUN_DIR)/save/nvram/nse2r4v/sim_card --seconds 30
+
+verify-5110i-sms-delete: verify-5110i-static build
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR)/save --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --security-code --phone-retry-zero --sms-store --seconds 30
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR)/erase --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --security-code --phone-retry-zero --sms-reload $(RUN_DIR)/save/nvram/nse2r4v/sim_card --sms-action erase --seconds 30
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR)/cancel --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --security-code --phone-retry-zero --sms-reload $(RUN_DIR)/save/nvram/nse2r4v/sim_card --sms-action cancel --seconds 30
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR)/cold --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --security-code --phone-retry-zero --sms-reload $(RUN_DIR)/erase/nvram/nse2r4v/sim_card --sms-action empty --seconds 30
+
+verify-5110i-sim-pin: verify-5110i-static build
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR)/wait --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --pin-enabled --seconds 14
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR)/verify --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --pin-enabled --pin-action verify --seconds 14
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR)/wrong --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --pin-enabled --pin-action wrong --seconds 14
+
+verify-5110i-sim-pin-persistence: verify-5110i-static build
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR)/wrong --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --pin-enabled --pin-action wrong --seconds 14
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR)/wait --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --pin-enabled --pin-card $(RUN_DIR)/wrong/nvram/nse2r4v/sim_card --seconds 14
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR)/restore --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --pin-enabled --pin-card $(RUN_DIR)/wrong/nvram/nse2r4v/sim_card --pin-action verify --seconds 14
+
+verify-5110i-sim-pin-blocked: verify-5110i-static build
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR)/wrong1 --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --pin-enabled --pin-action wrong --seconds 14
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR)/wrong2 --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --pin-enabled --pin-card $(RUN_DIR)/wrong1/nvram/nse2r4v/sim_card --pin-action wrong --seconds 14
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR)/wrong3 --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --pin-enabled --pin-card $(RUN_DIR)/wrong2/nvram/nse2r4v/sim_card --pin-action wrong --seconds 14
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR)/blocked --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --pin-enabled --pin-card $(RUN_DIR)/wrong3/nvram/nse2r4v/sim_card --pin-action blocked --seconds 14
+
+verify-5110i-sim-puk-recovery: verify-5110i-sim-pin-blocked
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR)/recover --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --pin-enabled --pin-card $(RUN_DIR)/wrong3/nvram/nse2r4v/sim_card --pin-action puk --seconds 28
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR)/reauth --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --pin-enabled --pin-card $(RUN_DIR)/recover/nvram/nse2r4v/sim_card --pin-action reauth --seconds 14
+
+verify-5110i-fdn: verify-5110i-static build
+	$(VENV)/bin/python tools/run_nse2_fdn.py $(RUN_DIR) --mame $(MAME_DIR)/mame
+
+verify-5110i-fdn-records: verify-5110i-static build
+	$(VENV)/bin/python tools/run_nse2_fdn.py $(RUN_DIR) --mame $(MAME_DIR)/mame --records
+
+verify-5110i-fdn-edit-lifecycle: verify-5110i-static build
+	$(VENV)/bin/python tools/run_nse2_fdn.py $(RUN_DIR) --mame $(MAME_DIR)/mame --edit-lifecycle
+
+verify-5110i-fdn-dial-policy: verify-5110i-static build
+	$(VENV)/bin/python tools/run_nse2_fdn.py $(RUN_DIR) --mame $(MAME_DIR)/mame --dial-policy
+
+verify-5110i-pin2-change: verify-5110i-static build
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR)/change --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --security-code --phone-retry-zero --pin2-action change --seconds 30
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR)/restore --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --security-code --phone-retry-zero --pin2-action restore --pin2-card $(RUN_DIR)/change/nvram/nse2r4v/sim_card --seconds 30
+
+verify-5110i-puk1-retry: verify-5110i-static build
+	$(VENV)/bin/python tools/run_nse2_puk1_retry.py $(RUN_DIR) --mame $(MAME_DIR)/mame
+
+verify-5110i-puk1-exhaustion: verify-5110i-static build
+	$(VENV)/bin/python tools/run_nse2_puk1_retry.py $(RUN_DIR) --mame $(MAME_DIR)/mame --exhaust
+
+verify-5110i-native-ui-state: verify-5110i-static build
+	$(VENV)/bin/python tools/run_nse2_native_state.py $(RUN_DIR) --mame $(MAME_DIR)/mame
+
+verify-5110i-sim-write-state: verify-5110i-static build
+	$(VENV)/bin/python tools/run_nse2_sim_write_state.py $(RUN_DIR) --mame $(MAME_DIR)/mame
+
+verify-5110i-sms-write-state: verify-5110i-static build
+	$(VENV)/bin/python tools/run_nse2_sim_write_state.py $(RUN_DIR) --mame $(MAME_DIR)/mame --sms-partial
+
+verify-5110i-pin-state: verify-5110i-static build
+	$(VENV)/bin/python tools/run_nse2_pin_state.py $(RUN_DIR) --mame $(MAME_DIR)/mame
+
+verify-5110i-pin-buffered-state: verify-5110i-static build
+	$(VENV)/bin/python tools/run_nse2_pin_state.py $(RUN_DIR) --mame $(MAME_DIR)/mame --buffered-body
+
+verify-5110i-pin-status-state: verify-5110i-static build
+	$(VENV)/bin/python tools/run_nse2_pin_state.py $(RUN_DIR) --mame $(MAME_DIR)/mame --status-pending
+
+verify-5110i-pin-block-state: verify-5110i-static build
+	$(VENV)/bin/python tools/run_nse2_pin_state.py $(RUN_DIR) --mame $(MAME_DIR)/mame --last-retry
+
+verify-5110i-puk-state: verify-5110i-static build
+	$(VENV)/bin/python tools/run_nse2_pin_state.py $(RUN_DIR) --mame $(MAME_DIR)/mame --puk
+
+verify-5110i-pin1-change: verify-5110i-static build
+	$(VENV)/bin/python tools/run_nse2_pin1_change.py $(RUN_DIR) --mame $(MAME_DIR)/mame
+
+verify-5110i-pin-request-lifecycle: verify-5110i-static build
+	$(VENV)/bin/python tools/run_nse2_pin1_change.py $(RUN_DIR) --mame $(MAME_DIR)/mame --request-lifecycle
+
+verify-5110i-pin2-retry: verify-5110i-static build
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR)/wrong --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --security-code --phone-retry-zero --pin2-action wrong --seconds 30
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR)/recover --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --security-code --phone-retry-zero --pin2-action change --pin2-card $(RUN_DIR)/wrong/nvram/nse2r4v/sim_card --seconds 30
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR)/restore --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --security-code --phone-retry-zero --pin2-action restore --pin2-card $(RUN_DIR)/recover/nvram/nse2r4v/sim_card --seconds 30
+
+verify-5110i-pin2-blocked: verify-5110i-static build
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR)/wrong1 --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --security-code --phone-retry-zero --pin2-action wrong --seconds 30
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR)/wrong2 --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --security-code --phone-retry-zero --pin2-action wrong --pin2-card $(RUN_DIR)/wrong1/nvram/nse2r4v/sim_card --seconds 30
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR)/wrong3 --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --security-code --phone-retry-zero --pin2-action wrong --pin2-card $(RUN_DIR)/wrong2/nvram/nse2r4v/sim_card --seconds 30
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR)/blocked --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --security-code --phone-retry-zero --pin2-action blocked --pin2-card $(RUN_DIR)/wrong3/nvram/nse2r4v/sim_card --seconds 30
+
+verify-5110i-puk2-recovery: verify-5110i-pin2-blocked
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR)/recover --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --security-code --phone-retry-zero --pin2-action puk2 --pin2-card $(RUN_DIR)/wrong3/nvram/nse2r4v/sim_card --seconds 30
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR)/restore --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --security-code --phone-retry-zero --pin2-action restore --pin2-card $(RUN_DIR)/recover/nvram/nse2r4v/sim_card --seconds 30
+
+verify-5110i-puk2-retry: verify-5110i-pin2-blocked
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR)/wrong-puk --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --security-code --phone-retry-zero --pin2-action puk2-wrong --pin2-card $(RUN_DIR)/wrong3/nvram/nse2r4v/sim_card --seconds 30
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR)/wait-puk --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --security-code --phone-retry-zero --pin2-action blocked --pin2-card $(RUN_DIR)/wrong-puk/nvram/nse2r4v/sim_card --seconds 30
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR)/recover-puk --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --security-code --phone-retry-zero --pin2-action puk2 --pin2-card $(RUN_DIR)/wait-puk/nvram/nse2r4v/sim_card --seconds 30
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR)/restore-puk --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --security-code --phone-retry-zero --pin2-action restore --pin2-card $(RUN_DIR)/recover-puk/nvram/nse2r4v/sim_card --seconds 30
+
+verify-5110i-puk2-exhaustion: verify-5110i-pin2-blocked
+	$(VENV)/bin/python tools/run_nse2_puk2_exhaustion.py $(RUN_DIR)/puk2-exhaustion --mame $(MAME_DIR)/mame --blocked-card $(RUN_DIR)/wrong3/nvram/nse2r4v/sim_card
+
+verify-5110i-native-processing: verify-5110i-static build
+	$(VENV)/bin/python tools/run_nse2_native.py $(RUN_DIR) --mame $(MAME_DIR)/mame --record-checksum-only --nominal-vbat --insert-sim --security-code --phone-retry-zero --post-auth-menu --native-processing --seconds 30
+
+verify-6150-static:
+	$(VENV)/bin/python tools/nsm1_v523_static_check.py roms/research/nsm1-v523/6150-v523-ppm-c.fls --package roms/archive-dct3-packages/nsm1_523.exe --eeprom-package roms/research/nsm1-v523/NokiX-scripts-2011.07.24.zip --security-fixture roms/research/nsm1-v523/nsm1-security-checksum-valid.bin --output run_census/nsm1_v523_static_boundary.json
+
 verify-6110-bootstrap-capture:
 	@test -n "$(CAPTURE)" || { echo "CAPTURE=<provenance JSON> is required" >&2; exit 2; }
 	$(PYTHON) tools/nse3_bootstrap_capture_check.py "$(CAPTURE)" $(if $(RAW_TRACE),--raw-trace "$(RAW_TRACE)")
@@ -436,7 +1843,9 @@ verify-dsp-transport:
 	@echo "OK — DSPIF transport, split peer composition and active-profile save state reproduced"
 
 verify-cobba-control:
-	@$(MAKE) --no-print-directory run RUN_DIR=$(RUN_DIR)_cobba_conformance RUN_VERBOSE=1 SECONDS=1 RUN_EXTRA_ARGS='-cfg_directory ../fixtures/cobba_conformance'
+	@mkdir -p $(RUN_DIR)_cobba_conformance/cfg
+	cp fixtures/cobba_conformance/*.cfg $(RUN_DIR)_cobba_conformance/cfg/
+	@$(MAKE) --no-print-directory run RUN_DIR=$(RUN_DIR)_cobba_conformance RUN_VERBOSE=1 SECONDS=1 RUN_EXTRA_ARGS='-cfg_directory $(abspath $(RUN_DIR)_cobba_conformance/cfg)'
 	test -f $(RUN_DIR)_cobba_conformance/error.log
 	$(PYTHON) tools/cobba_control_trace_check.py $(RUN_DIR)_cobba_conformance/error.log
 
@@ -552,6 +1961,15 @@ verify-5210-radio-authentication: normalize-5210
 	@$(PYTHON) tools/radio_authentication_boundary_trace_check.py $(RUN_DIR)/error.log --profile nsm5
 	@frame=$$(find $(RUN_DIR) -maxdepth 1 -name 'nokia_dct3_lcdmirror_*.pgm' ! -name '*_z504_*' ! -name '*_ff504_*' -printf '%T@ %p\n' | sort -n | tail -1 | cut -d' ' -f2-); test -n "$$frame" || { echo "no authenticated 5210 frame produced in $(RUN_DIR)"; exit 1; }; $(PYTHON) tools/check_lcd_frame.py "$$frame" --sha256 $(ORACLE_5210_IDLE_SHA)
 	@echo "OK — 5210 completed authenticated Location Updating and displayed the operator"
+
+verify-5210-radio-a5-1-degraded-state: normalize-5210
+	@$(MAKE) --no-print-directory run PHONE=noki5210 BIOS=540e RUN_DIR=$(RUN_DIR) SECONDS=35 RUN_VERBOSE=1 RUN_EXTRA_ARGS='-cfg_directory ../fixtures/radio_a5_1_incoming_call_degraded' RUN_ENV='NOKIA_DCT3_POST_READY_KEYS=send NOKIA_DCT3_POST_READY_KEY_DELAY_MS=18000 $(DCT3_PRESS_220_280) NOKIA_DCT3_STATE_ROUNDTRIP_AT=23 NOKIA_DCT3_STATE_ROUNDTRIP_REPLAY_MS=2000 NOKIA_DCT3_STATE_ROUNDTRIP_END_DELAY_MS=3000 NOKIA_DCT3_STATE_ROUNDTRIP_END_KEY=end'
+	$(PYTHON) tools/radio_a5_trace_check.py $(RUN_DIR)/error.log
+	$(PYTHON) tools/radio_call_state_roundtrip_trace_check.py $(RUN_DIR)/error.log --require-cipher
+	$(PYTHON) tools/radio_5210_incoming_call_trace_check.py $(RUN_DIR)/error.log --a5-1 --require-state-roundtrip
+	$(PYTHON) tools/radio_degraded_speech_trace_check.py $(RUN_DIR)/error.log $(COBBA_GJP_PCM_CHECK_ARGS)
+	$(PYTHON) tools/radio_facch_interruption_trace_check.py $(RUN_DIR)/error.log
+	$(PYTHON) tools/radio_sacch_coexistence_trace_check.py $(RUN_DIR)/error.log
 
 verify-5210-radio-a5-1-incoming-call: normalize-5210
 	@$(MAKE) --no-print-directory run PHONE=noki5210 BIOS=540e RUN_DIR=$(RUN_DIR) SECONDS=30 RUN_VERBOSE=1 RUN_EXTRA_ARGS='-cfg_directory ../fixtures/radio_a5_1_incoming_call_answered' RUN_ENV='NOKIA_DCT3_POST_READY_KEYS=send,wait3000,end NOKIA_DCT3_POST_READY_KEY_DELAY_MS=18000 NOKIA_DCT3_POST_READY_KEY_DURATION_MS=220 NOKIA_DCT3_POST_READY_KEY_GAP_MS=280 NOKIA_DCT3_POST_READY_CAPTURE_DELAY_MS=1800'
@@ -1196,6 +2614,31 @@ verify-3410-radio-incoming-call-lifecycle: normalize-3410
 	$(PYTHON) tools/radio_speech_media_trace_check.py $(RUN_DIR)/error.log $(COBBA_GJP_PCM_CHECK_ARGS)
 	@echo "OK — NHM-2 carried internal GSM-FR media through physical Answer/End and returned to PCH"
 
+verify-3410-radio-a5-1-degraded: normalize-3410
+	@$(MAKE) --no-print-directory run $(DCT3_RUN_3410) RUN_DIR=$(RUN_DIR) SECONDS=45 RUN_VERBOSE=1 RUN_EXTRA_ARGS='-cfg_directory ../fixtures/radio_a5_1_incoming_call_degraded' RUN_ENV='NOKIA_DCT3_POST_READY_KEYS=end,waitalerting,send,wait10000,end NOKIA_DCT3_POST_READY_KEY_DELAY_MS=1000 $(DCT3_PRESS_200_300)'
+	$(PYTHON) tools/radio_a5_trace_check.py $(RUN_DIR)/error.log
+	$(PYTHON) tools/radio_3410_incoming_call_lifecycle_check.py $(RUN_DIR)/error.log
+	$(PYTHON) tools/radio_degraded_speech_trace_check.py $(RUN_DIR)/error.log $(COBBA_GJP_PCM_CHECK_ARGS)
+	$(PYTHON) tools/radio_facch_interruption_trace_check.py $(RUN_DIR)/error.log
+	$(PYTHON) tools/radio_sacch_coexistence_trace_check.py $(RUN_DIR)/error.log
+
+verify-3410-radio-a5-1-outgoing-degraded: normalize-3410
+	@$(MAKE) --no-print-directory run $(DCT3_RUN_3410) RUN_DIR=$(RUN_DIR) SECONDS=45 RUN_VERBOSE=1 RUN_EXTRA_ARGS='-cfg_directory ../fixtures/radio_a5_1_outgoing_call_degraded' RUN_ENV='NOKIA_DCT3_POST_READY_KEYS=end,wait1000,5,5,5,1,2,3,4,send,waitalerting,wait11500,end NOKIA_DCT3_POST_READY_KEY_DELAY_MS=16000 $(DCT3_PRESS_120_240)'
+	$(PYTHON) tools/radio_a5_trace_check.py $(RUN_DIR)/error.log
+	$(PYTHON) tools/radio_outgoing_call_trace_check.py $(RUN_DIR)/error.log --release-complete optional
+	$(PYTHON) tools/radio_degraded_speech_trace_check.py $(RUN_DIR)/error.log $(COBBA_GJP_PCM_CHECK_ARGS)
+	$(PYTHON) tools/radio_facch_interruption_trace_check.py $(RUN_DIR)/error.log
+	$(PYTHON) tools/radio_sacch_coexistence_trace_check.py $(RUN_DIR)/error.log
+
+verify-3410-radio-a5-1-degraded-state: normalize-3410
+	@$(MAKE) --no-print-directory run $(DCT3_RUN_3410) RUN_DIR=$(RUN_DIR) SECONDS=45 RUN_VERBOSE=1 RUN_EXTRA_ARGS='-cfg_directory ../fixtures/radio_a5_1_incoming_call_degraded' RUN_ENV='NOKIA_DCT3_POST_READY_KEYS=end,waitalerting,send NOKIA_DCT3_POST_READY_KEY_DELAY_MS=1000 $(DCT3_PRESS_200_300) NOKIA_DCT3_STATE_ROUNDTRIP_AT=18.51 NOKIA_DCT3_STATE_ROUNDTRIP_REPLAY_MS=2000 NOKIA_DCT3_STATE_ROUNDTRIP_END_DELAY_MS=3000 NOKIA_DCT3_STATE_ROUNDTRIP_END_KEY=end'
+	$(PYTHON) tools/radio_a5_trace_check.py $(RUN_DIR)/error.log
+	$(PYTHON) tools/radio_call_state_roundtrip_trace_check.py $(RUN_DIR)/error.log --require-cipher
+	$(PYTHON) tools/radio_3410_incoming_call_lifecycle_check.py $(RUN_DIR)/error.log
+	$(PYTHON) tools/radio_degraded_speech_trace_check.py $(RUN_DIR)/error.log $(COBBA_GJP_PCM_CHECK_ARGS)
+	$(PYTHON) tools/radio_facch_interruption_trace_check.py $(RUN_DIR)/error.log
+	$(PYTHON) tools/radio_sacch_coexistence_trace_check.py $(RUN_DIR)/error.log
+
 verify-3410-radio-a5-1-incoming-call: normalize-3410
 	@$(MAKE) --no-print-directory run $(DCT3_RUN_3410) RUN_DIR=$(RUN_DIR) SECONDS=40 RUN_VERBOSE=1 RUN_EXTRA_ARGS='-cfg_directory ../fixtures/radio_a5_1_incoming_call_answered' RUN_ENV='NOKIA_DCT3_POST_READY_KEYS=end,waitalerting,send,wait3000,end NOKIA_DCT3_POST_READY_KEY_DELAY_MS=1000 $(DCT3_PRESS_200_300)'
 	test -f $(RUN_DIR)/error.log
@@ -1610,27 +3053,27 @@ verify-radio-ussd-outcomes: build
 			RUN_ENV='NOKIA_DCT3_POST_READY_KEYS=1,2,3,4,5,enter,wait1800,star,1,2,3,hash,wait800,enter NOKIA_DCT3_POST_READY_KEY_DELAY_MS=12000 $(DCT3_PRESS_220_280)' || exit; \
 		$(PYTHON) tools/radio_ussd_trace_check.py "$$out/error.log" "$$out" --outcome "$$outcome" || exit; \
 	done; \
-	out="$(RUN_DIR)_continued_rejected"; \
+	out="$(RUN_DIR)_continued_cancelled"; \
 	$(MAKE) --no-print-directory run-prebuilt-captured RUN_DIR="$$out" SECONDS=38 RUN_VERBOSE=1 ERASED_IDENTITY_SECURITY_CODE=12345 \
 		RUN_EXTRA_ARGS='-cfg_directory ../fixtures/radio_ussd_continued' \
-		RUN_ENV='NOKIA_DCT3_POST_READY_KEYS=1,2,3,4,5,enter,wait1800,star,1,2,3,hash,wait800,enter NOKIA_DCT3_POST_READY_KEY_DELAY_MS=12000 $(DCT3_PRESS_220_280)' || exit; \
-	$(PYTHON) tools/radio_ussd_trace_check.py "$$out/error.log" "$$out" --outcome continued-rejected || exit; \
+		RUN_ENV='NOKIA_DCT3_POST_READY_KEYS=1,2,3,4,5,enter,wait1800,star,1,2,3,hash,wait800,enter,wait2500,back NOKIA_DCT3_POST_READY_KEY_DELAY_MS=12000 $(DCT3_PRESS_220_280)' || exit; \
+	$(PYTHON) tools/radio_ussd_trace_check.py "$$out/error.log" "$$out" --outcome continued-cancelled || exit; \
 	out="$(RUN_DIR)_silence"; \
 	$(MAKE) --no-print-directory run-prebuilt-captured RUN_DIR="$$out" SECONDS=38 RUN_VERBOSE=1 ERASED_IDENTITY_SECURITY_CODE=12345 \
 		RUN_EXTRA_ARGS='-cfg_directory ../fixtures/radio_ussd_silence' \
 		RUN_ENV='NOKIA_DCT3_POST_READY_KEYS=1,2,3,4,5,enter,wait1800,star,1,2,3,hash,wait800,enter NOKIA_DCT3_POST_READY_KEY_DELAY_MS=12000 $(DCT3_PRESS_220_280) NOKIA_DCT3_STATE_ROUNDTRIP_AT=25 NOKIA_DCT3_STATE_ROUNDTRIP_REPLAY_MS=1000' || exit; \
 	$(PYTHON) tools/radio_ussd_trace_check.py "$$out/error.log" "$$out" --outcome silence --require-state-roundtrip
 
-# shell: network-initiated USSD request rejection and notification acknowledgement
+# shell: network-initiated USSD physical reply and notification acknowledgement
 verify-radio-network-ussd: ERASED_IDENTITY_SECURITY_CODE=12345
 verify-radio-network-ussd: build
 	@set -e; \
 	for outcome in request notify; do \
-		case "$$outcome" in request) fixture=radio_network_ussd_request ;; notify) fixture=radio_network_ussd ;; esac; \
+		case "$$outcome" in request) fixture=radio_network_ussd_request; keys=1,2,3,4,5,enter,wait3000,enter,wait1200,enter,2,enter,wait2000,back ;; notify) fixture=radio_network_ussd; keys=1,2,3,4,5,enter ;; esac; \
 		out="$(RUN_DIR)_$$outcome"; \
 		$(MAKE) --no-print-directory run-prebuilt-captured RUN_DIR="$$out" SECONDS=40 RUN_VERBOSE=1 ERASED_IDENTITY_SECURITY_CODE=12345 \
 			RUN_EXTRA_ARGS="-cfg_directory ../fixtures/$$fixture" \
-			RUN_ENV='NOKIA_DCT3_POST_READY_KEYS=1,2,3,4,5,enter NOKIA_DCT3_POST_READY_KEY_DELAY_MS=12000 $(DCT3_PRESS_220_280)' || exit; \
+			RUN_ENV="NOKIA_DCT3_POST_READY_KEYS=$$keys NOKIA_DCT3_POST_READY_KEY_DELAY_MS=12000 $(DCT3_PRESS_220_280)" || exit; \
 		$(PYTHON) tools/radio_network_ussd_trace_check.py "$$out/error.log" "$$out" --outcome "$$outcome" || exit; \
 	done
 
@@ -2221,7 +3664,7 @@ verify-3330-radio-outgoing-call-host-termination: normalize-3330
 		$(VENV)/bin/python tools/run_host_call_adapter_gate.py \
 			--port $(HOST_CALL_3330_PORT) --cwd . \
 			--decision connect --terminate -- \
-			$(PYTHON) tools/run_mame_isolated.py --mame-dir $(MAME_DIR) --run-dir $(RUN_DIR) -- noki3330 -bios 450e -rompath roms -log \
+			$(PYTHON) tools/run_mame_isolated.py --mame-dir $(MAME_DIR) --run-dir $(RUN_DIR)_call -- noki3330 -bios 450e -rompath roms -log \
 			-video none -sound none -keyboardprovider none \
 			-mouseprovider none -lightgunprovider none -joystickprovider none \
 			-midiprovider none -skip_gameinfo -nothrottle \
@@ -2239,6 +3682,25 @@ verify-3310-radio-outgoing-call-lifecycle:
 	test -f $(RUN_DIR)/error.log
 	$(PYTHON) tools/radio_outgoing_call_trace_check.py $(RUN_DIR)/error.log
 	$(PYTHON) tools/radio_speech_media_trace_check.py $(RUN_DIR)/error.log $(COBBA_GJP_PCM_CHECK_ARGS)
+
+verify-3310-radio-a5-1-degraded-state:
+	@$(MAKE) --no-print-directory run $(DCT3_RUN_3310) RUN_DIR=$(RUN_DIR) SECONDS=45 RUN_VERBOSE=1 RUN_EXTRA_ARGS='-cfg_directory ../fixtures/radio_a5_1_incoming_call_degraded' RUN_ENV='NOKIA_DCT3_POST_READY_KEYS=navi NOKIA_DCT3_POST_READY_KEY_DELAY_MS=18000 $(DCT3_PRESS_200_200) NOKIA_DCT3_STATE_ROUNDTRIP_AT=21 NOKIA_DCT3_STATE_ROUNDTRIP_REPLAY_MS=2000 NOKIA_DCT3_STATE_ROUNDTRIP_END_DELAY_MS=3000 NOKIA_DCT3_STATE_ROUNDTRIP_END_KEY=navi'
+	$(PYTHON) tools/radio_a5_trace_check.py $(RUN_DIR)/error.log
+	$(PYTHON) tools/radio_call_state_roundtrip_trace_check.py $(RUN_DIR)/error.log --require-cipher
+	$(PYTHON) tools/radio_3310_incoming_call_boundary_check.py $(RUN_DIR)/error.log --ended
+	$(PYTHON) tools/radio_3310_speech_control_trace_check.py $(RUN_DIR)/error.log
+	$(PYTHON) tools/radio_degraded_speech_trace_check.py $(RUN_DIR)/error.log $(COBBA_GJP_PCM_CHECK_ARGS)
+	$(PYTHON) tools/radio_facch_interruption_trace_check.py $(RUN_DIR)/error.log
+	$(PYTHON) tools/radio_sacch_coexistence_trace_check.py $(RUN_DIR)/error.log
+
+verify-3310-radio-a5-1-degraded:
+	@$(MAKE) --no-print-directory run $(DCT3_RUN_3310) RUN_DIR=$(RUN_DIR) SECONDS=45 RUN_VERBOSE=1 RUN_EXTRA_ARGS='-cfg_directory ../fixtures/radio_a5_1_incoming_call_degraded' RUN_ENV='NOKIA_DCT3_POST_READY_KEYS=navi,wait10000,navi NOKIA_DCT3_POST_READY_KEY_DELAY_MS=18000 $(DCT3_PRESS_200_200)'
+	$(PYTHON) tools/radio_a5_trace_check.py $(RUN_DIR)/error.log
+	$(PYTHON) tools/radio_3310_incoming_call_boundary_check.py $(RUN_DIR)/error.log --ended
+	$(PYTHON) tools/radio_3310_speech_control_trace_check.py $(RUN_DIR)/error.log
+	$(PYTHON) tools/radio_degraded_speech_trace_check.py $(RUN_DIR)/error.log $(COBBA_GJP_PCM_CHECK_ARGS)
+	$(PYTHON) tools/radio_facch_interruption_trace_check.py $(RUN_DIR)/error.log
+	$(PYTHON) tools/radio_sacch_coexistence_trace_check.py $(RUN_DIR)/error.log
 
 verify-3310-radio-a5-1-incoming-call:
 	@$(MAKE) --no-print-directory run $(DCT3_RUN_3310) RUN_DIR=$(RUN_DIR) SECONDS=42 RUN_VERBOSE=1 RUN_EXTRA_ARGS='-cfg_directory ../fixtures/radio_a5_1_incoming_call_answered' RUN_ENV='NOKIA_DCT3_POST_READY_KEYS=navi,wait3000,navi NOKIA_DCT3_POST_READY_KEY_DELAY_MS=18000 $(DCT3_PRESS_200_200)'
@@ -2262,6 +3724,17 @@ verify-3330-radio-outgoing-call-lifecycle: normalize-3330
 	test -f $(RUN_DIR)_call/error.log
 	$(PYTHON) tools/radio_outgoing_call_trace_check.py $(RUN_DIR)_call/error.log
 	$(PYTHON) tools/radio_speech_media_trace_check.py $(RUN_DIR)_call/error.log $(COBBA_GJP_PCM_CHECK_ARGS)
+
+verify-3330-radio-a5-1-degraded-state: normalize-3330
+	@$(MAKE) --no-print-directory run $(DCT3_RUN_3330) RUN_DIR=$(RUN_DIR)_provision SECONDS=44 RUN_ENV='$(NOKI3330_FIRST_BOOT_INPUT) NOKIA_DCT3_POST_READY_KEYS=$(NOKI3330_FIRST_BOOT_KEYS) NOKIA_DCT3_POST_READY_CAPTURE_DELAY_MS=7000'
+	@$(PYTHON) tools/check_model_frontier_summary.py $(RUN_DIR)_provision/boot_summary.txt --require-fiq0
+	@$(MAKE) --no-print-directory run $(DCT3_RUN_3330) RUN_DIR=$(RUN_DIR)_call SECONDS=32 RUN_VERBOSE=1 PRESERVE_NVRAM=1 RUN_NVRAM_DIR=$(abspath $(RUN_DIR)_provision/nvram) RUN_EXTRA_ARGS='-cfg_directory ../fixtures/radio_a5_1_incoming_call_degraded' RUN_ENV='NOKIA_DCT3_POST_READY_KEYS=1,2,3,4,5,enter,wait500,c,wait500,c,wait500,waitalerting,enter NOKIA_DCT3_POST_READY_KEY_DELAY_MS=6000 $(DCT3_PRESS_220_280) NOKIA_DCT3_STATE_ROUNDTRIP_AT=15 NOKIA_DCT3_STATE_ROUNDTRIP_REPLAY_MS=2000 NOKIA_DCT3_STATE_ROUNDTRIP_END_DELAY_MS=3000 NOKIA_DCT3_STATE_ROUNDTRIP_END_KEY=enter'
+	$(PYTHON) tools/radio_a5_trace_check.py $(RUN_DIR)_call/error.log
+	$(PYTHON) tools/radio_call_state_roundtrip_trace_check.py $(RUN_DIR)_call/error.log --require-cipher
+	$(PYTHON) tools/radio_3330_incoming_call_boundary_check.py $(RUN_DIR)_call/error.log
+	$(PYTHON) tools/radio_degraded_speech_trace_check.py $(RUN_DIR)_call/error.log $(COBBA_GJP_PCM_CHECK_ARGS)
+	$(PYTHON) tools/radio_facch_interruption_trace_check.py $(RUN_DIR)_call/error.log
+	$(PYTHON) tools/radio_sacch_coexistence_trace_check.py $(RUN_DIR)_call/error.log
 
 verify-3330-radio-a5-1-incoming-call: normalize-3330
 	@$(MAKE) --no-print-directory run $(DCT3_RUN_3330) RUN_DIR=$(RUN_DIR)_provision SECONDS=44 RUN_ENV='$(NOKI3330_FIRST_BOOT_INPUT) NOKIA_DCT3_POST_READY_KEYS=$(NOKI3330_FIRST_BOOT_KEYS) NOKIA_DCT3_POST_READY_CAPTURE_DELAY_MS=7000'
@@ -2409,7 +3882,7 @@ verify-radio-a5-1-degraded:
 	test -f $(RUN_DIR)/error.log; \
 	$(PYTHON) tools/radio_a5_trace_check.py $(RUN_DIR)/error.log; \
 	$(PYTHON) tools/radio_call_state_roundtrip_trace_check.py \
-		$(RUN_DIR)/error.log; \
+		$(RUN_DIR)/error.log --require-cipher; \
 	$(PYTHON) tools/radio_answered_call_lifecycle_trace_check.py \
 		$(RUN_DIR)/error.log; \
 	$(PYTHON) tools/radio_degraded_speech_trace_check.py $(RUN_DIR)/error.log; \
@@ -2431,6 +3904,12 @@ verify-5210-radio-physical-duplex: normalize-5210
 
 verify-3410-radio-physical-duplex: normalize-3410
 	$(DCT3_RUN_3410) ROM=roms/noki3410/3410f546e.fls RUN_DIR=$(RUN_DIR) FIXTURE=fixtures/radio_incoming_call_answered RUN_SECONDS=40 POST_READY_KEYS=end,waitalerting,send,wait5000,end POST_READY_DELAY_MS=1000 POST_READY_DURATION_MS=200 POST_READY_GAP_MS=300 AUDIO_CONTROL_CHECKER=tools/radio_3410_incoming_call_lifecycle_check.py FACCH_CHECKER= PCM_CHECK_ARGS='--data-clock 1000000 --frame-clock 8000 --frame-clocks 125 --sync-clocks 1 --word-clocks 16' tools/run_physical_uplink_gate.sh
+
+verify-3410-radio-a5-1-degraded-physical-duplex: normalize-3410
+	$(DCT3_RUN_3410) ROM=roms/noki3410/3410f546e.fls RUN_DIR=$(RUN_DIR) FIXTURE=fixtures/radio_a5_1_incoming_call_degraded RUN_SECONDS=45 POST_READY_KEYS=end,waitalerting,send,wait11000,end POST_READY_DELAY_MS=1000 POST_READY_DURATION_MS=200 POST_READY_GAP_MS=300 AUDIO_CONTROL_CHECKER=tools/radio_3410_incoming_call_lifecycle_check.py FACCH_CHECKER=tools/radio_facch_interruption_trace_check.py PCM_CHECK_ARGS='$(COBBA_GJP_PCM_CHECK_ARGS)' tools/run_physical_uplink_gate.sh
+	$(PYTHON) tools/radio_a5_trace_check.py $(RUN_DIR)/error.log
+	$(PYTHON) tools/radio_degraded_speech_trace_check.py $(RUN_DIR)/error.log $(COBBA_GJP_PCM_CHECK_ARGS)
+	$(PYTHON) tools/radio_sacch_coexistence_trace_check.py $(RUN_DIR)/error.log
 
 verify-3410-radio-outgoing-physical-duplex: normalize-3410
 	$(DCT3_RUN_3410) ROM=roms/noki3410/3410f546e.fls RUN_DIR=$(RUN_DIR) FIXTURE=fixtures/radio_outgoing_call RUN_SECONDS=45 POST_READY_KEYS=end,wait1000,5,5,5,1,2,3,4,send,waitalerting,wait5000,end POST_READY_DELAY_MS=16000 POST_READY_DURATION_MS=120 POST_READY_GAP_MS=240 AUDIO_CONTROL_CHECKER=tools/radio_outgoing_call_trace_check.py FACCH_CHECKER= PCM_CHECK_ARGS='--data-clock 1000000 --frame-clock 8000 --frame-clocks 125 --sync-clocks 1 --word-clocks 16' tools/run_physical_uplink_gate.sh
@@ -2600,7 +4079,7 @@ verify-radio-incoming-ussd-host-adapter:
 	$(call prepare_host_run,$(RUN_DIR),noki3210,); \
 	env NOKIA_DCT3_LUA_QUIET=1 NOKIA_DCT3_SNAPSHOT_DIR=$(abspath $(RUN_DIR)) \
 		$(VENV)/bin/python tools/run_host_incoming_ussd_gate.py \
-			--port $(HOST_INCOMING_USSD_PORT) --cwd . -- \
+			--port $(HOST_INCOMING_USSD_PORT) --text '$(HOST_INCOMING_USSD_TEXT)' --cwd . -- \
 			$(PYTHON) tools/run_mame_isolated.py --mame-dir $(MAME_DIR) --run-dir $(RUN_DIR) -- noki3210 -rompath roms -log -video none -sound none \
 			-keyboardprovider none -mouseprovider none -lightgunprovider none \
 			-joystickprovider none -midiprovider none -skip_gameinfo -nothrottle \
@@ -2675,6 +4154,26 @@ verify-radio-outgoing-sms-timeout:
 		RUN_ENV='NOKIA_DCT3_POST_READY_KEYS=enter,wait800,down,wait800,enter,wait800,down,wait800,down,wait800,enter,wait800,4,4,wait1500,4,4,4,wait1500,enter,wait1000,enter,wait1000,5,5,5,1,2,3,4,wait800,enter NOKIA_DCT3_POST_READY_KEY_DELAY_MS=12000 $(DCT3_PRESS_180_300) NOKIA_DCT3_POST_READY_CAPTURE_DELAY_MS=1200'; \
 	$(PYTHON) tools/radio_outgoing_sms_timeout_trace_check.py $(RUN_DIR)/error.log $(RUN_DIR)
 	@echo "OK - physical 3210 mobile-originated SMS timeout completed"
+
+# shell: embedded EEPROM restoration guard; physical RP-silence lifecycle
+verify-radio-outgoing-sms-rp-timeout:
+	@set -e; \
+	$(DCT3_EEPROM_GUARD) \
+	$(MAKE) --no-print-directory run-captured $(DCT3_RUN_3210) RUN_DIR=$(RUN_DIR) SECONDS=125 \
+		PROVISIONED_IMEI_PREFIX=49015420323751 RUN_VERBOSE=1 \
+		RUN_EXTRA_ARGS='-cfg_directory ../fixtures/radio_sms_rp_silence' \
+		RUN_ENV='NOKIA_DCT3_POST_READY_KEYS=enter,wait800,down,wait800,enter,wait800,down,wait800,down,wait800,enter,wait800,4,4,wait1500,4,4,4,wait1500,enter,wait1000,enter,wait1000,5,5,5,1,2,3,4,wait800,enter NOKIA_DCT3_POST_READY_KEY_DELAY_MS=12000 $(DCT3_PRESS_180_300) NOKIA_DCT3_POST_READY_CAPTURE_DELAY_MS=1200'; \
+	$(PYTHON) tools/radio_outgoing_sms_rp_timeout_trace_check.py $(RUN_DIR)/error.log $(RUN_DIR)
+
+# shell: embedded EEPROM restoration guard; deterministic RP-wait timeout replay
+verify-radio-outgoing-sms-rp-timeout-state:
+	@set -e; \
+	$(DCT3_EEPROM_GUARD) \
+	$(MAKE) --no-print-directory run-captured $(DCT3_RUN_3210) RUN_DIR=$(RUN_DIR) SECONDS=125 \
+		PROVISIONED_IMEI_PREFIX=49015420323751 RUN_VERBOSE=1 \
+		RUN_EXTRA_ARGS='-cfg_directory ../fixtures/radio_sms_rp_silence' \
+		RUN_ENV='NOKIA_DCT3_POST_READY_KEYS=enter,wait800,down,wait800,enter,wait800,down,wait800,down,wait800,enter,wait800,4,4,wait1500,4,4,4,wait1500,enter,wait1000,enter,wait1000,5,5,5,1,2,3,4,wait800,enter NOKIA_DCT3_POST_READY_KEY_DELAY_MS=12000 $(DCT3_PRESS_180_300) NOKIA_DCT3_POST_READY_CAPTURE_DELAY_MS=1200 NOKIA_DCT3_STATE_ROUNDTRIP_AT=40 NOKIA_DCT3_STATE_ROUNDTRIP_REPLAY_MS=65000'; \
+	$(PYTHON) tools/radio_outgoing_sms_rp_timeout_trace_check.py $(RUN_DIR)/error.log $(RUN_DIR) --require-state
 
 # shell: embedded EEPROM restoration guard
 verify-radio-outgoing-sms-timeout-state:
@@ -3211,7 +4710,7 @@ verify-dsp-tone:
 	$(PYTHON) tools/dsp_tone_trace_check.py $(RUN_DIR)_dsp_tone_v501/error.log
 
 verify-ccont-rtc:
-	@$(MAKE) --no-print-directory run RUN_DIR=$(RUN_DIR)_rtc SECONDS=19 RUN_VERBOSE=1 RUN_ENV='NOKIA_DCT3_CCONT_RTC_FIXTURE_AT=15'
+	@$(MAKE) --no-print-directory run RUN_DIR=$(RUN_DIR)_rtc SECONDS=79 RUN_VERBOSE=1 RUN_ENV='NOKIA_DCT3_CCONT_RTC_FIXTURE_AT=15'
 	test -f $(RUN_DIR)_rtc/error.log
 	$(PYTHON) tools/ccont_rtc_trace_check.py $(RUN_DIR)_rtc/error.log
 
@@ -3468,6 +4967,96 @@ verify-sim-toolkit-3330:
 	$(MAKE) --no-print-directory run-captured $(DCT3_RUN_3330) RUN_DIR=$(RUN_DIR) SECONDS=70 RUN_VERBOSE=1 RUN_EXTRA_ARGS='-cfg_directory $(abspath $(RUN_DIR))/cfg'; \
 	$(PYTHON) tools/sim_toolkit_cross_rom_trace_check.py $(RUN_DIR)/error.log --outcome screen-busy
 
+verify-5210-radio-measurement-static: normalize-5210
+	$(PYTHON) tools/noki5210_radio_contract.py roms/noki5210/5210_5.40_ppm_e.fls
+
+verify-5210-late-pin-boundary: normalize-5210 build
+	$(PYTHON) tools/run_noki5210_acceptance.py $(RUN_DIR) --scenario late-pin-boundary --mame $(MAME_DIR)/mame
+
+verify-5210-pin-outgoing-sms: normalize-5210 build
+	$(PYTHON) tools/run_noki5210_acceptance.py $(RUN_DIR) --scenario pin-outgoing-sms --mame $(MAME_DIR)/mame
+
+verify-5210-pin-phonebook: normalize-5210 build
+	$(PYTHON) tools/run_noki5210_acceptance.py $(RUN_DIR) --scenario pin-phonebook --mame $(MAME_DIR)/mame
+
+verify-5210-pin-ussd: normalize-5210 build
+	$(PYTHON) tools/run_noki5210_acceptance.py $(RUN_DIR) --scenario pin-ussd --mame $(MAME_DIR)/mame
+
+verify-5210-pin-sms-wait-state: normalize-5210 build
+	$(PYTHON) tools/run_noki5210_acceptance.py $(RUN_DIR) --scenario pin-sms-wait-state --mame $(MAME_DIR)/mame
+
+verify-5210-pin-host-incoming-call: normalize-5210 build
+	$(PYTHON) tools/run_noki5210_acceptance.py $(RUN_DIR) --scenario pin-host-incoming-call --mame $(MAME_DIR)/mame
+
+verify-5210-pin-host-outgoing-call: normalize-5210 build
+	$(PYTHON) tools/run_noki5210_acceptance.py $(RUN_DIR) --scenario pin-host-outgoing-call --mame $(MAME_DIR)/mame
+
+verify-5210-pin-incoming-sip-state: normalize-5210 build
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(PYTHON) tools/run_noki5210_acceptance.py $(RUN_DIR) --scenario pin-sip-incoming-call-state --pjsua $(SIP_PJSUA_BIN) --mame $(MAME_DIR)/mame
+
+verify-5210-pin-outgoing-sip-state: normalize-5210 build
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(PYTHON) tools/run_noki5210_acceptance.py $(RUN_DIR) --scenario pin-sip-outgoing-call-state --pjsua $(SIP_PJSUA_BIN) --mame $(MAME_DIR)/mame
+
+verify-5210-pin-host-incoming-media-state: normalize-5210 build
+	$(PYTHON) tools/run_noki5210_acceptance.py $(RUN_DIR) --scenario pin-host-incoming-media-state --mame $(MAME_DIR)/mame
+
+verify-5210-pin-host-incoming-call-state: normalize-5210 build
+	$(PYTHON) tools/run_noki5210_acceptance.py $(RUN_DIR) --scenario pin-host-incoming-call-state --mame $(MAME_DIR)/mame
+
+verify-5210-pin-host-outgoing-media-state: normalize-5210 build
+	$(PYTHON) tools/run_noki5210_acceptance.py $(RUN_DIR) --scenario pin-host-outgoing-media-state --mame $(MAME_DIR)/mame
+
+verify-5210-pin-host-outgoing-call-state: normalize-5210 build
+	$(PYTHON) tools/run_noki5210_acceptance.py $(RUN_DIR) --scenario pin-host-outgoing-call-state --mame $(MAME_DIR)/mame
+
+verify-5210-pin-incoming-call-sip: normalize-5210 build
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(PYTHON) tools/run_noki5210_acceptance.py $(RUN_DIR) --scenario pin-host-incoming-call --pjsua $(SIP_PJSUA_BIN) --mame $(MAME_DIR)/mame
+
+verify-5210-pin-outgoing-call-sip: normalize-5210 build
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(PYTHON) tools/run_noki5210_acceptance.py $(RUN_DIR) --scenario pin-host-outgoing-call --pjsua $(SIP_PJSUA_BIN) --mame $(MAME_DIR)/mame
+
+verify-5210-pin-host-silent-sms: normalize-5210 build
+	$(PYTHON) tools/run_noki5210_acceptance.py $(RUN_DIR) --scenario pin-host-silent-sms --mame $(MAME_DIR)/mame
+
+verify-5210-pin-host-rejected-sms: normalize-5210 build
+	$(PYTHON) tools/run_noki5210_acceptance.py $(RUN_DIR) --scenario pin-host-rejected-sms --mame $(MAME_DIR)/mame
+
+verify-5210-pin-host-incoming-sms: normalize-5210 build
+	$(PYTHON) tools/run_noki5210_acceptance.py $(RUN_DIR) --scenario pin-host-incoming-sms --mame $(MAME_DIR)/mame
+
+verify-5210-pin-host-outgoing-sms: normalize-5210 build
+	$(PYTHON) tools/run_noki5210_acceptance.py $(RUN_DIR) --scenario pin-host-outgoing-sms --mame $(MAME_DIR)/mame
+
+verify-5210-pin-outgoing-call-state: normalize-5210 build
+	$(PYTHON) tools/run_noki5210_acceptance.py $(RUN_DIR) --scenario pin-outgoing-call-state --mame $(MAME_DIR)/mame
+
+verify-5210-pin-outgoing-call: normalize-5210 build
+	$(PYTHON) tools/run_noki5210_acceptance.py $(RUN_DIR) --scenario pin-outgoing-call --mame $(MAME_DIR)/mame
+
+verify-5210-pin-sms-state: normalize-5210 build
+	$(PYTHON) tools/run_noki5210_acceptance.py $(RUN_DIR) --scenario pin-sms-state --mame $(MAME_DIR)/mame
+
+verify-5210-pin-call-state: normalize-5210 build
+	$(PYTHON) tools/run_noki5210_acceptance.py $(RUN_DIR) --scenario pin-call-state --mame $(MAME_DIR)/mame
+
+verify-5210-pin-idle-state: normalize-5210 build
+	$(PYTHON) tools/run_noki5210_acceptance.py $(RUN_DIR) --scenario pin-idle-state --mame $(MAME_DIR)/mame
+
+verify-5210-pin-incoming-sms: normalize-5210 build
+	$(PYTHON) tools/run_noki5210_acceptance.py $(RUN_DIR) --scenario pin-incoming-sms --mame $(MAME_DIR)/mame
+
+verify-5210-pin-incoming-call: normalize-5210 build
+	$(PYTHON) tools/run_noki5210_acceptance.py $(RUN_DIR) --scenario pin-incoming-call --mame $(MAME_DIR)/mame
+
+verify-5210-late-pin-registration: normalize-5210 build
+	$(PYTHON) tools/run_noki5210_acceptance.py $(RUN_DIR) --scenario late-pin-registration --mame $(MAME_DIR)/mame
+
+verify-5210-sim-pin-registration: normalize-5210 build
+	$(PYTHON) tools/run_noki5210_acceptance.py $(RUN_DIR) --scenario pin-registration --mame $(MAME_DIR)/mame
+
+verify-sim-toolkit-interactive-5210: normalize-5210 build
+	$(PYTHON) tools/run_noki5210_acceptance.py $(RUN_DIR) --mame $(MAME_DIR)/mame
+
 # shell: NSM-5 Phase-2+ DISPLAY TEXT corroboration
 verify-sim-toolkit-5210: normalize-5210
 	@set -e; \
@@ -3491,6 +5080,12 @@ verify-sim-toolkit-removal:
 	mkdir -p $(RUN_DIR)/cfg; cp fixtures/sim_toolkit/default.cfg fixtures/sim_toolkit/noki3210.cfg $(RUN_DIR)/cfg/; \
 	$(MAKE) --no-print-directory run-captured $(DCT3_RUN_3210) RUN_DIR=$(RUN_DIR) SECONDS=18 PROVISIONED_IMEI_PREFIX=49015420323751 RUN_VERBOSE=1 RUN_EXTRA_ARGS='-cfg_directory $(abspath $(RUN_DIR))/cfg' RUN_ENV='NOKIA_DCT3_SIM_REMOVE_AT=13'; \
 	$(PYTHON) tools/sim_toolkit_trace_check.py $(RUN_DIR)/error.log $(RUN_DIR) --removal
+
+verify-simi-restore: build
+	$(PYTHON) tools/run_simi_restore.py $(RUN_DIR) --mame $(MAME_DIR)/mame
+
+verify-sim-nvram-atomic: build
+	$(PYTHON) tools/run_sim_nvram_atomic.py $(RUN_DIR) --mame $(MAME_DIR)/mame
 
 # shell: embedded shell control flow
 verify-sim-phonebook:
@@ -3617,3 +5212,560 @@ verify-structure-subset:
 
 verify-structure:
 	@$(MAKE) --no-print-directory verify-structure-subset RUN_DIR=$(RUN_DIR) ORACLE_STRUCT=$(ORACLE_STRUCT)
+
+# shell: optional external PJSIP backend and isolated physical handset
+verify-radio-outgoing-call-sip:
+	@set -e; \
+	$(if $(filter noki3210,$(SIP_HANDSET_MACHINE)),$(DCT3_EEPROM_GUARD)) \
+	test -x '$(SIP_PJSUA_BIN)' || { echo 'build PJSIP 2.16 first; see docs/external_call_bridge.md'; exit 1; }; \
+	$(MAKE) --no-print-directory build JOBS=$(JOBS) PHONE=$(SIP_HANDSET_MACHINE) BIOS=$(SIP_HANDSET_BIOS) $(if $(filter noki3210,$(SIP_HANDSET_MACHINE)),ERASED_IDENTITY_SECURITY_CODE=12345); \
+	$(call prepare_host_run,$(RUN_DIR),$(SIP_HANDSET_MACHINE),$(SIP_HANDSET_BIOS),$(SIP_HANDSET_NVRAM_DIR),$(SIP_HANDSET_PRESERVE_NVRAM)); \
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' NOKIA_DCT3_LUA_QUIET=1 \
+		NOKIA_DCT3_POST_READY_KEYS='$(SIP_HANDSET_KEYS)' \
+		NOKIA_DCT3_POST_READY_KEY_DELAY_MS=$(SIP_HANDSET_KEY_DELAY_MS) \
+		NOKIA_DCT3_POST_READY_KEY_DURATION_MS=$(SIP_HANDSET_KEY_DURATION_MS) NOKIA_DCT3_POST_READY_KEY_GAP_MS=$(SIP_HANDSET_KEY_GAP_MS) \
+		NOKIA_DCT3_SNAPSHOT_DIR=$(abspath $(RUN_DIR)) \
+		$(VENV)/bin/python tools/run_sip_handset_gate.py $(SIP_HANDSET_RUNNER_ARGS) --pjsua '$(SIP_PJSUA_BIN)' --run-dir $(RUN_DIR) -- \
+		$(PYTHON) tools/run_mame_isolated.py --mame-dir $(MAME_DIR) --run-dir $(RUN_DIR) -- \
+		$(SIP_HANDSET_MACHINE) $(if $(SIP_HANDSET_BIOS),-bios $(SIP_HANDSET_BIOS)) -rompath roms -log -video none -sound $(SIP_HANDSET_SOUND) -throttle \
+		-keyboardprovider none -mouseprovider none -lightgunprovider none -joystickprovider none -midiprovider none \
+		-skip_gameinfo -autoboot_script $(SIP_HANDSET_SCRIPT) -verbose \
+		-cfg_directory $(SIP_HANDSET_CONFIG) -http -http_port 18100 \
+		-nvram_directory $(SIP_HANDSET_NVRAM_DIR) -seconds_to_run $(SIP_HANDSET_SECONDS)
+
+# shell: own-product physical PMM provisioning before isolated SIP call
+verify-3330-radio-outgoing-call-sip: normalize-3330
+	@set -e; \
+	$(MAKE) --no-print-directory run $(DCT3_RUN_3330) RUN_DIR=$(RUN_DIR)_provision SECONDS=44 RUN_ENV='$(NOKI3330_FIRST_BOOT_INPUT) NOKIA_DCT3_POST_READY_KEYS=$(NOKI3330_FIRST_BOOT_KEYS) NOKIA_DCT3_POST_READY_CAPTURE_DELAY_MS=7000'; \
+	$(PYTHON) tools/check_model_frontier_summary.py $(RUN_DIR)_provision/boot_summary.txt --require-fiq0; \
+	$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR)_call JOBS=$(JOBS) SIP_HANDSET_MACHINE=noki3330 SIP_HANDSET_BIOS=450e SIP_HANDSET_PRESERVE_NVRAM=1 SIP_HANDSET_NVRAM_DIR=$(abspath $(RUN_DIR)_provision)/nvram SIP_HANDSET_KEYS=1,2,3,4,5,enter,wait500,c,wait500,c,wait500,5,5,5,1,2,3,4,enter SIP_HANDSET_KEY_DELAY_MS=6000 SIP_HANDSET_KEY_DURATION_MS=70 SIP_HANDSET_KEY_GAP_MS=200 SIP_HANDSET_RUNNER_ARGS='$(SIP_3330_OUTGOING_RUNNER_ARGS)' SIP_HANDSET_SCRIPT=$(SIP_3330_OUTGOING_SCRIPT) SIP_HANDSET_SECONDS=40
+
+# shell: own-product physical PMM provisioning before isolated incoming SIP call
+verify-3330-radio-incoming-call-sip: normalize-3330
+	@set -e; \
+	$(MAKE) --no-print-directory run $(DCT3_RUN_3330) RUN_DIR=$(RUN_DIR)_provision SECONDS=44 RUN_ENV='$(NOKI3330_FIRST_BOOT_INPUT) NOKIA_DCT3_POST_READY_KEYS=$(NOKI3330_FIRST_BOOT_KEYS) NOKIA_DCT3_POST_READY_CAPTURE_DELAY_MS=7000'; \
+	$(PYTHON) tools/check_model_frontier_summary.py $(RUN_DIR)_provision/boot_summary.txt --require-fiq0; \
+	$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR)_call JOBS=$(JOBS) SIP_HANDSET_MACHINE=noki3330 SIP_HANDSET_BIOS=450e SIP_HANDSET_PRESERVE_NVRAM=1 SIP_HANDSET_NVRAM_DIR=$(abspath $(RUN_DIR)_provision)/nvram SIP_HANDSET_KEYS='$(SIP_3330_INCOMING_KEYS)' SIP_HANDSET_KEY_DELAY_MS=6000 SIP_HANDSET_KEY_DURATION_MS=220 SIP_HANDSET_KEY_GAP_MS=280 SIP_HANDSET_RUNNER_ARGS='$(SIP_3330_INCOMING_RUNNER_ARGS)' SIP_HANDSET_SCRIPT=$(SIP_3330_INCOMING_SCRIPT) SIP_HANDSET_SECONDS=40
+
+# shell: own-product physical PMM provisioning before connected SIP restoration
+verify-3330-radio-incoming-call-sip-connected-restore: normalize-3330
+	@set -e; \
+	$(MAKE) --no-print-directory run $(DCT3_RUN_3330) RUN_DIR=$(RUN_DIR)_provision SECONDS=44 RUN_ENV='$(NOKI3330_FIRST_BOOT_INPUT) NOKIA_DCT3_POST_READY_KEYS=$(NOKI3330_FIRST_BOOT_KEYS) NOKIA_DCT3_POST_READY_CAPTURE_DELAY_MS=7000'; \
+	$(PYTHON) tools/check_model_frontier_summary.py $(RUN_DIR)_provision/boot_summary.txt --require-fiq0; \
+	$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR)_call JOBS=$(JOBS) SIP_HANDSET_MACHINE=noki3330 SIP_HANDSET_BIOS=450e SIP_HANDSET_PRESERVE_NVRAM=1 SIP_HANDSET_NVRAM_DIR=$(abspath $(RUN_DIR)_provision)/nvram SIP_HANDSET_KEYS=1,2,3,4,5,enter,wait500,c,wait500,c,waitalerting,enter SIP_HANDSET_KEY_DELAY_MS=6000 SIP_HANDSET_KEY_DURATION_MS=220 SIP_HANDSET_KEY_GAP_MS=280 SIP_HANDSET_RUNNER_ARGS='--incoming --restore-call --product 3330' SIP_HANDSET_SCRIPT=../tools/sip_3330_call_state_roundtrip.lua SIP_HANDSET_SECONDS=40
+
+verify-3330-radio-incoming-call-sip-cancel:
+	@$(MAKE) --no-print-directory verify-3330-radio-incoming-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_3330_INCOMING_KEYS=1,2,3,4,5,enter,wait500,c,wait500,c SIP_3330_INCOMING_RUNNER_ARGS='--incoming --cancel-incoming --product 3330'
+
+verify-3330-radio-incoming-call-sip-alerting-restore:
+	@$(MAKE) --no-print-directory verify-3330-radio-incoming-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_3330_INCOMING_KEYS=1,2,3,4,5,enter,wait500,c,wait500,c SIP_3330_INCOMING_RUNNER_ARGS='--incoming --restore-call --restore-phase alerting --product 3330' SIP_3330_INCOMING_SCRIPT=../tools/sip_3330_call_state_roundtrip.lua
+
+verify-3410-radio-outgoing-call-sip: normalize-3410
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_MACHINE=noki3410 SIP_HANDSET_BIOS=546e SIP_HANDSET_KEYS=end,wait1000,5,5,5,1,2,3,4,send SIP_HANDSET_KEY_DELAY_MS=16000 SIP_HANDSET_KEY_DURATION_MS=120 SIP_HANDSET_KEY_GAP_MS=240 SIP_HANDSET_RUNNER_ARGS='--product 3410' SIP_HANDSET_SECONDS=45
+
+verify-3410-radio-incoming-call-sip: normalize-3410
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_MACHINE=noki3410 SIP_HANDSET_BIOS=546e SIP_HANDSET_KEYS='$(SIP_3410_INCOMING_KEYS)' SIP_HANDSET_KEY_DELAY_MS=1000 SIP_HANDSET_KEY_DURATION_MS=200 SIP_HANDSET_KEY_GAP_MS=300 SIP_HANDSET_RUNNER_ARGS='$(SIP_3410_INCOMING_RUNNER_ARGS)' SIP_HANDSET_SCRIPT=$(SIP_3410_INCOMING_SCRIPT) SIP_HANDSET_SECONDS=40
+
+verify-3410-radio-incoming-call-sip-connected-restore:
+	@$(MAKE) --no-print-directory verify-3410-radio-incoming-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_3410_INCOMING_RUNNER_ARGS='--incoming --restore-call --product 3410' SIP_3410_INCOMING_SCRIPT=../tools/sip_call_state_roundtrip.lua
+
+verify-3410-radio-incoming-call-sip-alerting-restore:
+	@$(MAKE) --no-print-directory verify-3410-radio-incoming-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_3410_INCOMING_KEYS=end SIP_3410_INCOMING_RUNNER_ARGS='--incoming --restore-call --restore-phase alerting --product 3410' SIP_3410_INCOMING_SCRIPT=../tools/sip_call_state_roundtrip.lua
+
+verify-3410-radio-incoming-call-sip-cancel:
+	@$(MAKE) --no-print-directory verify-3410-radio-incoming-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_3410_INCOMING_KEYS=end SIP_3410_INCOMING_RUNNER_ARGS='--incoming --cancel-incoming --product 3410'
+
+verify-5210-radio-outgoing-call-sip: normalize-5210
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_MACHINE=noki5210 SIP_HANDSET_BIOS=540e SIP_HANDSET_KEYS=5,5,5,1,2,3,4,send SIP_HANDSET_KEY_DELAY_MS=18000 SIP_HANDSET_KEY_DURATION_MS=220 SIP_HANDSET_KEY_GAP_MS=280 SIP_HANDSET_RUNNER_ARGS='--product 5210' SIP_HANDSET_SECONDS=45
+
+verify-5210-radio-incoming-call-sip: normalize-5210
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_MACHINE=noki5210 SIP_HANDSET_BIOS=540e SIP_HANDSET_KEYS=send SIP_HANDSET_KEY_DELAY_MS=18000 SIP_HANDSET_KEY_DURATION_MS=220 SIP_HANDSET_KEY_GAP_MS=280 SIP_HANDSET_RUNNER_ARGS='--incoming --product 5210' SIP_HANDSET_SECONDS=40
+
+verify-5210-radio-incoming-call-sip-connected-restore: normalize-5210
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_MACHINE=noki5210 SIP_HANDSET_BIOS=540e SIP_HANDSET_KEYS=send SIP_HANDSET_KEY_DELAY_MS=18000 SIP_HANDSET_KEY_DURATION_MS=220 SIP_HANDSET_KEY_GAP_MS=280 SIP_HANDSET_RUNNER_ARGS='--incoming --restore-call --product 5210' SIP_HANDSET_SCRIPT=../tools/sip_call_state_roundtrip.lua SIP_HANDSET_SECONDS=40
+
+verify-5210-radio-incoming-call-sip-cancel: normalize-5210
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_MACHINE=noki5210 SIP_HANDSET_BIOS=540e SIP_HANDSET_KEYS= SIP_HANDSET_RUNNER_ARGS='--incoming --cancel-incoming --product 5210' SIP_HANDSET_SECONDS=40
+
+verify-5210-radio-incoming-call-sip-alerting-restore: normalize-5210
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_MACHINE=noki5210 SIP_HANDSET_BIOS=540e SIP_HANDSET_KEYS= SIP_HANDSET_RUNNER_ARGS='--incoming --restore-call --restore-phase alerting --product 5210' SIP_HANDSET_SCRIPT=../tools/sip_call_state_roundtrip.lua SIP_HANDSET_SECONDS=40
+
+verify-radio-incoming-call-sip:
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_RUNNER_ARGS=--incoming SIP_HANDSET_KEYS='$(NOKI3210_INCOMING_READY_KEYS),enter' SIP_HANDSET_CONFIG=../fixtures/radio_incoming_host_adapter SIP_HANDSET_SECONDS=48
+
+verify-radio-incoming-call-sip-idle-restore:
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_RUNNER_ARGS='--incoming --restore-idle' SIP_HANDSET_KEYS='1,2,3,4,5,enter' SIP_HANDSET_SCRIPT=../tools/sip_idle_state_roundtrip.lua SIP_HANDSET_CONFIG=../fixtures/radio_incoming_host_adapter SIP_HANDSET_SECONDS=48
+
+verify-3310-radio-incoming-call-sip-connected-restore:
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_MACHINE=noki3310 SIP_HANDSET_BIOS=639 SIP_HANDSET_KEYS=enter SIP_HANDSET_KEY_DELAY_MS=18000 SIP_HANDSET_KEY_DURATION_MS=200 SIP_HANDSET_KEY_GAP_MS=200 SIP_HANDSET_RUNNER_ARGS='--incoming --restore-call --product 3310' SIP_HANDSET_SCRIPT=../tools/sip_call_state_roundtrip.lua SIP_HANDSET_SECONDS=48
+
+verify-3310-radio-incoming-call-sip-alerting-restore:
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_MACHINE=noki3310 SIP_HANDSET_BIOS=639 SIP_HANDSET_KEYS= SIP_HANDSET_KEY_DELAY_MS=18000 SIP_HANDSET_KEY_DURATION_MS=200 SIP_HANDSET_KEY_GAP_MS=200 SIP_HANDSET_RUNNER_ARGS='--incoming --restore-call --restore-phase alerting --product 3310' SIP_HANDSET_SCRIPT=../tools/sip_call_state_roundtrip.lua SIP_HANDSET_SECONDS=48
+
+verify-3310-radio-outgoing-call-sip-busy-redial:
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_MACHINE=noki3310 SIP_HANDSET_BIOS=639 SIP_HANDSET_KEYS=5,5,5,1,2,3,4,enter SIP_HANDSET_KEY_DELAY_MS=18000 SIP_HANDSET_KEY_DURATION_MS=70 SIP_HANDSET_KEY_GAP_MS=200 SIP_HANDSET_RUNNER_ARGS='--product 3310 --sip-response 486 --calls 2'
+
+verify-3310-radio-outgoing-call-sip-unavailable-redial:
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_MACHINE=noki3310 SIP_HANDSET_BIOS=639 SIP_HANDSET_KEYS=5,5,5,1,2,3,4,enter SIP_HANDSET_KEY_DELAY_MS=18000 SIP_HANDSET_KEY_DURATION_MS=70 SIP_HANDSET_KEY_GAP_MS=200 SIP_HANDSET_RUNNER_ARGS='--product 3310 --sip-response 480 --calls 2'
+
+verify-3330-radio-incoming-call-sip-idle-restore:
+	@$(MAKE) --no-print-directory verify-3330-radio-incoming-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_3330_INCOMING_KEYS=1,2,3,4,5,enter,wait500,c,wait500,c SIP_3330_INCOMING_RUNNER_ARGS='--incoming --restore-idle --product 3330' SIP_3330_INCOMING_SCRIPT=../tools/sip_3310_idle_state_roundtrip.lua
+
+verify-3310-radio-incoming-call-sip-idle-restore:
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_MACHINE=noki3310 SIP_HANDSET_BIOS=639 SIP_HANDSET_KEYS= SIP_HANDSET_KEY_DELAY_MS=18000 SIP_HANDSET_KEY_DURATION_MS=200 SIP_HANDSET_KEY_GAP_MS=200 SIP_HANDSET_RUNNER_ARGS='--incoming --restore-idle --product 3310' SIP_HANDSET_SCRIPT=../tools/sip_3310_idle_state_roundtrip.lua SIP_HANDSET_SECONDS=48
+
+verify-5210-radio-incoming-call-sip-idle-restore: normalize-5210
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_MACHINE=noki5210 SIP_HANDSET_BIOS=540e SIP_HANDSET_KEYS= SIP_HANDSET_KEY_DELAY_MS=18000 SIP_HANDSET_KEY_DURATION_MS=220 SIP_HANDSET_KEY_GAP_MS=280 SIP_HANDSET_RUNNER_ARGS='--incoming --restore-idle --product 5210' SIP_HANDSET_SCRIPT=../tools/sip_5210_idle_state_roundtrip.lua SIP_HANDSET_SECONDS=48
+
+verify-3410-radio-incoming-call-sip-idle-restore: normalize-3410
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_MACHINE=noki3410 SIP_HANDSET_BIOS=546e SIP_HANDSET_KEYS=end SIP_HANDSET_KEY_DELAY_MS=1000 SIP_HANDSET_KEY_DURATION_MS=200 SIP_HANDSET_KEY_GAP_MS=300 SIP_HANDSET_RUNNER_ARGS='--incoming --restore-idle --product 3410' SIP_HANDSET_SCRIPT=../tools/sip_3410_idle_state_roundtrip.lua SIP_HANDSET_SECONDS=48
+
+verify-3330-radio-outgoing-call-sip-busy:
+	@$(MAKE) --no-print-directory verify-3330-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_3330_OUTGOING_RUNNER_ARGS='--product 3330 --sip-response 486'
+
+verify-3330-radio-outgoing-call-sip-unavailable:
+	@$(MAKE) --no-print-directory verify-3330-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_3330_OUTGOING_RUNNER_ARGS='--product 3330 --sip-response 480'
+
+verify-5210-radio-outgoing-call-sip-busy: normalize-5210
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_MACHINE=noki5210 SIP_HANDSET_BIOS=540e SIP_HANDSET_KEYS=5,5,5,1,2,3,4,send SIP_HANDSET_KEY_DELAY_MS=18000 SIP_HANDSET_KEY_DURATION_MS=220 SIP_HANDSET_KEY_GAP_MS=280 SIP_HANDSET_RUNNER_ARGS='--product 5210 --sip-response 486'
+
+verify-5210-radio-outgoing-call-sip-unavailable: normalize-5210
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_MACHINE=noki5210 SIP_HANDSET_BIOS=540e SIP_HANDSET_KEYS=5,5,5,1,2,3,4,send SIP_HANDSET_KEY_DELAY_MS=18000 SIP_HANDSET_KEY_DURATION_MS=220 SIP_HANDSET_KEY_GAP_MS=280 SIP_HANDSET_RUNNER_ARGS='--product 5210 --sip-response 480'
+
+verify-3410-radio-outgoing-call-sip-busy: normalize-3410
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_MACHINE=noki3410 SIP_HANDSET_BIOS=546e SIP_HANDSET_KEYS=end,wait1000,5,5,5,1,2,3,4,send SIP_HANDSET_KEY_DELAY_MS=16000 SIP_HANDSET_KEY_DURATION_MS=120 SIP_HANDSET_KEY_GAP_MS=240 SIP_HANDSET_RUNNER_ARGS='--product 3410 --sip-response 486'
+
+verify-3410-radio-outgoing-call-sip-unavailable: normalize-3410
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_MACHINE=noki3410 SIP_HANDSET_BIOS=546e SIP_HANDSET_KEYS=end,wait1000,5,5,5,1,2,3,4,send SIP_HANDSET_KEY_DELAY_MS=16000 SIP_HANDSET_KEY_DURATION_MS=120 SIP_HANDSET_KEY_GAP_MS=240 SIP_HANDSET_RUNNER_ARGS='--product 3410 --sip-response 480'
+
+verify-3330-radio-outgoing-call-sip-connected-restore:
+	@$(MAKE) --no-print-directory verify-3330-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_3330_OUTGOING_RUNNER_ARGS='--restore-outgoing --product 3330' SIP_3330_OUTGOING_SCRIPT=../tools/sip_3330_outgoing_state_roundtrip.lua
+
+verify-3330-radio-outgoing-call-sip-pending-restore:
+	@$(MAKE) --no-print-directory verify-3330-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_3330_OUTGOING_RUNNER_ARGS='--restore-outgoing --sip-response 180 --product 3330' SIP_3330_OUTGOING_SCRIPT=../tools/sip_3330_outgoing_state_roundtrip.lua
+
+verify-5210-radio-outgoing-call-sip-connected-restore: normalize-5210
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_MACHINE=noki5210 SIP_HANDSET_BIOS=540e SIP_HANDSET_KEYS=5,5,5,1,2,3,4,send SIP_HANDSET_KEY_DELAY_MS=18000 SIP_HANDSET_KEY_DURATION_MS=220 SIP_HANDSET_KEY_GAP_MS=280 SIP_HANDSET_RUNNER_ARGS='--restore-outgoing --product 5210' SIP_HANDSET_SCRIPT=../tools/sip_outgoing_connected_state_roundtrip.lua SIP_HANDSET_SECONDS=48
+
+verify-5210-radio-outgoing-call-sip-pending-restore: normalize-5210
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_MACHINE=noki5210 SIP_HANDSET_BIOS=540e SIP_HANDSET_KEYS=5,5,5,1,2,3,4,send SIP_HANDSET_KEY_DELAY_MS=18000 SIP_HANDSET_KEY_DURATION_MS=220 SIP_HANDSET_KEY_GAP_MS=280 SIP_HANDSET_RUNNER_ARGS='--restore-outgoing --sip-response 180 --product 5210' SIP_HANDSET_SCRIPT=../tools/sip_outgoing_state_roundtrip.lua SIP_HANDSET_SECONDS=48
+
+verify-3410-radio-outgoing-call-sip-connected-restore: normalize-3410
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_MACHINE=noki3410 SIP_HANDSET_BIOS=546e SIP_HANDSET_KEYS=end,wait1000,5,5,5,1,2,3,4,send SIP_HANDSET_KEY_DELAY_MS=16000 SIP_HANDSET_KEY_DURATION_MS=120 SIP_HANDSET_KEY_GAP_MS=240 SIP_HANDSET_RUNNER_ARGS='--restore-outgoing --product 3410' SIP_HANDSET_SCRIPT=../tools/sip_outgoing_connected_state_roundtrip.lua SIP_HANDSET_SECONDS=48
+
+verify-3410-radio-outgoing-call-sip-pending-restore: normalize-3410
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_MACHINE=noki3410 SIP_HANDSET_BIOS=546e SIP_HANDSET_KEYS=end,wait1000,5,5,5,1,2,3,4,send SIP_HANDSET_KEY_DELAY_MS=16000 SIP_HANDSET_KEY_DURATION_MS=120 SIP_HANDSET_KEY_GAP_MS=240 SIP_HANDSET_RUNNER_ARGS='--restore-outgoing --sip-response 180 --product 3410' SIP_HANDSET_SCRIPT=../tools/sip_outgoing_state_roundtrip.lua SIP_HANDSET_SECONDS=48
+
+verify-3330-radio-outgoing-call-sip-waveform: normalize-3330
+	$(MAKE) --no-print-directory run $(DCT3_RUN_3330) RUN_DIR=$(RUN_DIR)_provision SECONDS=44 RUN_ENV='$(NOKI3330_FIRST_BOOT_INPUT) NOKIA_DCT3_POST_READY_KEYS=$(NOKI3330_FIRST_BOOT_KEYS) NOKIA_DCT3_POST_READY_CAPTURE_DELAY_MS=7000'
+	$(PYTHON) tools/check_model_frontier_summary.py $(RUN_DIR)_provision/boot_summary.txt --require-fiq0
+	SIP_PRODUCT=3330 SIP_WAVEFORM_NVRAM_DIR=$(abspath $(RUN_DIR)_provision)/nvram RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) bash tools/run_sip_physical_audio_gate.sh
+
+verify-3330-radio-incoming-call-sip-waveform: normalize-3330
+	$(MAKE) --no-print-directory run $(DCT3_RUN_3330) RUN_DIR=$(RUN_DIR)_provision SECONDS=44 RUN_ENV='$(NOKI3330_FIRST_BOOT_INPUT) NOKIA_DCT3_POST_READY_KEYS=$(NOKI3330_FIRST_BOOT_KEYS) NOKIA_DCT3_POST_READY_CAPTURE_DELAY_MS=7000'
+	$(PYTHON) tools/check_model_frontier_summary.py $(RUN_DIR)_provision/boot_summary.txt --require-fiq0
+	SIP_PRODUCT=3330 SIP_DIRECTION=incoming SIP_WAVEFORM_NVRAM_DIR=$(abspath $(RUN_DIR)_provision)/nvram RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) bash tools/run_sip_physical_audio_gate.sh
+
+verify-5210-radio-outgoing-call-sip-waveform: normalize-5210
+	SIP_PRODUCT=5210 RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) bash tools/run_sip_physical_audio_gate.sh
+
+verify-5210-radio-incoming-call-sip-waveform: normalize-5210
+	SIP_PRODUCT=5210 SIP_DIRECTION=incoming RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) bash tools/run_sip_physical_audio_gate.sh
+
+verify-3410-radio-outgoing-call-sip-waveform: normalize-3410
+	SIP_PRODUCT=3410 RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) bash tools/run_sip_physical_audio_gate.sh
+
+verify-3410-radio-incoming-call-sip-waveform: normalize-3410
+	SIP_PRODUCT=3410 SIP_DIRECTION=incoming RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) bash tools/run_sip_physical_audio_gate.sh
+
+verify-3310-radio-incoming-call-sip-waveform:
+	SIP_PRODUCT=3310 SIP_DIRECTION=incoming RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) bash tools/run_sip_physical_audio_gate.sh
+
+verify-radio-incoming-call-sip-waveform:
+	SIP_DIRECTION=incoming RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) bash tools/run_sip_physical_audio_gate.sh
+
+verify-3310-radio-incoming-call-sip:
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_MACHINE=noki3310 SIP_HANDSET_BIOS=639 SIP_HANDSET_KEYS=enter SIP_HANDSET_KEY_DELAY_MS=18000 SIP_HANDSET_KEY_DURATION_MS=200 SIP_HANDSET_KEY_GAP_MS=200 SIP_HANDSET_RUNNER_ARGS='--incoming --product 3310' SIP_HANDSET_SECONDS=48
+
+verify-3310-radio-outgoing-call-sip-waveform:
+	SIP_PRODUCT=3310 RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) bash tools/run_sip_physical_audio_gate.sh
+
+verify-radio-outgoing-call-sip-waveform:
+	RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) bash tools/run_sip_physical_audio_gate.sh
+
+verify-3310-radio-outgoing-call-sip-connected-restore:
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_MACHINE=noki3310 SIP_HANDSET_BIOS=639 SIP_HANDSET_KEYS=5,5,5,1,2,3,4,enter SIP_HANDSET_KEY_DELAY_MS=18000 SIP_HANDSET_KEY_DURATION_MS=70 SIP_HANDSET_KEY_GAP_MS=200 SIP_HANDSET_RUNNER_ARGS='--restore-outgoing --product 3310' SIP_HANDSET_SCRIPT=../tools/sip_outgoing_connected_state_roundtrip.lua SIP_HANDSET_SECONDS=48
+
+verify-radio-outgoing-call-sip-connected-restore:
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_RUNNER_ARGS=--restore-outgoing SIP_HANDSET_SCRIPT=../tools/sip_outgoing_connected_state_roundtrip.lua SIP_HANDSET_SECONDS=48
+
+verify-3310-radio-outgoing-call-sip-pending-restore:
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_MACHINE=noki3310 SIP_HANDSET_BIOS=639 SIP_HANDSET_KEYS=5,5,5,1,2,3,4,enter SIP_HANDSET_KEY_DELAY_MS=18000 SIP_HANDSET_KEY_DURATION_MS=70 SIP_HANDSET_KEY_GAP_MS=200 SIP_HANDSET_RUNNER_ARGS='--restore-outgoing --sip-response 180 --product 3310' SIP_HANDSET_SCRIPT=../tools/sip_outgoing_state_roundtrip.lua SIP_HANDSET_SECONDS=48
+
+verify-radio-outgoing-call-sip-pending-restore:
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_RUNNER_ARGS='--restore-outgoing --sip-response 180' SIP_HANDSET_SCRIPT=../tools/sip_outgoing_state_roundtrip.lua SIP_HANDSET_SECONDS=48
+
+verify-radio-incoming-call-sip-alerting-restore:
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_RUNNER_ARGS='--incoming --restore-call --restore-phase alerting' SIP_HANDSET_KEYS='1,2,3,4,5,enter' SIP_HANDSET_SCRIPT=../tools/sip_call_state_roundtrip.lua SIP_HANDSET_CONFIG=../fixtures/radio_incoming_host_adapter SIP_HANDSET_SECONDS=48
+
+verify-radio-incoming-call-sip-restore:
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_RUNNER_ARGS='--incoming --restore-call' SIP_HANDSET_KEYS='$(NOKI3210_INCOMING_READY_KEYS),enter' SIP_HANDSET_SCRIPT=../tools/sip_call_state_roundtrip.lua SIP_HANDSET_CONFIG=../fixtures/radio_incoming_host_adapter SIP_HANDSET_SECONDS=48
+
+verify-3310-radio-incoming-call-sip-cancel:
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_MACHINE=noki3310 SIP_HANDSET_BIOS=639 SIP_HANDSET_KEYS= SIP_HANDSET_RUNNER_ARGS='--incoming --cancel-incoming --product 3310' SIP_HANDSET_SECONDS=48
+
+verify-radio-incoming-call-sip-cancel:
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_RUNNER_ARGS='--incoming --cancel-incoming' SIP_HANDSET_KEYS='1,2,3,4,5,enter' SIP_HANDSET_CONFIG=../fixtures/radio_incoming_host_adapter SIP_HANDSET_SECONDS=48
+
+verify-radio-outgoing-call-sip-busy:
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_RUNNER_ARGS='--sip-response 486'
+
+verify-radio-outgoing-call-sip-forbidden:
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_RUNNER_ARGS='--sip-response 403'
+
+verify-radio-outgoing-call-sip-not-found:
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_RUNNER_ARGS='--sip-response 404'
+
+verify-radio-outgoing-call-sip-service-unavailable:
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_RUNNER_ARGS='--sip-response 503'
+
+verify-radio-outgoing-call-sip-global-busy:
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_RUNNER_ARGS='--sip-response 600'
+
+verify-radio-outgoing-call-sip-timeout-response:
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_RUNNER_ARGS='--sip-response 408'
+
+verify-8210-power-cycle: build
+	$(VENV)/bin/python tools/run_noki8210_acceptance.py $(RUN_DIR) --scenario power-cycle --mame $(MAME_DIR)/mame
+
+verify-6250-coherent-idle-state: build
+	$(VENV)/bin/python tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario idle-state --coherent-cell --mame $(MAME_DIR)/mame
+
+verify-6250-coherent-call-state: build
+	$(VENV)/bin/python tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario call-state --coherent-cell --mame $(MAME_DIR)/mame
+
+verify-6250-coherent-sms-state: build
+	$(VENV)/bin/python tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario sms-state --coherent-cell --mame $(MAME_DIR)/mame
+
+verify-6250-pin-state-idle: build
+	$(VENV)/bin/python tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario idle-state --coherent-cell --pin-enabled --mame $(MAME_DIR)/mame
+
+verify-6250-pin-state-call: build
+	$(VENV)/bin/python tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario call-state --coherent-cell --pin-enabled --mame $(MAME_DIR)/mame
+
+verify-6250-pin-state-sms: build
+	$(VENV)/bin/python tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario sms-state --coherent-cell --pin-enabled --mame $(MAME_DIR)/mame
+
+verify-6250-alarm: build
+	$(PYTHON) tools/run_noki6250_alarm.py $(RUN_DIR) --mame $(MAME_DIR)/mame
+
+verify-6250-alarm-cold: build
+	$(PYTHON) tools/run_noki6250_alarm.py $(RUN_DIR) --cold --mame $(MAME_DIR)/mame
+
+verify-6250-alarm-awake-restore: build
+	$(PYTHON) tools/run_noki6250_alarm.py $(RUN_DIR) --restore-awake --mame $(MAME_DIR)/mame
+
+verify-6250-alarm-off-restore: build
+	$(PYTHON) tools/run_noki6250_alarm.py $(RUN_DIR) --power-choice no --restore-off --mame $(MAME_DIR)/mame
+
+verify-6250-alarm-off-restore-yes: build
+	$(PYTHON) tools/run_noki6250_alarm.py $(RUN_DIR) --power-choice yes --restore-off --mame $(MAME_DIR)/mame
+
+verify-6250-alarm-snooze: build
+	$(PYTHON) tools/run_noki6250_alarm.py $(RUN_DIR) --snooze --mame $(MAME_DIR)/mame
+
+verify-6250-alarm-off-no: build
+	$(PYTHON) tools/run_noki6250_alarm.py $(RUN_DIR) --power-choice no --mame $(MAME_DIR)/mame
+
+verify-6250-alarm-off-snooze-no: build
+	$(PYTHON) tools/run_noki6250_alarm.py $(RUN_DIR) --snooze --power-choice no --mame $(MAME_DIR)/mame
+
+verify-6250-alarm-off-snooze-yes: build
+	$(PYTHON) tools/run_noki6250_alarm.py $(RUN_DIR) --snooze --power-choice yes --mame $(MAME_DIR)/mame
+
+verify-6250-alarm-off-snooze-restore: build
+	$(PYTHON) tools/run_noki6250_alarm.py $(RUN_DIR) --snooze --power-choice no --restore-off --mame $(MAME_DIR)/mame
+
+verify-6250-alarm-snooze-countdown-restore: build
+	$(PYTHON) tools/run_noki6250_alarm.py $(RUN_DIR) --snooze --power-choice no --restore-snooze --mame $(MAME_DIR)/mame
+
+verify-6250-alarm-snooze-countdown-restore-yes: build
+	$(PYTHON) tools/run_noki6250_alarm.py $(RUN_DIR) --snooze --power-choice yes --restore-snooze --mame $(MAME_DIR)/mame
+
+verify-6250-alarm-off-yes: build
+	$(PYTHON) tools/run_noki6250_alarm.py $(RUN_DIR) --power-choice yes --mame $(MAME_DIR)/mame
+
+verify-6250-calendar-cold: build
+	$(PYTHON) tools/run_noki6250_calendar.py $(RUN_DIR) --mame $(MAME_DIR)/mame
+
+verify-6250-power-cycle: build
+	$(VENV)/bin/python tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario power-cycle --mame $(MAME_DIR)/mame
+
+verify-6250-ussd: build
+	$(PYTHON) tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario ussd --mame $(MAME_DIR)/mame
+
+verify-6250-call-divert: build
+	$(PYTHON) tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario divert --mame $(MAME_DIR)/mame
+
+verify-6210-sim-toolkit-call-decline: build
+	$(PYTHON) tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario toolkit-call-decline --mame $(MAME_DIR)/mame
+
+verify-6210-sim-toolkit-call: build
+	$(PYTHON) tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario toolkit-call --mame $(MAME_DIR)/mame
+
+verify-6210-sim-toolkit-sms: build
+	$(PYTHON) tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario toolkit-sms --mame $(MAME_DIR)/mame
+
+verify-6210-sim-toolkit-menu: build
+	$(PYTHON) tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario toolkit-menu --mame $(MAME_DIR)/mame
+
+verify-6210-sim-toolkit-interactive: build
+	$(PYTHON) tools/run_noki6210_acceptance.py $(RUN_DIR) --scenario toolkit-interactive --mame $(MAME_DIR)/mame
+
+verify-6250-sim-toolkit-interactive: build
+	$(PYTHON) tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario toolkit-interactive --mame $(MAME_DIR)/mame
+
+verify-6250-sim-toolkit-menu: build
+	$(PYTHON) tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario toolkit-menu --mame $(MAME_DIR)/mame
+
+verify-6250-sim-toolkit-sms: build
+	$(PYTHON) tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario toolkit-sms --mame $(MAME_DIR)/mame
+
+verify-6250-sim-toolkit-call: build
+	$(PYTHON) tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario toolkit-call --mame $(MAME_DIR)/mame
+
+verify-6250-sim-toolkit-call-decline: build
+	$(PYTHON) tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario toolkit-call-decline --mame $(MAME_DIR)/mame
+
+verify-6250-sim-toolkit: build
+	$(PYTHON) tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario toolkit --mame $(MAME_DIR)/mame
+
+verify-6250-call-divert-lifecycle: build
+	$(PYTHON) tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario divert-lifecycle --mame $(MAME_DIR)/mame
+
+verify-6250-call-divert-cold: build
+	$(PYTHON) tools/run_dct3_divert_cold.py $(RUN_DIR) --mame $(MAME_DIR)/mame
+
+verify-6210-call-divert-cold: build
+	$(PYTHON) tools/run_dct3_divert_cold.py $(RUN_DIR) --product 6210 --port 16211 --check-corrupt-storage --mame $(MAME_DIR)/mame
+
+verify-6250-state-divert: build
+	$(PYTHON) tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario divert-state --mame $(MAME_DIR)/mame
+
+verify-6250-coherent-registration: build
+	$(VENV)/bin/python tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario coherent-registration --mame $(MAME_DIR)/mame
+
+verify-6250-slow-pin-registration: build
+	$(VENV)/bin/python tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario slow-pin-registration --mame $(MAME_DIR)/mame
+
+verify-6250-pin-retry: build
+	$(VENV)/bin/python tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario pin-retry --mame $(MAME_DIR)/mame
+
+verify-6250-pin-retry-cold: build
+	$(VENV)/bin/python tools/run_noki6250_pin_retry_cold.py $(RUN_DIR) --mame $(MAME_DIR)/mame
+
+verify-6250-puk-recovery: build
+	$(VENV)/bin/python tools/run_noki6250_pin_retry_cold.py $(RUN_DIR) --puk-recovery --mame $(MAME_DIR)/mame
+
+verify-6250-wrong-puk-recovery: build
+	$(VENV)/bin/python tools/run_noki6250_pin_retry_cold.py $(RUN_DIR) --puk-recovery --wrong-puk-first --mame $(MAME_DIR)/mame
+
+verify-6250-permanent-puk-loss: build
+	$(VENV)/bin/python tools/run_noki6250_pin_retry_cold.py $(RUN_DIR) --puk-recovery --exhaust-puk --mame $(MAME_DIR)/mame
+
+verify-6250-pin2-change: build
+	$(VENV)/bin/python tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario pin2-change --mame $(MAME_DIR)/mame
+
+verify-6250-pin2-change-cold: build
+	$(VENV)/bin/python tools/run_noki6250_pin2_cold.py $(RUN_DIR) --mame $(MAME_DIR)/mame
+
+verify-6250-pin2-retry-cold: build
+	$(VENV)/bin/python tools/run_noki6250_pin2_cold.py $(RUN_DIR) --reject-first --mame $(MAME_DIR)/mame
+
+verify-6250-pin2-exhaustion: build
+	$(VENV)/bin/python tools/run_noki6250_pin2_cold.py $(RUN_DIR) --exhaust-pin2 --mame $(MAME_DIR)/mame
+
+verify-6250-puk2-recovery: build
+	$(VENV)/bin/python tools/run_noki6250_pin2_cold.py $(RUN_DIR) --exhaust-pin2 --recover-puk2 --mame $(MAME_DIR)/mame
+
+verify-6250-wrong-puk2-recovery: build
+	$(VENV)/bin/python tools/run_noki6250_pin2_cold.py $(RUN_DIR) --exhaust-pin2 --recover-puk2 --wrong-puk2-first --mame $(MAME_DIR)/mame
+
+verify-6250-puk2-permanent: build
+	$(VENV)/bin/python tools/run_noki6250_pin2_cold.py $(RUN_DIR) --exhaust-pin2 --puk2-rejections 10 --permanent-recheck --mame $(MAME_DIR)/mame
+
+verify-6250-pin-request: build
+	$(VENV)/bin/python tools/run_noki6250_pin_request.py $(RUN_DIR) --mame $(MAME_DIR)/mame
+
+verify-6250-pin-change-cold: build
+	$(VENV)/bin/python tools/run_noki6250_pin_change.py $(RUN_DIR) --mame $(MAME_DIR)/mame
+
+verify-6250-fdn-cycle: build
+	$(VENV)/bin/python tools/run_noki6250_fdn.py $(RUN_DIR) --mame $(MAME_DIR)/mame
+
+verify-6250-fdn-record-cold: build
+	$(VENV)/bin/python tools/run_noki6250_fdn.py $(RUN_DIR) --records --mame $(MAME_DIR)/mame
+
+verify-6250-fdn-record-lifecycle: build
+	$(VENV)/bin/python tools/run_noki6250_fdn.py $(RUN_DIR) --record-lifecycle --mame $(MAME_DIR)/mame
+
+verify-6250-fdn-rejections: build
+	$(VENV)/bin/python tools/run_noki6250_fdn.py $(RUN_DIR) --rejections --mame $(MAME_DIR)/mame
+
+verify-6250-fdn-dial-controls: build
+	$(VENV)/bin/python tools/run_noki6250_fdn.py $(RUN_DIR) --dial-controls --mame $(MAME_DIR)/mame
+
+verify-6250-pin-host-incoming-call: build
+	$(VENV)/bin/python tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario host-incoming-call --coherent-cell --pin-enabled --mame $(MAME_DIR)/mame
+
+verify-6250-pin-host-incoming-sms: build
+	$(VENV)/bin/python tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario host-incoming-sms --coherent-cell --pin-enabled --mame $(MAME_DIR)/mame
+
+verify-6250-pin-host-outgoing-call: build
+	$(VENV)/bin/python tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario host-outgoing-call --coherent-cell --pin-enabled --mame $(MAME_DIR)/mame
+
+verify-6250-pin-host-outgoing-sms: build
+	$(VENV)/bin/python tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario host-outgoing-sms --coherent-cell --pin-enabled --mame $(MAME_DIR)/mame
+
+verify-6250-pin-phonebook: build
+	$(VENV)/bin/python tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario phonebook --coherent-cell --pin-enabled --mame $(MAME_DIR)/mame
+
+verify-6250-pin-host-rejected-sms: build
+	$(VENV)/bin/python tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario host-rejected-sms --coherent-cell --pin-enabled --mame $(MAME_DIR)/mame
+
+verify-6250-pin-host-silent-sms: build
+	$(VENV)/bin/python tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario host-silent-sms --coherent-cell --pin-enabled --mame $(MAME_DIR)/mame
+
+verify-6250-coherent-host-incoming-call: build
+	$(VENV)/bin/python tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario host-incoming-call --coherent-cell --mame $(MAME_DIR)/mame
+
+verify-6250-coherent-host-outgoing-call: build
+	$(VENV)/bin/python tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario host-outgoing-call --coherent-cell --mame $(MAME_DIR)/mame
+
+verify-6250-coherent-host-incoming-sms: build
+	$(VENV)/bin/python tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario host-incoming-sms --coherent-cell --mame $(MAME_DIR)/mame
+
+verify-6250-coherent-host-outgoing-sms: build
+	$(VENV)/bin/python tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario host-outgoing-sms --coherent-cell --mame $(MAME_DIR)/mame
+
+verify-6250-a51-host-incoming-sms-signaling: build
+	$(VENV)/bin/python tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario host-incoming-sms --coherent-cell --a5-1 --mame $(MAME_DIR)/mame
+
+verify-6250-a51-host-outgoing-sms-signaling: build
+	$(VENV)/bin/python tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario host-outgoing-sms --coherent-cell --a5-1 --mame $(MAME_DIR)/mame
+
+verify-6250-a51-host-incoming-call-signaling: build
+	$(VENV)/bin/python tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario host-incoming-call --coherent-cell --a5-1 --mame $(MAME_DIR)/mame
+
+verify-6250-a51-host-outgoing-call-signaling: build
+	$(VENV)/bin/python tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario host-outgoing-call --coherent-cell --a5-1 --mame $(MAME_DIR)/mame
+
+verify-6250-coherent-host-rejected-sms: build
+	$(VENV)/bin/python tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario host-rejected-sms --coherent-cell --mame $(MAME_DIR)/mame
+
+verify-6250-coherent-host-silent-sms: build
+	$(VENV)/bin/python tools/run_noki6250_acceptance.py $(RUN_DIR) --scenario host-silent-sms --coherent-cell --mame $(MAME_DIR)/mame
+
+verify-8890-code-change: build
+	$(VENV)/bin/python tools/run_noki8890_code_change.py $(RUN_DIR) --mame $(MAME_DIR)/mame
+
+verify-8890-alarm-wake-security: build
+	$(VENV)/bin/python tools/run_noki8890_alarm_wake.py $(RUN_DIR) --mame $(MAME_DIR)/mame
+
+verify-8890-alarm-wake-restore: build
+	$(VENV)/bin/python tools/run_noki8890_alarm_wake.py $(RUN_DIR) --restore-off --mame $(MAME_DIR)/mame
+
+verify-8890-alarm: build
+	$(VENV)/bin/python tools/run_noki8890_alarm.py $(RUN_DIR) --mame $(MAME_DIR)/mame
+
+verify-8890-alarm-snooze: build
+	$(VENV)/bin/python tools/run_noki8890_alarm.py $(RUN_DIR) --snooze --mame $(MAME_DIR)/mame
+
+verify-6210-alarm: build
+	$(VENV)/bin/python tools/run_noki6210_alarm.py $(RUN_DIR) --mame $(MAME_DIR)/mame
+
+verify-6210-alarm-off-no: build
+	$(VENV)/bin/python tools/run_noki6210_alarm.py $(RUN_DIR) --power-off no --mame $(MAME_DIR)/mame
+
+verify-6210-alarm-off-restore: build
+	$(VENV)/bin/python tools/run_noki6210_alarm.py $(RUN_DIR) --restore-off --mame $(MAME_DIR)/mame
+
+verify-6210-alarm-off-restore-yes: build
+	$(VENV)/bin/python tools/run_noki6210_alarm.py $(RUN_DIR) --restore-off yes --mame $(MAME_DIR)/mame
+
+verify-6210-alarm-off-yes: build
+	$(VENV)/bin/python tools/run_noki6210_alarm.py $(RUN_DIR) --power-off yes --mame $(MAME_DIR)/mame
+
+verify-6210-alarm-cold: build
+	$(VENV)/bin/python tools/run_noki6210_alarm.py $(RUN_DIR) --cold --mame $(MAME_DIR)/mame
+
+verify-6210-alarm-snooze: build
+	$(VENV)/bin/python tools/run_noki6210_alarm.py $(RUN_DIR) --snooze --mame $(MAME_DIR)/mame
+
+verify-6210-alarm-off-snooze-no: build
+	$(VENV)/bin/python tools/run_noki6210_alarm.py $(RUN_DIR) --power-off-snooze --mame $(MAME_DIR)/mame
+
+verify-6210-alarm-off-snooze-yes: build
+	$(VENV)/bin/python tools/run_noki6210_alarm.py $(RUN_DIR) --power-off-snooze yes --mame $(MAME_DIR)/mame
+
+verify-6210-alarm-snooze-countdown-restore: build
+	$(VENV)/bin/python tools/run_noki6210_alarm.py $(RUN_DIR) --restore-snooze --mame $(MAME_DIR)/mame
+
+verify-6250-calendar-midnight: build
+	$(VENV)/bin/python tools/run_noki6250_calendar.py $(RUN_DIR) --midnight --mame $(MAME_DIR)/mame
+
+verify-6210-calendar-cold: build
+	$(VENV)/bin/python tools/run_noki6210_calendar.py $(RUN_DIR) --mame $(MAME_DIR)/mame
+
+verify-6210-calendar-midnight: build
+	$(VENV)/bin/python tools/run_noki6210_calendar.py $(RUN_DIR) --midnight --mame $(MAME_DIR)/mame
+
+verify-6210-calendar-leap-day: build
+	$(VENV)/bin/python tools/run_noki6210_calendar.py $(RUN_DIR) --boundary leap-day --mame $(MAME_DIR)/mame
+
+verify-6210-calendar-nonleap: build
+	$(VENV)/bin/python tools/run_noki6210_calendar.py $(RUN_DIR) --boundary non-leap-february --mame $(MAME_DIR)/mame
+
+verify-6210-calendar-year-end: build
+	$(VENV)/bin/python tools/run_noki6210_calendar.py $(RUN_DIR) --boundary year-end --mame $(MAME_DIR)/mame
+
+verify-6210-sip-connected-outgoing-restore: build
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(PYTHON) tools/run_noki6210_sip_cancel.py $(RUN_DIR) --restore-outgoing-connected-signaling --pjsua $(SIP_PJSUA_BIN) --mame $(MAME_DIR)/mame
+
+verify-radio-outgoing-call-sip-unavailable:
+	@$(MAKE) --no-print-directory verify-radio-outgoing-call-sip RUN_DIR=$(RUN_DIR) JOBS=$(JOBS) SIP_HANDSET_RUNNER_ARGS='--sip-response 480'
+
+verify-6250-sip-connected-signaling: build
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(PYTHON) tools/run_noki6250_sip_cancel.py $(RUN_DIR) --outgoing-connected-signaling --pjsua $(SIP_PJSUA_BIN) --mame $(MAME_DIR)/mame
+
+verify-6250-sip-incoming-connected-signaling: build
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(PYTHON) tools/run_noki6250_sip_cancel.py $(RUN_DIR) --incoming-connected-signaling --pjsua $(SIP_PJSUA_BIN) --mame $(MAME_DIR)/mame
+
+verify-6250-sip-connected-outgoing-restore: build
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(PYTHON) tools/run_noki6250_sip_cancel.py $(RUN_DIR) --restore-outgoing-connected-signaling --pjsua $(SIP_PJSUA_BIN) --mame $(MAME_DIR)/mame
+
+verify-6250-sip-connected-incoming-restore: build
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(PYTHON) tools/run_noki6250_sip_cancel.py $(RUN_DIR) --restore-incoming-connected-signaling --pjsua $(SIP_PJSUA_BIN) --mame $(MAME_DIR)/mame
+
+verify-8890-sip-outgoing-media: build
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(PYTHON) tools/run_noki8890_sip_cancel.py $(RUN_DIR) --outgoing-media --pjsua $(SIP_PJSUA_BIN) --mame $(MAME_DIR)/mame
+
+verify-8890-sip-incoming-media: build
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(PYTHON) tools/run_noki8890_sip_cancel.py $(RUN_DIR) --incoming-media --pjsua $(SIP_PJSUA_BIN) --mame $(MAME_DIR)/mame
+
+verify-8890-sip-connected-outgoing-restore: build
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(PYTHON) tools/run_noki8890_sip_cancel.py $(RUN_DIR) --restore-outgoing-connected-media --pjsua $(SIP_PJSUA_BIN) --mame $(MAME_DIR)/mame
+
+verify-8890-sip-connected-incoming-restore: build
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(PYTHON) tools/run_noki8890_sip_cancel.py $(RUN_DIR) --restore-incoming-connected-media --pjsua $(SIP_PJSUA_BIN) --mame $(MAME_DIR)/mame
+
+verify-6210-sip-connected-incoming-restore: build
+	env PYTHONPATH='$(SIP_PYTHON_PATH)' $(PYTHON) tools/run_noki6210_sip_cancel.py $(RUN_DIR) --restore-incoming-connected-signaling --pjsua $(SIP_PJSUA_BIN) --mame $(MAME_DIR)/mame
+
+verify-mad2-wake-gates: build
+	@$(MAKE) --no-print-directory run-prebuilt-captured RUN_DIR=$(RUN_DIR)_wake_keypad SECONDS=1 RUN_VERBOSE=1 RUN_ENV='NOKIA_DCT3_MAD2_SLEEP_FIXTURE_AT=0.2 NOKIA_DCT3_MAD2_SLEEP_FIXTURE_SOURCE=keypad-gated'
+	$(PYTHON) tools/mad2_sleep_trace_check.py $(RUN_DIR)_wake_keypad/error.log --source keypad-gated
+	@$(MAKE) --no-print-directory run-prebuilt-captured RUN_DIR=$(RUN_DIR)_wake_masked SECONDS=1 RUN_VERBOSE=1 RUN_ENV='NOKIA_DCT3_MAD2_SLEEP_FIXTURE_AT=0.2 NOKIA_DCT3_MAD2_SLEEP_FIXTURE_SOURCE=keypad-masked-gated'
+	$(PYTHON) tools/mad2_sleep_trace_check.py $(RUN_DIR)_wake_masked/error.log --source keypad-masked-gated
+	@$(MAKE) --no-print-directory run-prebuilt-captured RUN_DIR=$(RUN_DIR)_wake_fiq8 SECONDS=1 RUN_VERBOSE=1 RUN_ENV='NOKIA_DCT3_MAD2_SLEEP_FIXTURE_AT=0.2005 NOKIA_DCT3_MAD2_SLEEP_FIXTURE_SOURCE=fiq8-gated'
+	$(PYTHON) tools/mad2_sleep_trace_check.py $(RUN_DIR)_wake_fiq8/error.log --source fiq8-gated

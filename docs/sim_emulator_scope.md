@@ -22,7 +22,7 @@ The device may provide behavior owned by a physical card:
 - activation and ATR;
 - T=0 procedure bytes and status words;
 - GSM 11.11 SELECT, STATUS, GET RESPONSE, READ BINARY/RECORD, CHV and
-  cyclic-record INCREASE behavior;
+  SEEK, UPDATE BINARY/RECORD and cyclic-record INCREASE behavior;
 - persistent current DF/EF selection and coherent file metadata/content;
 - card-side serial response timing and protocol state.
 
@@ -156,32 +156,26 @@ card NVRAM. The CPHS AoC fixture advertises the service, but no handset has yet
 organically issued INCREASE, so this is standards-conformance coverage rather
 than a promoted product-runtime claim.
 
-The first opt-in Phase-2+ profile admits one proactive DISPLAY TEXT transaction.
-FETCH without a pending command returns `9300`, and a malformed or
-out-of-sequence TERMINAL RESPONSE returns `6a80`.
+SEEK has isolated serial conformance and save-state coverage, but no retained
+handset trace issues it. Its search directions, pointer updates and access
+conditions are authoritative in [sim_subsystem.md](sim_subsystem.md).
 
-The second opt-in profile sequences DISPLAY TEXT into GET INKEY. The firmware
-renders the card-provided prompt, reads a digit through the physical keypad and
-returns it in the TERMINAL RESPONSE Text String TLV. Each command is announced
-by the preceding APDU's `91xx` status; no task message or MMI state is injected.
-
-The third profile appends GET INPUT with a one-to-two-digit response contract.
-The handset organically returns the entered `42`, proving that the same card
-state machine supports variable-length input and more than two consecutive
-proactive commands.
-
-The fourth profile installs a two-item SET UP MENU. The firmware exposes it as
-a normal top-level menu and sends a GSM 11.14 Menu Selection ENVELOPE when the
-user chooses an item. The card accepts only the two installed identifiers in
-the expected BER-TLV shape and rejects malformed or out-of-sequence envelopes
-with `6a80`.
+The opt-in Phase-2+ application has organic handset coverage for DISPLAY TEXT,
+GET INKEY, GET INPUT, SET UP MENU/menu-selection ENVELOPE, SELECT ITEM,
+SEND SHORT MESSAGE, SET UP CALL, REFRESH and polling control. PLAY TONE has
+playback and physical cancellation coverage, not unattended successful
+completion. SET UP EVENT LIST and SEND DTMF have explicit negative capability
+results on 3210 v6.00; they are not missing responses to synthesize.
+The command-specific contracts and acceptance gates live in
+[sim_subsystem.md](sim_subsystem.md). Toolkit call/SMS signalling does not
+establish native DSP speech. All commands remain card-originated APDU/TLV
+transactions with firmware-owned UI and messaging.
 
 Extend it when an organic firmware request or focused protocol conformance test
 establishes a concrete requirement. Later work includes:
 
-- SEEK, INVALIDATE, REHABILITATE and additional access-condition/error
-  semantics. GSM 11.11 defines them, but no retained product trace issues the
-  corresponding APDUs; the organic REFRESH lifecycle also does not do so;
+- validity policies beyond the implemented CHV2-controlled ADN and
+  ADM-denied FDN paths; organic REFRESH does not invalidate EFs;
 - supplying coherent FPLMN and optional EFs beyond the current matched
   IMSI/SST/PLMN-selector/SPN profile;
 - establishing the physical sources and timing of timeout and parity/error
@@ -190,10 +184,72 @@ establishes a concrete requirement. Later work includes:
   Physical removal and reinsertion
   now use the recovered SIMI status-bit-3/FIQ7 socket-detect contract and are
   covered across both 3210 ROMs, including Phase-2+ and save/load variants;
-- extending the validated Phase-2+ lifecycle beyond DISPLAY TEXT, GET INKEY,
-  GET INPUT and SET UP MENU/menu-selection ENVELOPE;
+- establishing unattended PLAY TONE completion and any further Phase-2+
+  commands only where terminal capabilities and an organic request or focused
+  conformance requirement support them;
 - deriving model-specific filesystem profiles without phone-ROM special cases
   in the transport.
+
+### Fixed dialling implementation boundary
+
+FDN is an opt-in partial card capability with NSM-1 activation/cold-state coverage.
+[GSM 11.11 v5.3.0](https://www.etsi.org/deliver/etsi_gts/11/1111/05.03.00_60/gsmts_1111v050300p.pdf)
+sections8.14-8.15,10.3.1-10.3.2 and11.5.1 establish the contract:
+EF_FDN6f3b is linear-fixed, uses ADN-style records, requires CHV1 for
+reading and CHV2 for updating. Its own invalidation/rehabilitation is ADM.
+FDN enabling instead invalidates EF_ADN after CHV2 verification; disabling
+rehabilitates EF_ADN. Capability discovery combines service3 in EF_SST with
+ADN activation/validity. An invalid EF normally refuses application access;
+its file status may explicitly permit reads/updates while invalidated.
+
+File descriptors now declare explicit ALWAYS/CHV1/CHV2/ADM/NEVER access
+conditions, shared by FCP and execution. Existing policies are retained;
+read-only files now correctly advertise UPDATE=NEVER rather than ALWAYS.
+The serial conformance suite and a fresh NSM-1 physical PIN/phone-code
+Messages boot pass. CHV2 is selected by EF_FDN and exercised in the
+card-level protected-write tests.
+An append-only3898-byte card image now adds a versioned eight-byte header
+and ten32-byte FDN records. The legacy3570-byte output is retained for base
+cards. Staged loading validates the whole extension before applying it;
+26 executable cold-storage cases cover valid/legacy images and malformed
+lengths, version, flags and reserved bytes. FDN updates require CHV2; ADN
+validity and records are saved independently. Strict invalidated ADN access
+returns9810; the explicit readable-invalid profile sets the corresponding
+FCP bit and allows reads/updates subject to the ordinary access conditions.
+Card-only APDU tests pass both policies, including CHV2-only writes, reset
+revocation, validity save/restore, parameter errors, repeated-state errors,
+ADM denial and unchanged ADN contents. These are conformance results, not
+handset FDN enforcement acceptance. Enabled FDN invalidates IMSI/LOCI once
+per session, no later
+than selecting either file (GSM11.11 10.2.7). CHV1 permits rehabilitation
+of each; ADM invalidation remains unavailable. Re-selection after
+rehabilitation does not re-invalidate within the same session. Activation
+starts a fresh session. These validity flags are saved in machine states,
+not card NVRAM. The NSM-1 now organically shows On/Off across cold boots.
+
+Implementation status and remaining acceptance:
+
+1. CHV2 metadata, extended persistence and selected-ADN validity commands
+   have card-level executable coverage; legacy3570-byte output is retained.
+2. Cold NSM-1 interpretation and physical deactivation are accepted through
+   the card's identity-session handshake, not a handset-state fixture.
+3. NSM-1 physical FDN save/cold-read, rejected PIN2 write and rejected
+   activation with cold correct-PIN2 recovery are accepted with complete-card
+   and exact-frame checks. Other handset coverage remains open.
+   Physical in-place12345->12346 edit
+   and independent cold read also pass, changing only the final BCD digit.
+   Physical
+   PIN2-protected erase/cancel and cold-empty search also pass on NSM-1,
+   preserving the complete card outside the selected FDN record.
+   NSM-1 local dial enforcement also passes a listed/unlisted/Off physical
+   comparison: listed12346 reaches Calling, unlisted54321 is denied, and
+   physical Off permits54321 to reach Calling with an unchanged card.
+   This is not native network connection or speech acceptance.
+
+`tools/run_sim_fdn.py RUN --base-card BASE --mame mame/mame` runs both
+development-only `simfdnt` and `simfdnrt` after `make build`. BASE must be
+a complete blank-ADN/default-credential lab card; the runner explicitly
+enables PIN request in its own fixtures. No handset firmware executes.
 
 The implementation tracks current DF separately from selected EF and declares
 file parent, size, structure and record length as profile metadata. Subscriber

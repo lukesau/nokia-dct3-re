@@ -43,8 +43,76 @@ constexpr std::array<u8, 9> CCCH_BLOCK_OFFSETS = {
 
 nokia_gsm_network_device::nokia_gsm_network_device(
 		const machine_config &mconfig, const char *tag, device_t *owner, u32 clock) :
-	device_t(mconfig, NOKIA_GSM_NETWORK, tag, owner, clock)
+	device_t(mconfig, NOKIA_GSM_NETWORK, tag, owner, clock),
+	device_nvram_interface(mconfig, *this)
 {
+}
+
+gsm::subscription_storage::identity nokia_gsm_network_device::subscription_identity() const
+{
+	gsm::subscription_storage::identity result{};
+	std::copy(m_subscriber.imsi.begin(), m_subscriber.imsi.end(), result.begin());
+	std::copy(m_subscriber.home_location.plmn.begin(), m_subscriber.home_location.plmn.end(),
+			result.begin() + m_subscriber.imsi.size());
+	return result;
+}
+
+void nokia_gsm_network_device::nvram_default()
+{
+	m_forwarding_registered.fill(false);
+	m_forwarding_active.fill(false);
+	m_forwarding_number_length.fill(0);
+	for (auto &number : m_forwarding_number)
+		number.fill(0);
+	m_forwarding_basic_service.fill(0);
+	m_forwarding_basic_service_code.fill(0);
+	m_forwarding_no_reply_time.fill(0);
+}
+
+bool nokia_gsm_network_device::nvram_read(util::read_stream &file)
+{
+	gsm::subscription_storage::image bytes{};
+	auto const [error, actual] = util::read(file, bytes.data(), bytes.size());
+	if (error || actual != bytes.size())
+		return false;
+	u8 trailing;
+	auto const [tail_error, tail_size] = util::read(file, &trailing, 1);
+	if (tail_error || tail_size)
+		return false;
+	gsm::subscription_storage::records records{};
+	if (!gsm::subscription_storage::decode(bytes, subscription_identity(), records))
+		return false;
+	for (unsigned i = 0; i < forwarding_condition_count; ++i)
+	{
+		m_forwarding_registered[i] = records[i].registered;
+		m_forwarding_active[i] = records[i].active;
+		m_forwarding_number_length[i] = records[i].length;
+		m_forwarding_number[i] = records[i].number;
+		m_forwarding_basic_service[i] = records[i].service;
+		m_forwarding_basic_service_code[i] = records[i].service_code;
+		m_forwarding_no_reply_time[i] = records[i].no_reply_time;
+	}
+	return true;
+}
+
+bool nokia_gsm_network_device::nvram_write(util::write_stream &file)
+{
+	static_assert(forwarding_condition_count == gsm::subscription_storage::condition_count);
+	static_assert(gsm::ss::maximum_forwarded_number_length == gsm::subscription_storage::number_capacity);
+	gsm::subscription_storage::records records{};
+	for (unsigned i = 0; i < forwarding_condition_count; ++i)
+	{
+		records[i].registered = m_forwarding_registered[i];
+		records[i].active = m_forwarding_active[i];
+		records[i].length = u8(m_forwarding_number_length[i]);
+		records[i].number = m_forwarding_number[i];
+		records[i].service = m_forwarding_basic_service[i];
+		records[i].service_code = m_forwarding_basic_service_code[i];
+		records[i].no_reply_time = m_forwarding_no_reply_time[i];
+	}
+	const auto bytes = gsm::subscription_storage::encode(subscription_identity(), records);
+	auto const [error, actual] = util::write(file, bytes.data(), bytes.size());
+	return !error && actual == bytes.size();
 }
 
 void nokia_gsm_network_device::set_subscriber_profile(
@@ -84,13 +152,21 @@ void nokia_gsm_network_device::device_start()
 	save_item(NAME(m_host_sms_user_data_octets));
 	save_item(NAME(m_host_sms_user_data_length));
 	save_item(NAME(m_host_ussd_pending));
+	save_item(NAME(m_host_ussd_request));
+	save_item(NAME(m_host_ussd_reply.valid));
+	save_item(NAME(m_host_ussd_reply.has_parameters));
+	save_item(NAME(m_host_ussd_reply.transaction));
+	save_item(NAME(m_host_ussd_reply.invoke_id));
+	save_item(NAME(m_host_ussd_reply.data_coding_scheme));
+	save_item(NAME(m_host_ussd_reply.ussd_length));
+	save_item(NAME(m_host_ussd_reply.ussd));
 	save_item(NAME(m_host_ussd_data_coding_scheme));
 	save_item(NAME(m_host_ussd_data));
 	save_item(NAME(m_host_ussd_data_length));
 }
 
 bool nokia_gsm_network_device::set_host_incoming_ussd(
-		u8 data_coding_scheme, const u8 *data, unsigned length)
+		u8 data_coding_scheme, const u8 *data, unsigned length, bool request)
 {
 	if (!data || !length || length > m_host_ussd_data.size() ||
 			m_host_ussd_pending)
@@ -100,6 +176,8 @@ bool nokia_gsm_network_device::set_host_incoming_ussd(
 	m_host_ussd_data_coding_scheme = data_coding_scheme;
 	m_host_ussd_data_length = u8(length);
 	m_host_ussd_pending = true;
+	m_host_ussd_request = request;
+	m_host_ussd_reply = {};
 	return true;
 }
 
@@ -107,6 +185,10 @@ gsm::ss::message nokia_gsm_network_device::host_incoming_ussd() const
 {
 	if (!m_host_ussd_pending)
 		return {};
+	if (m_host_ussd_request)
+		return gsm::ss::network_unstructured_uss_request(
+				0x0b, 1, m_host_ussd_data_coding_scheme,
+				m_host_ussd_data.data(), m_host_ussd_data_length);
 	return gsm::ss::network_unstructured_uss_notify(
 			0x0b, 1, m_host_ussd_data_coding_scheme,
 			m_host_ussd_data.data(), m_host_ussd_data_length);
@@ -775,6 +857,12 @@ std::array<u8, 17> nokia_gsm_network_device::location_update_accept(
 	if (length >= 18 && location_update_request[9] == 8)
 		std::copy_n(location_update_request + 10, 8, message.begin() + 9);
 	return message;
+}
+
+std::array<u8, 3> nokia_gsm_network_device::location_update_reject() const
+{
+	// GSM 04.08 9.2.14: MM header and mandatory cause 11 (PLMN not allowed).
+	return { 0x05, 0x04, 0x0b };
 }
 
 std::array<u8, 19> nokia_gsm_network_device::authentication_request() const

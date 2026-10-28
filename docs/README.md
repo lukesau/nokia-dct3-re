@@ -34,19 +34,32 @@ distinction.
 | `subscriber_profile.md` | Shared immutable SIM/network identity and authentication contract. |
 | `gsm_fr_codec.md` | Generic GSM-FR utility, bundled dependency, predictor snapshots and voice regression gates. |
 | `ccont_subsystem.md` | Current CCONT contract, conclusions and fidelity backlog. |
+| `flash_storage.md` | Native flash ownership, ST protection/CFI/OTP/supply contracts, acceptance and electrical limits. |
 | `gensio_controller.md` | Extracted GENSIO endpoint, serial and SELECT-latch contract. |
 | `mbus_controller.md` | Extracted MBUS controller, firmware data path, and attachment boundary. |
 | `cross_rom_confidence.md` | Cross-product and cross-ROM boot, idle, and input evidence. |
 | `model_coverage.md` | Evidence-gated per-product compatibility and fidelity matrix. |
+| `c54x_execution_contracts.md` | Processor-owned instruction/composition contracts and the current complete C54x regression checkpoint; separate from handset and loader acceptance. |
+| `5110i_bringup.md` | Own NSE-2 inputs, NV integrity, native ROM4 compatibility, graphical/input/security, cold SIM contacts, offline SMS storage and receive-supervision boundary. |
 | `6110_bringup.md` | Authoritative NSE-3 hardware/firmware map and blocked resumption boundary. |
+| `6130_bringup.md` | Own NSK-3 inputs, physical Net monitor exit and cold idle, bounded SIM storage/security, native radio/liveness boundaries. |
+| `5130_bringup.md` | Own NSK-1 startup/storage/input contracts; native compatibility boot, physical security, persistent contacts and offline SMS save/cold read. |
+| `6150_bringup.md` | NSM-1 compatibility boot/provisioning, physical UI/SIM/storage contracts and fitted DSP/radio prerequisites. |
+| `8810_bringup.md` | Own NSE-6 v6.02 graphical native compatibility fixture, upload geometry and unresolved native serial-control completion. |
 | `5210_bringup.md` | Validated NSM-5 v5.40 product contracts and remaining scope. |
-| `8210_bringup.md` | NSM-3 stock inputs, staged-verifier execution and unresolved final DSP publication contract. |
+| `5510_bringup.md` | NPM-5 handset boundary and separate MU4 staged recording/storage/playback contracts; atomic negative controls are explicitly separate. |
+| `aac_validation.md` | Independent native music-decoder procedure, original reference fixtures and unresolved measurement contract. |
+| `8210_bringup.md` | NSM-3 normal/native boundary, acquired base-record research-HLE phone services, own PCM/audio and restoration acceptance. |
+| `8290_bringup.md` | Own NSB-7 uploads and explicit research-HLE UI, SIM security/storage/Toolkit, laboratory registration, host call/SMS signaling and restoration; native DSP/speech remain unproved. |
 | `8xxx_bringup.md` | Acquired 8250/8850/8890 GENSIO contracts and bounded software-only frontiers. |
-| `6210_bringup.md` | NPE-3 reset/GENSIO contracts, staged verifier and final DSP upload frontier. |
+| `6210_bringup.md` | NPE-3 normal/native boundary, own-PMM research-HLE phone services, accessory audit and isolated restoration acceptance. |
 | `6250_bringup.md` | Product-local staged DSP boundary and research boot, input, SIM, phonebook, registration, call-signaling and SMS acceptance. |
 | `7110_bringup.md` | NSE-5 upload, SED1565/keypad/roller contracts, fail-closed product boundary and explicit ROM4 compatibility instrument. |
-| `2100_bringup.md` | Bounded NAM-2 v5.84 portability frontier and display resumption contract. |
+| `2100_bringup.md` | Own v5.21 C3 security/storage checkpoint, unresolved idle/interrupt boundary and separate v5.84 portability fixture. |
 | `3610_bringup.md` | NAM-1 v5.11 executable profile, GENSIO/CCONT evidence and current bring-up boundary. |
+| `3350_bringup.md` | NHM-9 v5.30 own MCU upload/first-wait boundary and partial hardware map; no phone-boot acceptance. |
+| `5190_bringup.md` | NSB-1 v6.71 own MCU/storage, native compatibility menus, physical diagnostic exit/cold idle, SIM security, contacts, offline SMS and Toolkit; fitted mask/provisioning remain unproved. |
+| `6190_bringup.md` | NSB-3 own provisioning/ROM4 compatibility, physical menus, cold SIM phonebook/SMS/security and permanent PUK-loss controls; native radio, late reset and display-settlement boundaries remain open. |
 | `6110_bootstrap_capture.md` | Physical NSE-3 DSP-bootstrap capture format and acceptance contract. |
 | `structural_regression.md` | Acceptance profiles, semantic predicates, and frame oracles. |
 | `evidence_regime.md` | Normalized topology, hardware, predicate and falsification evidence rules. |

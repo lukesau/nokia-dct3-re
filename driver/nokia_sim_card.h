@@ -68,6 +68,7 @@ protected:
 private:
 	TIMER_CALLBACK_MEMBER(toolkit_command_ready);
 	enum class file_structure : u8 { directory, transparent, linear_fixed, cyclic };
+	enum class access_condition : u8 { always = 0, chv1 = 1, chv2 = 2, adm = 4, never = 15 };
 	struct file_descriptor
 	{
 		u16 fid;
@@ -75,11 +76,20 @@ private:
 		u16 size;
 		u8 record_length;
 		file_structure structure;
-		bool mutable_data;
+		access_condition update_access;
+		access_condition read_access = access_condition::always;
+		access_condition read_condition() const
+		{
+			return read_access;
+		}
+		access_condition update_condition() const
+		{
+			return update_access;
+		}
 	};
 
 	// The structure a command requires of the EF it is addressed to. Named
-	// rather than tested inline so the five commands that begin with this
+	// rather than tested inline so the commands that begin with this
 	// lookup cannot disagree about the status a mismatch reports.
 	enum class access_shape : u8 { transparent, record, cyclic };
 
@@ -87,7 +97,11 @@ private:
 	// caller only has to return. Keep them in the order the original commands
 	// tested in: which status a malformed command receives depends on it.
 	const file_descriptor *selected_file_for(access_shape shape);
+	// GSM 09.91 5.1.1 option 1: one backing application, while
+	// m_selected_df retains the directory identifier presented to the ME.
+	static u16 canonical_df(u16 fid) { return fid == 0x7f21 ? 0x7f20 : fid; }
 	bool write_permitted(const file_descriptor &file);
+	bool read_permitted(const file_descriptor &file);
 	u8 *writable_body(const file_descriptor &file);
 	bool resolve_record(const file_descriptor &file, unsigned &record);
 	bool chv_ready(unsigned index);
@@ -96,6 +110,7 @@ private:
 	// site. Reset additionally clears the command header, which activation
 	// deliberately leaves alone.
 	void reset_session_state();
+	bool nvram_read_record(util::read_stream &file);
 
 	void emit_response(const u8 *data, unsigned length);
 	void finish_header();
@@ -108,7 +123,10 @@ private:
 	void queue_read_record(unsigned requested);
 	void update_binary();
 	void update_record();
+	void seek_record();
 	void increase_record();
+	void change_file_validity();
+	bool file_valid(u16 fid) const;
 	void run_gsm_algorithm();
 	void accept_terminal_profile();
 	void queue_proactive_command(unsigned requested);
@@ -127,7 +145,11 @@ private:
 	u8 *mutable_file_data(u16 fid);
 	const u8 *mutable_file_data(u16 fid) const;
 	bool access_allowed(const file_descriptor &file) const;
+	bool chv1_authorized() const;
+	bool condition_satisfied(access_condition condition) const;
 	void initialize_sms_files();
+	void initialize_fdn_files();
+	void initialize_plmn_files();
 
 	static constexpr unsigned sms_record_length = 176;
 	static constexpr unsigned sms_record_count = 10;
@@ -149,6 +171,7 @@ private:
 	u8 m_tx[260] = { 0 };
 	u16 m_tx_len = 0;
 	u16 m_tx_expected = 0;
+	bool m_pts_pending = true;
 	u8 m_ins = 0;
 	u8 m_p1 = 0;
 	u8 m_p2 = 0;
@@ -168,12 +191,26 @@ private:
 	u8 m_menu_selection = 0;
 	emu_timer *m_toolkit_timer = nullptr;
 	u8 m_adn[50 * 32] = { 0 };
+	static constexpr unsigned fdn_record_count = 10;
+	u8 m_fdn[fdn_record_count * 32] = { 0 };
+	bool m_fdn_present = false;
+	bool m_adn_valid = true;
+	bool m_adn_access_when_invalid = false;
+	bool m_imsi_valid = true;
+	bool m_loci_valid = true;
+	bool m_fdn_session_invalidated = false;
+	bool m_extended_storage = false;
 	u8 m_loci[11] = { 0 };
 	u8 m_kc[9] = { 0 };
 	u8 m_bcch[16] = { 0 };
 	u8 m_sms[sms_record_count * sms_record_length] = { 0 };
 	u8 m_smsp[smsp_record_count * smsp_record_length] = { 0 };
 	u8 m_acm[3] = { 0 };
+	u8 m_acm_max[3] = { 0 };
+	u8 m_puct[5] = { 0 };
+	u8 m_preferred_plmn[24] = { 0 };
+	u8 m_forbidden_plmn[12] = { 0 };
+	u8 m_smss[2] = { 0xff, 0xff };
 	u8 m_chv[2][8] = { { 0 }, { 0 } };
 	u8 m_unblock_chv[2][8] = { { 0 }, { 0 } };
 	u8 m_chv_attempts[2] = { 3, 3 };

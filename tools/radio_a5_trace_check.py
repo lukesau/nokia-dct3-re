@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 
 
-def check(text: str) -> list[str]:
+def check(text: str, *, require_traffic: bool = True) -> list[str]:
     errors: list[str] = []
     required = {
         "A5/1 Cipher Mode Command":
@@ -31,12 +31,37 @@ def check(text: str) -> list[str]:
             r"radio_l1: kind=xcch direction=downlink algorithm=1 "
             r"first_fn=\d+ last_fn=\d+",
     }
+    if not require_traffic:
+        del required['uplink burst ciphering']
+        del required['downlink burst ciphering']
+    matches = {}
     for label, pattern in required.items():
-        if not re.search(pattern, text):
+        matches[label] = re.search(pattern, text)
+        if not matches[label]:
             errors.append(f"missing {label}")
 
-    if re.search(r"TX (?:packet|consume) type=14 .*data=02[0-9a-f]{18,}", text):
+    if not require_traffic and all(matches.values()):
+        command, publication, complete, activation, uplink, downlink = (
+            matches[label].start() for label in (
+                'A5/1 Cipher Mode Command', 'redacted DSP key publication',
+                'organic Cipher Mode Complete', 'session activation',
+                'uplink SDCCH xCCH ciphering', 'downlink SDCCH xCCH ciphering'))
+        if not (command < publication < complete <= activation and
+                publication < uplink and activation < downlink):
+            errors.append('signaling cipher control/key/xCCH ordering differs')
+
+    if re.search(r"(?:TX (?:pending|packet|consume)|DSP consume) type=14 [^\n]*data=(?!00)[0-9a-f]{20,}", text):
         errors.append("cipher-control trace exposes Kc")
+
+    commands = list(re.finditer(
+        r'GSM service downlink [^\n]*pd=06 message=35\b', text))
+    for index, command_match in enumerate(commands):
+        end = commands[index + 1].start() if index + 1 < len(commands) else len(text)
+        exchange = text[command_match.end():end]
+        activated = re.search(r'gsm_cipher: event=activated algorithm=1', exchange)
+        information = re.search(r'GSM service downlink [^\n]*pd=05 message=32\b', exchange)
+        if information and (not activated or information.start() < activated.start()):
+            errors.append('MM Information precedes cipher completion')
 
     command = text.find("063501")
     complete = text.find("message=32")

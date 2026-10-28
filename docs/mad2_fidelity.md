@@ -42,14 +42,14 @@ Address-map coverage therefore must not be read as peripheral completeness.
 | Offsets | Current behavior | Fidelity | Required next evidence |
 | --- | --- | --- | --- |
 | `00` ASIC version | constant `0x40` | Inferred | Compare MAD2 revisions across phone service manuals/ROM checks. |
-| `01` MCU reset | bit 2 requests a deferred digital-baseband reset; power bit 0 and retained cause bits are readable | Cross-ROM partial | Both ROMs contain three bit-2 reset sites. A mapped-MMIO fixture proves the reset extent and post-reset value `0x05`; exact rail timing remains unknown. |
+| `01` MCU reset | bit 2 requests a deferred warm digital-baseband reset with SRAM retained; cold-power bit 0 clears in software-reset status `04` | Cross-ROM partial | Matching 3210/6210 readers distinguish cold bit 0 from software bit 2. The 6210 physical post-alarm Yes fixture proves reason retention and registered-idle restart; mapped-MMIO gates prove reset extent. Silicon encoding and exact rail timing remain unmeasured. |
 | `02` DSP reset | ordinary latch by default; an atomic product wiring contract may select a release mask and running-status readback | Product-specific partial | NHM-2 releases through bit 2 and then observes `0x53`; reset reassertion clears ready bit 4. Recover the physical clock/ready timing and validate another MAD2/DSP combination before generalizing the values. |
 | `03` watchdog | nonzero writes reload an eight-bit seconds counter; expiry resets the digital baseband and retains cause `0x03` | Focus-tested partial | The mapped-MMIO fixture proves reload, expiry and reset extent. Determine the physical tick source and exact rail timing. |
-| `04..07` timer 1 | current counter wrapping after fixed terminal count `0x7fff`; FIQ5 at the terminal; continues while ARM clock is stopped | Cross-ROM partial | Both ROMs use identical stable-read and FIQ5 race handling, and convert the unsigned terminal-minus-current interval by rounded division by 8 before comparing it with Timer 0. A 16-bit free-running model breaks organic shutdown timing. Absolute input/divider provenance remains calibrated. |
+| `04..07` timer 1 | current counter wrapping after fixed terminal count `0x7fff`; FIQ5 at the terminal; continues while ARM clock is stopped | Cross-ROM partial | Both 3210 ROMs use identical stable-read and FIQ5 race handling, and convert the unsigned terminal-minus-current interval by rounded division by 8 before comparing it with Timer 0. A 16-bit free-running model breaks organic shutdown timing. NAM-2's sleep-accounting stores target RAM, not this register window; see its product contract. Absolute input/divider provenance remains calibrated. |
 | `08..0b` FIQ/IRQ status and masks | latched bitfields | Focus-tested partial | Timer-0 FIQ4, simultaneous keypad IRQ0/CCONT IRQ2, masked-pending retention and acknowledgement have focused regressions. The overlap fixture briefly gates CPU delivery through MAD2 MMIO so two physical input callbacks compose deterministically. Other source assignments still need independent evidence. |
 | `0c` IRQ control | gates CPU lines; bit 5 projects the ninth IRQ pending state and write-only bit 6 acknowledges it | Cross-ROM partial | Both 3210 dispatchers implement the same bit-5/read and `0x40`/write contract. The ninth IRQ source and owner remain unidentified. |
 | `0d` clock control | stored gates; bit 1 is an auto-clearing ARM clock-stop request; bit 5 drives the extracted SIMI clock input | Cross-ROM partial | Both ROMs have instruction-equivalent RMW sites: boot sets bits 2--3 once, SIMI code exclusively manages bits 5--6, and the task-0/shutdown helper writes `(old | 0x02) & 0xfe`. Bit 6 is SIMI-owned but its hardware effect is not established; bit 4 has no recovered writer. |
-| `0e` external status | read-only three-bit input bank | Five-ROM mapped surface | The conservative census finds reads and zero writes in all five ROMs; the 3210 power/control state machine independently tests bits 0, 1 and 2. Exact PCB pin ownership remains unknown, so the device exposes inputs but synthesizes none. |
+| `0e` external status | read-only three-bit input bank | Five-ROM mapped surface; own NSB-3 accessory comparison | The conservative census finds reads and zero writes in all five ROMs; the 3210 power/control state machine independently tests bits 0, 1 and 2. NSB-3 additionally tests bit1 before accessory-state selection: explicit analog/status input contrasts distinguish Headset, Car and neither. Exact PCB pin ownership remains unknown; research inputs drive the existing input API without changing board defaults. See `6190_bringup.md`. |
 | `0f..13` timer 0 | live source divider/counter/compare model with FIQ line 4 (`0x10`) | Focus-tested cross-ROM semantics, calibrated input clock | Both 3210 ROMs program `0xf9`, observe the live divider reach `0xea`, schedule compare=`counter+2`, and acknowledge status bit `0x10`. The register divides source ticks by `data+1`; paired timeout arithmetic proves the resulting Timer-0 interval is compared with `round(Timer1_remaining/8)`. Which documented MAD2 clock feeds the divider remains unproven. |
 
 ## PUP, GPIO and serial blocks
@@ -67,6 +67,14 @@ Address-map coverage therefore must not be read as peripheral completeness.
 | SIMI `36..3f` | stateful SIM UART, 16-byte TX FIFO, one-character RX holding state, IIR/control registers and FIQ6 delivery | Partial hardware | ATR, PPS and validated T=0 use the organic 9,600-bit/s path; larger card replies remain private serialization state. TX control `0x04`/`0x00`, live fill and multi-chunk TX-empty progression are modeled. All IIR causes are decoded; WWT and framing/error causes have a typed inactive ingress but remain unexercised until their physical sources are recovered. |
 | UIF control pins `30..33/70..73/b0..b3/f0..f3` | extracted neutral saved-latch device; `0x31.bit1` is power-duty-cycle owned | Mapped | `0x31` has six exhaustive RMW sites and no external-input consumer; map physical pin nets before adding callbacks or side effects. |
 
+NSM-1's explicit native-compatibility composition demonstrates an observable
+cost of the calibrated Timer1 input1057Hz/terminal7fff: its250-tick PLAY TONE
+deadline is serviced at the natural FIQ5 event near93s, rather than within
+the original92s fixture. An extended no-key gate proves organic completion
+and unchanged storage, not requested-duration accuracy or an independently
+measured physical clock. See [6150 bring-up](6150_bringup.md). Reconcile the
+source/divider with the paired shutdown contracts before changing shared rates.
+
 ## Interrupt ownership
 
 MAD2 owns aggregation and CPU-line assertion. Component devices expose level
@@ -82,6 +90,18 @@ that a masked IRQ0 remains pending and is delivered immediately when its mask
 and global gate permit it. The v5.01/v6.00 keypad and CCONT firmware paths
 support those two IRQ assignments. The remaining assignments still need a
 second runtime oracle or hardware documentation.
+
+Level inputs supplied through `set_irq_line` remain pending across MAD2
+acknowledgement while the component holds its indication. Edge events supplied
+through `assert_irq` retain their write-one-clear semantics. The external
+level bitmap is reset and saved separately from pending status. NPE-3 physical
+Snooze exposes why this distinction matters: firmware may acknowledge MAD2
+before an exposed RTC minute source is cleared, and must receive that held
+source again before a later alarm can arrive. See the
+[Snooze contract](6210_bringup.md#snooze-delivery-contract).
+The overlap fixture masks IRQ0/IRQ2 across the charger field's next input frame;
+global gating alone is insufficient because running firmware can reopen it.
+This remains a mapped-MMIO controller fixture, not an organic boot condition.
 
 FIQ8 uses the ninth internal pending bit (`0x100`). Register `0x16.bit1`
 projects that pending state, bit 2 masks its CPU delivery, and writing bit 1
@@ -142,14 +162,127 @@ controller test rather than the boot trace. It also performs no MAD2-watchdog
 write in the bounded run; recovered `0x31` service sites are conditional, not a
 periodic startup requirement.
 
+### Active-peripheral digital reset
+
+`tools/mad2_active_reset.lua` seeds only mapped controller registers: a UIF
+latch, pending SIM TX/ATR delivery, an MBUS byte and GENSIO selection. It then
+requests the existing MCU warm reset. Both 3210 BIOSes clear UIF, SIM queues
+and causes, MBUS pending state and GENSIO status while preserving all sixteen
+CCONT register bytes and publishing software-reset cause `04`. UIF is inside
+MAD2; omitting its extracted device from the board's digital reset walk left
+its latches incorrectly retained. This is consistency with the established
+digital-domain model, not measured UIF silicon reset values.
+
+Run the fixture with `make run-prebuilt BIOS=600 RUN_DIR=tmp/active-reset
+SECONDS=1 RUN_EXTRA_ARGS='-autoboot_script /absolute/path/to/tools/mad2_active_reset.lua'`,
+capture console output, then require `tools/mad2_active_reset_check.py` on both
+the isolated `error.log` and console. Repeat with BIOS `501` and its own ROM.
+Lua assertion failures can leave MAME's exit status zero, so a process exit
+alone is not acceptance. The one-nanosecond observation delay is a scheduler
+boundary before firmware reconfiguration, not hardware propagation evidence.
+The separate sleep/reset gates retain timer/keypad/FIQ8 wake, sleep restore,
+CCONT/MAD2 watchdog and external-state persistence coverage. Physical rail
+sequencing, interrupted flash cells and complete peripheral sleep-clock
+ownership remain unmeasured or explicitly incomplete.
+
 The same paired-ROM census resolves the separate ARM clock-stop path. The
 helper at v6.00 `0x2b4e7a` / v5.01 `0x2b222e` clears bit 0 and, for a nonzero
 argument, pulses bit 1. Its callers are the task-0 idle-supervisor loop and the
 masked shutdown path. The device therefore stores `0x0d` without bit 1 and
-suspends the ARM only when the request arrives with no already-routed IRQ/FIQ.
-Any subsequently routed IRQ or FIQ resumes it; pending-but-masked sources do
-not. This is a clock-stop model, not a complete power-rail or oscillator-startup
+suspends the ARM only when no locally unmasked IRQ/FIQ is pending.
+A locally unmasked source resumes it independently of global CPU interrupt
+delivery; locally masked sources do not. Global control still gates the CPU
+lines and is not rewritten by wake. NAM-2 v5.21's ordinary supervisor makes
+the distinction observable: `2f868c -> 2fad22`, then `r0=1` at `2f8690`
+branches directly to the call at `2f85f6`, bypassing the adjacent `r0=0` at
+`2f85f4`. Its clock-stop helper `304c2e` runs with control `0a`, FIQ mask
+`08` and IRQ mask `a2`. The source masks are active-low: IRQ0 is eligible,
+not masked. Qualifying wake only through the globally gated CPU line
+incorrectly prevented any local source from restarting that clock.
+This is a firmware-derived clock-stop model, not a complete power-rail or oscillator-startup
 model.
+
+`make verify-mad2-wake-gates` separately covers an eligible physical keypad
+edge, a masked edge retained until local unmask, and extended FIQ8, all with
+global control `0a`. The controller must wake without asserting a globally
+disabled CPU interrupt; the fixtures do not enable the global gate to make
+the wake happen. These are MMIO conformance tests, not proof of measured
+silicon timing. In NAM-2, restarting the clock alone still leaves global
+delivery disabled and does not make its security editor consume keys.
+The firmware's subsequent interrupt-restoration contract remains open;
+the device must not silently write control `05` as a boot workaround.
+
+### Archived interrupt reference
+
+Wumpus and the Project Blacksphere contributors' original
+[331x interrupt notes](https://web.archive.org/web/20160119231543/http://nokix.sourceforge.net/help/blacksphere/sub_100hardware/sub_331x/sub_interrupts.htm)
+identify IRQ3 as wake from sleep. The companion
+[primary I/O table](https://web.archive.org/web/20160119231739/http://nokix.sourceforge.net/help/blacksphere/sub_100hardware/sub_331x/sub_iomap/sub_00.htm)
+names control-register bits `01/02` FIQ enable/disable and `04/08` IRQ
+enable/disable. These are firsthand reverse-engineering notes for 331x/3330,
+not a manufacturer specification or independent NAM-2 hardware measurement.
+They corroborate interrupt roles but do not establish command-vs-state
+readback, write-zero behavior, automatic global enable on wake, or IRQ3's
+precise generating edge/latency. Clock bit 1 is explicitly uncertain there.
+The 3310 and 3330 product configurations now select a logical IRQ3 wake
+notification: leaving an actual clock-stop state latches this source without
+changing global delivery enables. Other products retain their existing model;
+this qualification scope does not establish that their silicon lacks IRQ3.
+The generating transition is a model interpretation of the documented role,
+not a measured oscillator-startup delay.
+
+`tools/mad2_wake_report_fixture.lua` is a dedicated MMIO conformance test,
+not a firmware startup fixture. It configures matrix pins and samples a physical
+Up contact synchronously, then tests a real clock-stop interval. IRQ3 latches
+even while locally masked; acknowledging it preserves keypad IRQ0. An awake
+keypress and a sleep request rejected because IRQ0 is pending do not produce
+another notification. The global control remains `0a` throughout. The checker
+`tools/mad2_wake_report_check.py LOG --product PRODUCT` accepts the 3310/3330
+notification and the unchanged 3210 control separately. This tests the selected
+device contract, not physical timing or the NAM-2 restoration problem.
+Run it in an isolated working directory with the acquired BIOS selected, e.g.:
+
+```sh
+.venv/bin/python tools/run_mame_isolated.py --mame-dir mame \
+  --run-dir tmp/3310-wake-report -- noki3310 -bios 639 -rompath ../roms \
+  -video none -sound none -nothrottle -seconds_to_run 1 -log \
+  -autoboot_delay 0 -autoboot_script ../tools/mad2_wake_report_fixture.lua
+.venv/bin/python tools/mad2_wake_report_check.py \
+  tmp/3310-wake-report/error.log --product noki3310
+```
+
+Use `noki3330 -bios 450e` for the second notification profile and `noki3210`
+without a BIOS override for the unchanged control. Normal graphical acceptance
+remains `verify-3310-frontier`, `verify-3330-frontier`, `verify`, and
+`verify-frontier`; the conformance fixture is not a substitute for those gates.
+
+The table calls IRQ8 bit `40` a mask, whereas the paired 3210 dispatcher
+evidence above assigns acknowledgement behavior; retain that discrepancy
+rather than silently importing the older table as a universal register model.
+
+Original HTML is retained in ignored `roms/reference-docs/blacksphere-ctsi/`:
+
+| File | SHA256 |
+| --- | --- |
+| `interrupts-20160119.html` | `b56ff51dc1f027f59c8ed62014cbc0afdedc9e190aefc72716d7b6762da40b30` |
+| `iomap-00-20160119.html` | `1c9b6f28b9f9f1af1453a787a636be3c9e09260e29abf1f01b59208bf91ca26c` |
+
+The archive index timestamps are `20160119231543` and `20160119231739`;
+both source pages identify their own update as 2005-02-21. Reference names
+do not justify enabling a new controller behavior without a matched consumer
+and runtime test. The current NAM-2 boundary remains wake without service.
+
+NPE-3 v5.56 independently reaches the same late no-sleep loop as NAM-2 v5.21:
+the guard declines deep sleep, both clock-helper arms clear CTSI`0d` bit0,
+and neither arm traverses the separate control-`05` write. The original
+Blacksphere table labels bit0 **ARM clock** but specifies no polarity,
+transition latency or relationship to global delivery. This is a shared
+unresolved clock/interrupt boundary, not evidence for automatic enable.
+`tools/noki6210_idle_contract.py` hash-pins the complete NPE-3 exit/helper
+blocks and resolves both MMIO literals; its tests compare only the established
+conclusions against NAM-2's separately decoded `idle_control_contract`, never
+their addresses or product profiles. Runtime scope remains in
+`mbus_controller.md` and `2100_bringup.md`.
 
 `make verify-mad2-sleep` validates this contract on both ROMs with an MMIO
 controller fixture: Timer 1 continues while the ARM is suspended, reaches
@@ -173,7 +306,14 @@ that is awake-state responsiveness, not proof of a suspended-ARM wake.
 `make verify-mad2-timer1` proves destination `0x7fff`, FIQ5/status `0x020` and
 firmware acknowledgement. `make verify-mad2-reset` runs two mapped-MMIO
 fixtures. Reset-control bit 2 causes a complete digital-baseband restart and
-retains reset cause `0x05`; MAD2-watchdog expiry resets the same domain and
+retains software reset status `0x04` with SRAM preserved; cold rail-on
+initialization instead starts at `0x01`. Matching 3210/6210 readers select the saved software reason
+with bit 1 clear and bit 2 set. A proposed `0x07` correction was falsified:
+`BHS` after `LSRS #2` selects cold reason when bit 1 is set, not clear.
+Bit 0 must also clear so the second startup reader does not initialize cold
+history. The 6210 post-alarm Yes acceptance proves the resulting registered
+idle restart; this remains inferred reset behavior, not measured silicon.
+MAD2-watchdog expiry resets the same domain and
 retains cause `0x03`. Flash, EEPROM and CCONT remain outside that domain.
 CCONT watchdog expiry uses the same reset extent with its own retained cause.
 Exact rail sequencing, oscillator start latency, the SIMI bit-6 effect and the

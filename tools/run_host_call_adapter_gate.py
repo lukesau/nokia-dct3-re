@@ -7,6 +7,17 @@ import json
 
 import websockets
 
+
+def verify_initial_request(event, number):
+    expected = {
+        "type": "outgoing_call", "request_id": 1,
+        "epoch": event.get("epoch"), "digits": number,
+        "decision_pending": True,
+    }
+    if event != expected:
+        raise RuntimeError(f"unexpected outgoing request {event!r}, expected {expected!r}")
+
+
 async def connect(port: int, process: asyncio.subprocess.Process):
     for _ in range(300):
         if process.returncode is not None:
@@ -21,6 +32,55 @@ async def connect(port: int, process: asyncio.subprocess.Process):
         except (OSError, websockets.exceptions.InvalidHandshake):
             await asyncio.sleep(0.1)
     raise RuntimeError("call adapter endpoint did not open")
+
+
+async def observe_restored_call(websocket, epoch, request_id):
+    connected = False
+    restored_epoch = None
+    while True:
+        event = json.loads(await asyncio.wait_for(websocket.recv(), 45))
+        if event.get('type') != 'outgoing_call_state':
+            continue
+        if event.get('request_id') != request_id:
+            raise RuntimeError('restoration changed the call identity')
+        current = event.get('epoch')
+        phase = event.get('phase')
+        if current == epoch:
+            if phase == 'connected':
+                connected = True
+            elif phase == 'ended':
+                raise RuntimeError('call ended before restoration')
+            continue
+        if not connected or current != epoch + 1:
+            raise RuntimeError('restored call omitted the connected predecessor or next epoch')
+        if restored_epoch is None:
+            if phase != 'connected':
+                raise RuntimeError('restored call was not republished as connected')
+            restored_epoch = current
+            await websocket.send(json.dumps({
+                'type': 'outgoing_call_decision', 'epoch': epoch,
+                'request_id': request_id, 'decision': 'connect',
+            }))
+        if phase == 'ended':
+            return
+
+
+async def observe_physical_end(websocket, epoch, request_id):
+    connected = False
+    async with asyncio.timeout(90):
+        while True:
+            event = json.loads(await websocket.recv())
+            if event.get('type') != 'outgoing_call_state':
+                continue
+            if (event.get('epoch'), event.get('request_id')) != (epoch, request_id):
+                raise RuntimeError('physical release changed call identity/epoch')
+            phase = event.get('phase')
+            if phase == 'connected':
+                connected = True
+            elif phase == 'ended':
+                if not connected:
+                    raise RuntimeError('call ended before connection')
+                return
 
 
 async def run(args: argparse.Namespace) -> None:
@@ -66,16 +126,7 @@ async def run(args: argparse.Namespace) -> None:
                 if event.get("type") == "outgoing_call":
                     break
                 raise RuntimeError(f"unexpected pre-call event {event!r}")
-            expected = {
-                "type": "outgoing_call",
-                "request_id": 1,
-                "epoch": event.get("epoch"),
-                "digits": args.number,
-            }
-            if event != expected:
-                raise RuntimeError(
-                    f"unexpected outgoing request {event!r}, expected {expected!r}"
-                )
+            verify_initial_request(event, args.number)
             epoch = event["epoch"]
             if ready_epoch is not None and epoch != ready_epoch:
                 raise RuntimeError("outgoing call used a stale transport epoch")
@@ -103,7 +154,11 @@ async def run(args: argparse.Namespace) -> None:
             }
             await websocket.send(json.dumps(decision))
             await websocket.send(json.dumps(decision))
-            if args.media_frames:
+            if args.observe_restore:
+                await observe_restored_call(websocket, epoch, 1)
+            elif getattr(args, 'observe_end', False):
+                await observe_physical_end(websocket, epoch, 1)
+            elif args.media_frames:
                 connected = False
                 returned = 0
                 last_frame = None
@@ -203,12 +258,20 @@ def main() -> int:
     parser.add_argument("--terminate", action="store_true")
     parser.add_argument("--media-frames", type=int, default=0)
     parser.add_argument("--hostile-pre-setup", action="store_true")
+    parser.add_argument('--observe-restore', action='store_true',
+                        help='remain attached through connected save/load and physical release')
+    parser.add_argument('--observe-end', action='store_true',
+                        help='remain attached through connection and physical release without requiring media')
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     if args.command[:1] == ["--"]:
         args.command = args.command[1:]
     if not args.command:
         parser.error("a MAME launch command is required after --")
+    if args.observe_restore and (args.decision != 'connect' or args.terminate or args.media_frames):
+        parser.error('--observe-restore requires connect without remote termination/media echo')
+    if args.observe_end and (args.decision != 'connect' or args.terminate or args.media_frames or args.observe_restore):
+        parser.error('--observe-end requires connect without remote termination/media/restore')
     try:
         asyncio.run(run(args))
     except (RuntimeError, asyncio.TimeoutError) as error:

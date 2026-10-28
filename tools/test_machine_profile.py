@@ -1,3 +1,4 @@
+from tools.dct3_products import composition_source
 import pathlib
 import json
 import unittest
@@ -9,8 +10,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 class MachineProfileTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.driver = (ROOT / "driver/nokia_dct3.cpp").read_text()
-        cls.b3_flash = (ROOT / "driver/nokia_b3_flash.cpp").read_text()
+        cls.driver = composition_source()
         cls.ccont = (ROOT / "driver/nokia_ccont.cpp").read_text()
         cls.pup = (ROOT / "driver/nokia_pup.cpp").read_text()
         cls.external_service = (
@@ -85,6 +85,41 @@ class MachineProfileTest(unittest.TestCase):
         self.assertIn("set_peer_poll_ms(product.dsp_peer_poll_ms)", apply)
         self.assertNotIn("nokia_env_u32", apply)
         self.assertNotIn("std::getenv", apply)
+
+    def test_6150_native_compatibility_is_separate_and_product_local(self):
+        profile = self.function_body(
+            "void nokia_dct3_state::nsm1r4t(machine_config &config)",
+            "u8 nokia_dct3_state::nse5_roller_gpio_r",
+        )
+        self.assertIn("dct3_nsm1_research_map", profile)
+        self.assertIn("I2C_24C128(config, m_eeprom)", profile)
+        self.assertIn("research.pup_eeprom_scl_bit = 2", profile)
+        self.assertIn("research.simi_controller = true", profile)
+        self.assertIn("research.synthetic_sim_card = true", profile)
+        self.assertIn('config.device_remove("dsp_hle")', profile)
+        self.assertIn("NOKIA_DSP_C54X", profile)
+        self.assertNotIn("PRODUCT_5110", profile)
+        self.assertNotIn("PRODUCT_6110", profile)
+        mapping = self.function_body(
+            "void nokia_dct3_state::dct3_nsm1_research_map",
+            "INPUT_CHANGED_MEMBER",
+        )
+        self.assertIn("map(0x100000, 0x11ffff)", mapping)
+        self.assertIn("map(0x200000, 0x3fffff)", mapping)
+        self.assertNotIn("mirror(", mapping)
+        rom = self.driver.split("ROM_START( nsm1r4t )", 1)[1].split("ROM_END", 1)[0]
+        self.assertIn("6150-v523-ppm-c.fls", rom)
+        self.assertIn("nsm1-security-checksum-valid.bin", rom)
+        self.assertNotIn("eeprom 005fa000", rom)
+        self.assertIn("nse1_rom4_dsp_program.bin", rom)
+        observer = (ROOT / "tools/nsm1_native_observe.lua").read_text()
+        self.assertNotIn("memory:write", observer)
+        self.assertNotIn(".value =", observer)
+        self.assertIn("local in_flash", observer)
+        socket = (ROOT / "tools/nsm1_sim_socket_fixture.lua").read_text()
+        self.assertIn("socket:set_value(1)", socket)
+        self.assertIn("socket:set_value(0)", socket)
+        self.assertNotIn("memory:write", socket)
 
     def test_dsp_bootstrap_count_is_product_configuration(self):
         self.assert_profile_fields(
@@ -356,8 +391,9 @@ class MachineProfileTest(unittest.TestCase):
             "\nprepare-run-nvram:", 1
         )[0]
         self.assertIn('if [ "$(PRESERVE_NVRAM)" != "1" ]; then', prepare)
-        self.assertIn('NVRAM_SYSTEM :=', self.makefile)
-        for store in ("flash", "sim_card", "eeprom"):
+        self.assertIn('NVRAM_SYSTEM =', self.makefile)
+        self.assertIn('tools/dct3_products.py --nvram-system', self.makefile)
+        for store in ("flash", "sim_card", "eeprom", "ccont"):
             self.assertIn(
                 f'"$(RUN_NVRAM_DIR)/$(NVRAM_SYSTEM)/{store}"',
                 prepare,
@@ -514,7 +550,6 @@ class MachineProfileTest(unittest.TestCase):
                 "cobba_pcm.frame_clock": "8'000",
                 "cobba_pcm.sample_bits": "13",
                 "cobba_pcm.word_clocks": "16",
-                "flash_b3_block_lock": "true",
                 "dsp_reset_wiring": "DSP_RESET_WIRING_3410",
                 "display": "DISPLAY_3410",
                 "ccont_board": "ADC_STANDARD",
@@ -524,14 +559,11 @@ class MachineProfileTest(unittest.TestCase):
         profile = profile.split("void nokia_dct3_state::noki7110", 1)[0]
         self.assertIn("apply_product_config(PRODUCT_3410);", profile)
 
-    def test_3410_owns_intel_b3_block_lock_protocol(self):
-        self.assertIn("bool flash_b3_block_lock = false;", self.driver)
-        self.assertIn("m_b3_flash->set_enabled(product.flash_b3_block_lock);", self.driver)
-        for confirm in ("0x01", "0xd0", "0x2f"):
-            self.assertIn(f"command == {confirm}", self.b3_flash)
-        self.assertIn("m_erase_suspended", self.b3_flash)
-        self.assertIn("return 0x00c0 & mem_mask; // ready + erase suspended", self.b3_flash)
-        self.assertNotIn("m_flash_b3_erase_suspended", self.driver)
+    def test_flash_commands_are_owned_by_native_parts(self):
+        self.assertNotIn("flash_b3_block_lock", self.driver)
+        self.assertNotIn("m_b3_flash", self.driver)
+        self.assertIn("const u16 data = m_flash->read(offset) & mem_mask;", self.driver)
+        self.assertIn("m_flash->write(offset, data);", self.driver)
 
     def test_contact_service_oracle_is_explicit_negative_profile(self):
         target = self.makefile.split("CONTACT_SERVICE_ARGS :=", 1)[1].split("\n\n", 1)[0]
@@ -636,7 +668,9 @@ class MachineProfileTest(unittest.TestCase):
         self.assertIn("m_dsp_backend->reset_backend()", power_body)
         self.assertNotIn("m_gsm_network->reset()", power_body)
         self.assertIn("immutable cell data", power_body)
-        self.assertIn("machine_reset()", power_body)
+        self.assertIn("reset_board_state(!retain_sram)", power_body)
+        self.assertIn("reset_digital_baseband(bool retain_sram = false)", self.driver)
+        self.assertIn("reset_digital_baseband(true)", self.driver)
         self.assertIn("m_kbgpio->clear_power_on_latch()", power_body)
 
         callback = self.driver.split("void nokia_dct3_state::ccont_power_w", 1)[1]

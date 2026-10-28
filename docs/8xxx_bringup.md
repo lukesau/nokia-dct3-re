@@ -35,6 +35,71 @@ inconclusive; feature acceptance cannot begin until a coherent boot advances.
 
 ### 8250 missing-evidence boundary
 
+An additional own-product input is normalized from the acquired
+`roms/archive-dct3-packages/nsm-3d_v6.00.exe`: MCU `nsm3dx_6.000`
+covers `0x200000..0x3366ff`, and PPM K `nsm3dx_6.00k` covers
+`0x340000..0x3cffff`. The original INI erase limit is `0x3cffff`;
+the archive supplies no PMM component. The canonical parser produces
+`roms/research/nsm3d/8250-v600-ppmk.bin` (size `0x1d0000`, SHA-1
+`e5e8711870527fb590ad76b4a50fadd341313549`), without appending storage.
+An exhaustive exact-byte search finds one complete descriptor/payload copy
+of the v5.02 fragment at raw offset `0x117be0` and one of its verifier at
+`0x118dc8`. The complete loader descriptor occurs once at `0x1121f4`,
+but its 638-word payload differs (SHA-1
+`15da89872f54fc7e0c2ca8f1f9707054aedb2508`). The paired-loader census below
+classifies those differences; they do not supply evidence that resident ROM6
+code or matching provisioning is present. No v6.00 boot is established,
+and the v5.02 hash-pinned extraction contract is unchanged.
+
+The v6.00 catalogue initialization at raw `0x109a40` contains 28 nonzero
+descriptor pointers, a zero terminator and destination `0x12f360`.
+All descriptor payloads fit the acquired image. Compared by selector with
+v5.02, only decimal selectors 0, 1, 12 and 20 have changed payload hashes.
+Selector 0 changes 22 table-region words; its 126-word executable tail is
+identical (SHA-1 `5bcd6f091b23730b2484eb844841361ef7a12889`).
+`tools.nsm3d_loader_compare` checks all 638 words: all differences lie in
+the recovered 422-word branch table, and every changed word is an operand
+of the two-word absolute `B` encoding (TI SPRU172C, B[D], page 4-14).
+Nineteen operands move by -11 words; both old and new targets have unique
+declared coverage in selector 1, whose payload shrinks from 2652 to 2641
+words. Three operands move by +10 words; their declared ranges overlap
+several catalogue entries, so range coverage alone cannot name their
+program owner. This matches, but does not prove ownership by, the second
+loader's ten-word growth. Padding and executable tail are byte-identical.
+Reproduce the hash-pinned comparison without donor code:
+
+```sh
+.venv/bin/python -m tools.nsm3d_loader_compare \
+  roms/noki8250/8250-502mcuppmk.fls \
+  roms/research/nsm3d/8250-v600-ppmk.bin
+```
+
+This closes the first-loader byte-difference classification, not dynamic
+relocation, v6.00 execution or fitted-mask completeness.
+Selector `0x14` (decimal 20), the second loader, grows from 613 to 623
+words, SHA-1 `8e9e4aefa311375ae090b90a607f00cb8e7059ca`.
+Its raw word pairs still include `f074/2c75` at declared program `0x0a4a`,
+followed by `f074/938c`; pairs for `4007` and `9ddd` also remain.
+These are static opcode candidates, not a v6.00 execution trace.
+Independent GNU Binutils 2.43.1 tic54x decoding of the complete little-endian
+word extraction confirms a straight-line entry from `0x0a00` to the
+unconditional `call 0x2c75` at `0x0a4a`: only bounded repeat/NOP sequences
+precede it, with no conditional bypass or code-copy instruction. The
+immediately following instruction is `call 0x938c` at `0x0a4c`.
+Thus the second loader's entry does not itself replace the missing first
+routine before calling it. This does not close earlier-loader relocation
+or establish native execution of v6.00. The retained independent decode is
+`run_8250_v600_loader2_disassembly.log`, generated from the own catalogue's
+selector `0x14`, not a donor program.
+None of the 28 declared destination ranges covers those four resident
+addresses; relocation is not excluded by this range test. Reproduce with:
+
+```sh
+.venv/bin/python -m tools.nsm3d_catalogue \
+  roms/research/nsm3d/8250-v600-ppmk.bin --product 8250-v600 \
+  --address 0x2c75 --address 0x938c --address 0x4007 --address 0x9ddd
+```
+
 Fresh stock and runtime-comparison runs reproduce the protected upload and
 record-rejection contracts. Selector ownership, direct MCU input copying,
 both codec directions and the actual PMM extent do not provide a correction
@@ -541,6 +606,186 @@ silent command-32 boundary; successful process exit is not phone boot:
 
 ### 8890 Support And Native Boundary
 
+#### Own Audio Evidence
+
+The acquired Nokia NSB-6 UI Description, Issue 1 06/2000, is retained at
+`roms/research/nsb6/04uif.pdf` (SHA256
+`57dc97dbbd63709b8c4c41086cdac77b7a5ac210b36989018045f51c10df02ec`).
+Source: [Nokia 8890 UI service manual](https://www.eserviceinfo.com/downloadsm/228092/NOKIA_04uif.html).
+Printed page 7 identifies internal MIC2, headset MIC1 and differential EAR
+for the internal earpiece; page 5 independently lists COBBA EARP/EARN.
+These establish product-owned endpoint topology, not codec gains or an
+enabled media path.
+`nsb6stage` now connects the host microphone to MIC2 and EAR to the mono
+speaker with neutral route gains; `nsb6hle` inherits this board connectivity.
+These routes alone do not enable media. The independently documented PCM
+profile and own speech-control predicate below supply the research-HLE path;
+physical host-audio waveforms and native DSP speech remain separate claims.
+
+#### Own PCM Timing Contract
+
+The complete 303-page service manual is acquired from the public
+[Mobile Collectors archive](https://mobilecollectors.net/documents/1546/download)
+and retained as `roms/research/nsb6/nokia_8890_nsb-6_.pdf` (SHA256
+`d725449db85e04d82f2f9e693428a8ea327b0228bbd6975cba40578841f41996`).
+Its System Module, Issue 1 06/2000, printed page25 (PDF page39) has been
+rendered and visually reviewed. COBBA-GJP supplies both clocks: 512kHz
+PCMDClk and 8kHz PCMSClk, hence64 clocks per frame. The chart depicts a
+one-clock active-high sync followed by a 16-bit MSB-first word. Bits15..13
+extend the sign of bit12; data changes on rising clock edges and is stable
+for falling-edge sampling. The MAD pin table independently marks PCMDClk
+and PCMSClk as inputs from COBBA. These are own-product document contracts,
+not measured waveforms or an inherited8850 bus profile.
+
+`nsb6stage` configures this own 512kHz/64-clock profile. `nsb6hle` additionally
+uses command8/bit0200 from the independently recovered field below, with
+MIC2/EAR and neutral gains. No new device-core timing exception or sibling
+clock is needed. Native execution still stops at missing resident2c75;
+framing configuration does not supply that code. Archive identity and
+acquisition are recorded in `roms/README.md`.
+
+The outgoing and incoming real-SIP media gates require at least100 executed
+uplink/downlink and host PCM frames, own call/control/release checks and
+registered-idle recovery. `noki8890_pcm_check.py` independently requires
+512000/8000Hz,64 clocks/frame,16 serial bits plus one sync clock and47 idle
+clocks, with exact cumulative counters and transfers bounded by the own
+860b/840a writer. Recorded host PCM is not a nonsilent microphone/earpiece
+waveform test. Native speech and analogue gains remain unproved.
+
+`verify-8890-sip-outgoing-waveform` and
+`verify-8890-sip-incoming-waveform` independently qualify nonsilent physical
+host audio on GSM900. The isolated PulseAudio fixture routes a440Hz source
+into MAME's microphone stream and captures the actual speaker stream while
+the remote SIP endpoint returns660Hz. Both directions must retain the full
+own-product call/PCM checks and demonstrate at least two consecutive
+one-second windows per endpoint with RMS at least500 and expected-tone
+energy fraction at least0.5. This excludes silence, a transient beep and
+transport counters alone. No codec gain is changed. The outgoing capture
+has6/7 sustained microphone/earpiece seconds; incoming has8/4. Captures are
+`tmp/nsb6-sip-outgoing-waveform/handset` and
+`tmp/nsb6-sip-incoming-waveform/handset`. This is HLE endpoint audio, not
+native speech or measured analogue gain. PCS waveform qualification is separate below.
+
+PCS1900 independently passes `verify-8890-pcs-sip-outgoing-media` and
+`verify-8890-pcs-sip-incoming-media`. Each uses unchanged own MCU/PMM and
+fresh isolated storage, the established PCS topology plus the external host
+endpoint, and physical Send/Answer/End. Acceptance requires the own PCS scan,
+ARFCN600 registration, CC/RR closure, persistent EF_LOCI, reviewed idle
+recovery, at least100 media/host-PCM frames in both directions and unchanged
+512000/8000Hz,64-clock/47-idle-clock accounting. Outgoing reports361 uplink
+and346 downlink frames; incoming396/376. The runner's `--pcs1900` selects
+own-band checks for ordinary media and all four call-restoration phases;
+unqualified failure/cancel and signaling-only combinations reject. No device configuration or codec gain changed.
+These are clocked HLE transport tests, not native DSP speech, measured RF,
+PCS physical-waveform qualification or PCS external-dialog restoration.
+
+`verify-8890-pcs-sip-outgoing-waveform` and
+`verify-8890-pcs-sip-incoming-waveform` independently qualify sustained
+physical host-audio paths on PCS1900. They retain the preceding PCS media,
+call, UI and storage checks and use the same440Hz microphone source,
+660Hz remote return and unchanged RMS/energy/duration thresholds as GSM900.
+The outgoing recording has6/6 consecutive microphone/earpiece seconds;
+incoming has8/5. `SIP_PCS1900=1` is product-restricted before audio setup.
+Waveform checking additionally requires a passing own ARFCN600 acceptance,
+matching incoming/outgoing scenario and passing SIP result before marking
+the recording as PCS. Wrong-band/direction and failed-media controls reject.
+Captures live at `tmp/nsb6-pcs-{outgoing,incoming}-waveform/handset`.
+This is HLE endpoint audio, not native speech, measured analog gain or
+qualification of PCS external-dialog restoration by the waveform test itself.
+
+PCS connected restoration independently passes
+`verify-8890-pcs-sip-outgoing-connected-restore` and
+`verify-8890-pcs-sip-incoming-connected-restore`. The snapshot observes exact
+all37 exposed ARM registers (including banked registers and status),
+the modeled MCU RAM checksum and emulated time at32s outgoing or52s incoming.
+The register vector must also agree with separately logged R15/R13. Before saving,
+acceptance requires own ARFCN600 registration, connected state, valid uplink
+and accepted downlink frames, and executed PCM. Old-epoch media inventory
+is positive in all four counters (outgoing35/41 media and32/71 PCM;
+incoming220/213 media and217/226 PCM). Restoring disposes the old dialog
+with SIP BYE and exactly one new-epoch cause41 clear, then requires own
+carrier600 release and reviewed idle recovery without redial/readmission.
+The same pre-save registration/media guards pass retained GSM900 connected
+captures; wrong-carrier, missing/late registration, absent pre-save media
+and altered release controls reject. Current captures use the matrix naming below.
+This is cleared external state, not seamless SIP resumption or native speech.
+PCS pending outgoing and ringing incoming independently pass
+`verify-8890-pcs-sip-outgoing-pending-restore` and
+`verify-8890-pcs-sip-incoming-alerting-restore`. They require own ARFCN600
+registration before save, the same37-register/RAM-checksum/time snapshot,
+zero old-epoch uplink/downlink/host-PCM inventory and no CONNECT or Answer.
+Pending outgoing closes the actual SIP dialog with CANCEL/487; ringing
+incoming rejects its INVITE and reaches ended before physical Exit dismisses
+the notification. Both require one cause41 clear and own-carrier radio
+release/paging recovery. Current captures use the matrix naming below.
+
+The pending case has three local HLE PCM ticks at32.180/32.200/32.220s
+during restored teardown, each with zero downlink. A shared checker bounds
+all such ticks between restore and radio release and checks exact512000/8000Hz,
+64-clock/47-idle-clock accounting. The external media inventory stays zero;
+local ticks are not evidence of CONNECT. The ringing case has no local ticks.
+The same stricter zero-inventory and own-band release checks pass retained
+GSM900 unanswered captures. Missing inventory, any positive external counter,
+late/wrong-band release and cleanup dependent on physical Exit reject.
+All phases dispose external dialogs; seamless external SIP resumption and
+native DSP speech remain unqualified.
+
+Accepted media captures are `tmp/nsb6-sip-outgoing-media-qualified` and
+`tmp/nsb6-sip-incoming-media-final`. All eight current restoration captures use
+`tmp/nsb6-arm37-{gsm,pcs}-` with suffixes `outgoing-connected`,
+`incoming-connected`, `outgoing-pending` and `incoming-alerting`.
+Each fresh run passes the full existing product/SIP/UI/storage acceptance
+plus identical saved/restored37-register vectors, RAM checksum and time.
+Missing, shortened, duplicated or changed vectors and PC/SP disagreement
+are rejected. The snapshot uses shared `arm_architecture_snapshot.lua`,
+not a product-specific subset. RAM equality remains a checksum assertion,
+not a byte-for-byte RAM dump or enumeration of DSP state.
+Connected cases require positive pre-save bridge PCM/media and codec
+execution; all external dialogs are cleared, not replayed. The default and
+coherent3210 semantic regressions pass without rebanking their predicates.
+
+The acquired v12.20 MCU (SHA1 `a214a0d69760ecd8eeca0b9d82f95c94bdfe70ed`)
+independently pins the compiler at `2c307c`, selector table `2c30b0`
+(`00..34`), selector 17 at `2c32f8` and selector 8 at `2c3340`.
+Selector 17 updates bit `0200` using keep mask `fdff`; the field base is
+`134c4c` and the halfword shadow is `134c4e`. Unlike NSM-2, selector 8
+uses that same `134c4e` halfword for its `8000`-prefixed command.
+The common store at `2c338e` publishes to DSPIF `100a8`.
+`noki8890_speech_control_check.py` pins the ROM hash, instruction forms,
+selector targets and pool literals. This establishes static field ownership,
+not by itself PCM execution or native speech.
+
+Physical Send/End correlation separately passes `verify-8890-speech-control`
+(`run_8890_speech_control_probe`). The unchanged own-PMM no-PIN host fixture
+completes clock/date settlement, dials `1234567`, connects and releases through
+the full existing outgoing-call acceptance. Send publishes `860b` at
+48.202981 seconds; End publishes `840a` at 57.091636 seconds. Both use
+the own writer `2c338e` with selector 8. The control checker requires ordered
+physical inputs and own decoded keys, rejecting sibling writer addresses,
+wrong selectors and missing/incorrect disable. It does not itself qualify media.
+
+`verify-8890-incoming-speech-control` independently passes on a fresh
+host incoming call (`run_8890_incoming_speech_control_verified`), requiring
+physical Answer/End and own decoded keys around the same `860b`/`840a`
+selector-8 publications. The host signaling checker accepts either direct
+connected-to-ended notification or an explicit `media_closed` immediately
+before ended; both retain every preceding ordered state. This is bearer
+lifecycle notification, not proof of audio. Missing connection, reversed
+closure and unexpected states remain rejected. PCM has the separate gates above.
+
+PCS1900 is independently verified by `verify-8890-pcs-speech-control` and
+`verify-8890-pcs-incoming-speech-control` on fresh own-PMM fixtures
+(`run_8890_pcs_speech_control_probe` and
+`run_8890_pcs_incoming_speech_control_probe`). Both retain organic carrier-600
+registration, full band-specific call acceptance and physical key decoding;
+selector 8 publishes the same `860b`/`840a` at `2c338e`. This establishes
+two-band MCU control consistency, not DSP speech or analogue codec behavior.
+
+```sh
+.venv/bin/python -m tools.noki8890_speech_control_check \
+  roms/noki8890/8890_12.20_ppmc.fls --log RUN/error.log
+```
+
 The acquired v12.20 PPM C and product-local PMM have verified research-HLE
 acceptance for the following workflows. Normal `noki8890` is deliberately
 conservative; select `nsb6hle` explicitly. No donor PMM, firmware-state
@@ -556,6 +801,91 @@ injection or borrowed product verdict is part of these workflows.
 | GSM900 and PCS1900 registration | `noki8890_registration_check.py`, with `--pcs1900` for strict carrier-600 acceptance |
 | Incoming/outgoing calls | Own incoming/outgoing call checkers; physical Answer/Send/End, correct called number and CC/RR closure on both bands |
 | Incoming/outgoing SMS | Own SMS checkers; physical composition/read, CP/RP closure, persistent hello and reviewed body pixels on both bands |
+| Physical USSD | `noki8890_ussd_check.py`; exact `*123#` request/response, reviewed result/idle frames, physical Back and persisted EF_LOCI |
+| Host incoming/outgoing SMS | `verify-8890-host-incoming-sms` and `verify-8890-host-outgoing-sms`; own configured ARFCN60, external request/decision correlation, physical composition/read and persistent received content |
+| Real SIP caller cancellation | `verify-8890-sip-cancel`; own clock-settled idle, exact caller SETUP, CANCEL/487, clean CC/RR release, missed-call notification and decoded physical Exit; no Answer/media |
+| Real outgoing SIP busy | `verify-8890-sip-outgoing-busy`; own unchanged PMM, configured GSM900 carrier 60, physical `1234567`/Send, actual SIP 486, correlated busy and CC/RR release, reviewed idle pixels excluding the top-row clock; no CONNECT/media |
+| Real outgoing SIP HLE media | `verify-8890-sip-outgoing-media`; own unchanged PMM, physical `1234567`/Send/End, real SIP-200, own carrier-60 traffic/release, reviewed idle recovery and persistent SIM location; sustained bidirectional frames and exact own PCM accounting |
+| Real incoming SIP HLE media | `verify-8890-sip-incoming-media`; fresh clock-settled idle, caller `5551234`, physical Answer/End and own carrier-60 lifecycle, reviewed idle recovery and persistent SIM location; sustained bidirectional frames and own PCM accounting |
+| Real outgoing SIP unavailable | `verify-8890-sip-outgoing-unavailable`; same physical number and own carrier, actual SIP 480 with consumed cause 18, full release and reviewed idle restoration; no CONNECT/media |
+| Idle restoration before real SIP | `verify-8890-sip-idle-restore`; exact PC/SP/RAM/time and protocol replay, new host epoch 2, then the same unanswered cancellation and decoded physical cleanup; no saved external dialog or speech |
+| Ringing restoration with real SIP | `verify-8890-sip-alerting-incoming-restore`; exact37 ARM registers/RAM-checksum/time at 52 s, rejected external INVITE, one cause-41 clear under epoch 2, CC/RR release and decoded Exit to reviewed idle; Answer/CONNECT/media forbidden |
+| Pending outgoing restoration with real SIP | `verify-8890-sip-pending-outgoing-restore`; physical 1234567/Send, real 180, exact37 ARM registers/RAM-checksum/time at 32 s, CANCEL/487, one cause-41 clear and CC/RR release to reviewed idle; no redial/CONNECT/media |
+| Connected outgoing restoration with real SIP | `verify-8890-sip-connected-outgoing-restore`; physical `1234567`/Send, SIP-200 connected before the 32 s save, exact37 ARM registers/RAM-checksum/time, pre-save bidirectional PCM/media, BYE/one cause-41 clear, own carrier-60 release and idle recovery; no redial or external-dialog replay |
+| Connected incoming restoration with real SIP | `verify-8890-sip-connected-incoming-restore`; fresh clock-settled idle, physical Answer, connection before the 52 s save, exact37 ARM registers/RAM-checksum/time, pre-save bidirectional PCM/media, BYE/one cause-41 clear, own carrier-60 release and idle recovery; no replay of external dialogs |
+
+The host SMS gates use `fixtures/noki8890_host/nsb6hle.cfg` in fresh private
+storage with the unchanged own acquired MCU/PMM. The fixture enables the
+host adapter and an explicit laboratory GSM900 cell at ARFCN 60. Its SCH
+response organically produces channel prefix `041202`, and the strict
+`--configured-gsm900` registration check requires that carrier in both
+candidate configuration and release. This is a network composition, not a
+handset hardware property or a forced selection. The default/legacy and
+PCS1900 registration contracts remain separate.
+
+The host and receiver must agree on the serving carrier. Earlier default
+composition had the own firmware's ARFCN-60 candidate beside an ARFCN-1
+laboratory cell; the peer committed the unchanged receiver to 1. That
+composition can exercise UI/signaling but is not accepted by these
+carrier-correlated host SMS gates. Do not change the expected carrier to
+match that mismatch or infer hardware RF fidelity from its registration.
+
+Incoming acceptance requires external `hello` from 5551234, queued/delivered
+host states, complete firmware CP/RP/RR closure, physical reading, reviewed
+body pixels and persisted read status. Outgoing acceptance requires physical
+A/5551234 composition, exact host GSM7 data, rejection of wrong request IDs
+and duplicate decisions, one accepted result and firmware transport closure.
+These gates prove host SMS signaling, not SIP speech, native DSP or radio RF.
+
+`verify-8890-host-rejected-sms` and `verify-8890-host-silent-sms` separately
+complete the same own-carrier host path with RP-ERROR and deliberate absence
+of an RP result. Both require exact physical A/5551234 submission, wrong-ID
+and duplicate-decision rejection, radio teardown and physically decoded
+End/Menu recovery. Reviewed crops distinguish the localized rejection and
+timeout text from each other and require the recovered Messages menu.
+Silence must contain no RP-ACK/RP-ERROR and must end through the handset's
+DISC, network UA and deconfiguration; the observed current composition
+sends DISC near 107.5 seconds after a submission near 40 seconds. This is
+an observed emulation lifecycle, not a measured silicon timer period.
+The 58-second rejection and 125-second silence runs use separate fresh
+storage and record their selected host outcome in `acceptance.json`.
+
+For USSD, run `nsb6hle` for 64 seconds in fresh private working, config,
+NVRAM and snapshot directories with `-noreadconfig -debug -debugger none
+-verbose -log -video none -sound none -nothrottle`, autoboot delay zero,
+and `tools/noki8890_ussd_input.lua`. It physically enters the security
+code and the own clock/date setup before issuing the service request.
+Check the resulting private run with:
+
+```sh
+.venv/bin/python tools/noki8890_ussd_check.py RUN
+```
+
+`make verify-8890-ussd RUN_DIR=NEW_RUN` automates that fresh setup and pins
+the own MCU/PMM hashes and normal keypad table. The corresponding
+`verify-8890-call-divert` gate physically enters `*#21#`, checks the exact
+inactive service-21 result, the reviewed `Dienst nicht aktiv` frame, physical
+Back to 12:00 DCT3LAB idle and persisted EF_LOCI. This is interrogation
+coverage, not activation or call forwarding. Its earlier result capture
+precedes firmware automatic dismissal. Neither gate accepts a reused run
+directory or substitutes another product's PMM.
+
+The own MCU and acquired PMM remain unchanged. Only key-sequence mechanics
+are shared with the 8850 fixture; own registration predicates, startup
+settlement, German response softkey and 12:00 DCT3LAB idle frame are
+independently checked. Shared DSP audit files remain a MAME run prerequisite,
+not evidence of a product-matched resident ROM6 mask or native execution.
+
+The exact USSD idle oracle is pixel SHA256
+`03cd1654572ac2cbe001a2fda57cdc3ead7b8d578d81efcaffe2af3350e0d6bc`,
+also independently used by the own call-divert gate. Fresh runs with both
+the current runner and its pre-Toolkit version reproduce it; the USSD result
+hash and all signaling/storage checks remain unchanged. The earlier
+`8187cbe68f4b7fe0a15cf10c16b742b3236f3240af3f79556c319d5ed337f2ee`
+12:01 expectation is retired deliberately, not accepted as an alternate.
+The current RTC trace reaches 12:00:34 at emulated second 60 after physical
+time entry. This re-bank establishes current deterministic acceptance,
+not the cause of the historical frame difference.
 
 Native resident DSP execution, speech/media, identity/security-record
 replies, neighbour/handover contracts and normal-machine promotion remain
@@ -722,6 +1052,70 @@ check decoded physical inputs and the arithmetic-area pixel oracle:
 
 #### 8890 Radio Contract
 
+`run_noki8890_pin_registration.py` independently verifies physical `1234`
+with VERIFY `9000` and registration afterwards on configured GSM900.
+Its delayed startup emits type `57:01140000` at 10.424 seconds. The own
+type-8b route delivers the response object to parser `2809fc`, also called
+from `29d020`; it consumes forty four-byte records, ARFCN at +6/+7 and
+signed RSSI at +9. This parser layout, not sibling payload identity, supports
+the product-configured late measurement response. Runtime correlation pins
+the same RX/parser object and ARFCN 60/RSSI -60 before Location Updating
+acceptance at 13.162 seconds. PMM remains unchanged; native speech is unproved.
+
+`verify-8890-pin-host-incoming-call` composes that authentication with physical
+clock/date settlement, host caller `447700900123`, physical Answer/End and
+reviewed ringing/returned-idle pixels. Configured acquisition, traffic and
+release all carry ARFCN 60 (`003c`), with prefix `0412`. The physical clock
+and answer fixtures start four seconds later for PIN runs only. The call
+checker retains separate default and PCS1900 grammars; no band or speech
+coverage is inherited from this GSM900 signaling gate.
+
+`verify-8890-pin-host-incoming-sms` separately composes physical PIN entry
+and configured GSM900 registration with host-originated `hello` delivery.
+Acceptance requires the correlated host lifecycle, one IMSI page, complete
+CP/RP release, exact persistent read-status record, physical Read decoding
+and reviewed message-body pixels. The reader starts at 25 seconds for PIN
+fixtures, retaining its original 21-second schedule otherwise. The no-PIN
+composition passes the same checks. This does not establish native DSP media.
+
+`verify-8890-pin-host-outgoing-call` requires physical clock/date settlement,
+dialing `1234567`, correlated host connection, exact ARFCN-60 traffic/release
+configuration and physical End followed by reviewed ordinary idle pixels.
+`verify-8890-pin-host-outgoing-sms` independently requires physical `A` to
+`5551234`, the exact SMS-SUBMIT, host request/decision correlation, RP
+acceptance and complete CP/RP/RR closure. Both require PIN acceptance before
+registration and preserve the no-PIN physical schedules. Native speech
+remains unproved; PCS1900 authenticated parity is covered separately below.
+
+`verify-8890-pin-host-rejected-sms` and `verify-8890-pin-host-silent-sms`
+separately prove GSM900 authenticated host failure recovery. They require
+the correlated PIN/measurement/registration chain, physical composition,
+host RP-error or full firmware-timeout closure, distinct reviewed failure
+text and physical End/Menu recovery. The observer follows the composer's
+existing four-second PIN input delay; no-PIN timing is unchanged. Evidence:
+`run_8890_pin_host_rejected_sms_02`, `run_8890_pin_host_silent_sms_01`.
+PCS1900 authenticated failure recovery has separate acceptance below.
+
+`verify-8890-pin-phonebook` saves `A / 123` physically, then restarts on
+the same product-local PMM and SIM bytes. The cold process must enter PIN
+again, read the persisted LAI before its exact retained-location request,
+register without rewriting EF_LOCI, and show the reviewed contact detail
+without ADN writes. The complete SIM file remains byte-identical across
+readback. `write.log` preserves the first process's evidence; `error.log`
+belongs to the cold process. The no-PIN composition is separately verified.
+
+`verify-8890-pin-state-idle`, `verify-8890-pin-state-call` and
+`verify-8890-pin-state-sms` independently verify authenticated configured
+GSM900 restoration. Save points are 46, 56 and 23 seconds respectively;
+registration must have completed first, calls must be connected and SMS
+must be stored with its delivery channel released. All 37 exported ARM
+registers (including CPSR and banked state), the mapped SRAM digest and time
+must restore exactly. The same read-only architecture helper is shared with
+the 6210 and both products' alarm fixtures; product input/timing remains local.
+Nonempty protocol replay and whole-screen equality are followed by physical
+Menu, End or Read after load. These tests retain the separate native-speech,
+cold-clock and authenticated PCS1900 boundaries.
+
 The own RX dispatcher at `30168e` selects type `80` at `301750`, calling
 `2dae9c`. Its thirteen-entry `83..8f` table at `3016bc` maps `8b` to
 `301710 -> 2db270`, which posts to task 12 through `28190c`.
@@ -786,6 +1180,458 @@ Down and a shorter first-key pulse do not repair the invalid-input path.
 and restore sites. Clock-error cancellation behavior remains a separate
 UI lifecycle observation, not a missing keypad or radio contract.
 
+The valid clock/date path settles ordinarily: physical entry of `1200`,
+Menu/OK, `07102026`, Menu/OK accepts the time and date and returns to the
+registered `DCT3 LAB` idle frame showing `12:00`. Subsequent physical entry
+of `1234567` displays those digits in order. The diagnostic
+`tools/noki8890_clock_input.lua` reproduces this on fresh private cfg/NVRAM
+with the declared `nsb6hle` composition and a 55-second run; it captures
+each time digit, date entry, settled idle and subsequent dial editor.
+The checker requires all 21 ordered physical events and their own decoded-key
+windows, plus reviewed date, registered-idle and dial pixels. It excludes the
+advancing top-row clock, not the user-entered date or number:
+
+```sh
+.venv/bin/python tools/noki8890_clock_check.py RUN/error.log RUN/snap
+```
+
+A fresh replay passes independently of the exploratory run. Five tool tests
+protect event ordering, wrong/missing decodes, cross-event leakage and blank
+frame rejection. This validates the ordinary editor/UI lifecycle, not network
+registration itself or cold-restart RTC persistence. It requires no PMM, cursor or firmware
+writes. Invalid-empty-input cancellation remains unresolved separately.
+Rejecting an empty time is recoverable without cancellation: physical
+Menu/OK displays `Ungültige Uhrzeit`; another Menu/OK returns to the time
+editor. Completing the same valid time/date sequence then reaches registered
+idle and preserves subsequent `1234567` digit ordering. Reproduce with
+`noki8890_clock_invalid_input.lua`, fresh private cfg/NVRAM and 58 seconds,
+then run the checker above with `--invalid-first`. It requires the two extra
+decoded confirmations, the reviewed invalid-time text and the same accepted
+date/idle/dial pixels. Seven checker tests cover both valid and rejected-then-
+recovered sequences. This closes successful error recovery, not the separate
+cancel-after-rejection saved-position behavior.
+
+Outgoing calls also compose with valid clock settlement. Run
+`tools/noki8890_clock_call_input.lua` with fresh private cfg/NVRAM, verbose
+logging and 68 seconds. It completes physical time/date entry, dials
+`1234567`, presses Send and End, and returns to the ordinary registered idle
+frame rather than the clock notice. Both the original outgoing-call protocol
+checker and the clock checker with `--call` pass on the same run:
+
+```sh
+.venv/bin/python tools/noki8890_outgoing_call_check.py RUN/error.log
+.venv/bin/python tools/noki8890_clock_check.py --call RUN/error.log RUN/snap
+```
+
+The latter additionally pins post-release idle pixels, excluding only the
+advancing top-row clock. This closes outgoing presentation after CC/RR release;
+incoming-call foreground settlement and native speech remain separate.
+
+Host-originated incoming calls can also start after valid clock/date entry.
+`noki8890_clock_incoming_input.lua` settles the editors without dialing,
+then physically answers at 48 seconds and ends at 56 seconds. Use fresh
+private cfg/NVRAM, a private copy of
+`fixtures/noki8890_clock_incoming/nsb6hle.cfg`, verbose logging, HTTP enabled
+and 70 seconds. `tools/run_host_incoming_signaling_gate.py` launches MAME,
+waits for a fresh `8890_date_after.png` readiness artifact, then submits the
+typed WebSocket call with caller `447700900123`. It validates the correlated
+host phases queued/paging/alerting/connected/ended and rejects stale readiness
+artifacts. Both exploratory and tracked-runner replays show that caller on
+the ringing screen and ordinary `DCT3 LAB` idle after physical End.
+
+The default laboratory checker mode still pins its original calling-number
+payload. Explicit host mode instead requires the supplied caller's exact BCD
+number, complete SETUP bearer/signal structure and LAPDm length, followed by
+the same physical Answer/End and CC/RR lifecycle. Reviewed ringing and ordinary
+post-release idle pixels also pass on the tracked-runner replay:
+
+```sh
+.venv/bin/python tools/noki8890_incoming_call_check.py \
+  --caller 447700900123 --frames RUN/snap RUN/error.log
+```
+
+The frame oracle is scoped to that caller and excludes only the advancing
+top-row clock. Focused tests reject wrong digits/length, unreviewed callers
+and blank pixels. This closes incoming foreground settlement on the declared
+GSM900 research-HLE composition. An independent fresh run using
+`fixtures/noki8890_clock_incoming_pcs1900/nsb6hle.cfg` also passes the host
+phase runner and the same command with `--pcs1900`. That mode additionally
+requires organic PCS carrier/band registration and NSB-6's PCS-specific
+traffic/release configurations before accepting the caller and UI frames.
+Settled incoming presentation is therefore independently checked on both
+bands; native speech remains unproved.
+
+Settled GSM900 idle additionally survives save/load. Run
+`tools/noki8890_state_idle.lua` with fresh private cfg/NVRAM/state/snapshot
+directories, verbose logging and 50 seconds, then check:
+
+```sh
+.venv/bin/python tools/noki8890_state_check.py RUN/error.log RUN/snap
+```
+
+The fixture physically provisions time/date, saves at 42 seconds and requires
+exact restored emulated time, all 37 exported ARM registers and a digest over the
+complete mapped handset RAM window. A nonempty one-second ordered protocol
+interval replays identically, including payloads and GSM frame numbers.
+Reference/restored idle pixels match; a new physical Menu press after load
+decodes `19` and opens the reviewed `Mitteilungen` menu. Lua resumes only its
+host-side input schedule after restoration, never handset state. Checker
+tests reject every individual register mismatch, incomplete snapshots,
+protocol mismatches, missing input and
+incomplete fixtures. This is idle/UI restoration, not active-call/SMS replay,
+battery-backed cold RTC continuity or native DSP speech validation.
+
+Active outgoing-call restoration is separately checked by
+`tools/noki8890_state_call.lua` (fresh private directories, verbose logging,
+70 seconds) and the same checker with `--call`. It physically provisions the
+clock/date, dials `1234567`, connects, and saves at 52 seconds. Exact
+CPU/RAM/time restoration and the nonempty one-second protocol replay pass;
+reference/restored connected-screen pixels are byte-identical. Only the
+host-side physical End schedule is restarted after load. The complete
+intended-number CC/RR checker requires clean release and resumed paging;
+reviewed ordinary idle pixels are required after release. Two independent
+fresh runs pass, including the shared round-trip fixture after extraction.
+This remains signaling/UI save-state evidence, not native speech. Independent
+fresh PCS1900 acceptance also passes with `fixtures/noki8890_pcs1900` and
+`--call --pcs1900`; the checker requires the full organic carrier-600
+registration sequence and PCS-specific call/release grammar, not just replay
+equality. Each run needs an empty private NVRAM directory.
+
+Delivered SMS restoration is independently checked by
+`tools/noki8890_state_sms.lua` with a private copy of the ordinary incoming-SMS
+cfg, fresh cfg/NVRAM/state/snapshot directories, verbose logging and 36 seconds:
+
+```sh
+.venv/bin/python tools/noki8890_state_check.py --sms \
+  --storage RUN/nvram/nsb6hle/sim_card RUN/error.log RUN/snap
+```
+
+The save point at 19 seconds follows organic delivery and security input.
+CPU/RAM/time restore exactly, the nonempty one-second ordered protocol interval
+replays identically and reference/restored screen pixels match. Lua restarts
+only the physical read schedule on the restored timeline. The original SMS
+checker requires one page, exactly the delivery/read-status SIM writes,
+persistent read `hello` and reviewed body pixels after load. This proves
+delivered-message storage/UI restoration, not a save within an unfinished
+CP/RP transaction. An independent fresh PCS1900 run also passes using
+`fixtures/noki8890_pcs1900_incoming_sms` and `--sms --pcs1900`; full PCS
+registration and the band-specific SMS lifecycle are required before replay
+and storage acceptance. No redelivery or SIM-record rewrite is used to recover
+the message.
+
+Cold clock retention requires both the running CCONT clock and its retained
+alarm/control/mask snapshot. With that domain preserved, a separate process
+using the handset's own phone/SIM NVRAM presents the security editor; physical
+`12345` reaches ordinary idle with the previously entered **13:47**, without
+time/date input. Reproduce with
+`tools/noki8890_clock_read.lua`, preserved NVRAM, fresh private cfg and
+32 seconds; it enters only the security code and captures at 12/21/30 seconds.
+`make verify-8890-cold-clock RUN_DIR=RUN` automates both isolated processes,
+while `make verify-8890-minute-redraw RUN_DIR=RUN` extends the cold process
+through 92 emulated seconds. The latter independently passes
+`tmp/ccont-alias-8890-cold-v2`: the retained user clock crosses
+13:47:59 -> 13:48:00 -> 13:48:01 at seconds 40/41/42 for the actual
+19-second seed counter. The checker derives these instants from the source
+NVRAM rather than assuming a boot-time seconds reset. The minute IRQ source
+is set and subsequently cleared, and the reviewed registered-idle frame
+at 90 seconds displays **13:48**. No time/date keys are supplied in the cold
+process. Acceptance requires both ordered RTC evidence and the exact
+advanced-clock frame; a running counter alone is insufficient. This proves
+in-emulation minute service/redraw, not offline wall-time/calendar advance.
+The original cold-clock gate
+pins the own MCU/PMM hashes, and requires the full reviewed 13:47 idle frame
+after both physical settlement and cold security entry.
+CCONT persists registers `07..0d`, upper IRQ mask and alarm-armed state
+separately from handset storage, without advancing offline host time. The
+own-ROM clock setter `0x2fd21c` writes minutes and hour-with-bit-7 through the
+shared alarm latches; the strobe loads the running clock and self-clears.
+Reproduce the distinct
+entry with `tools/noki8890_clock_retention_input.lua`, then the security-only
+cold fixture above, using private cfg directories and the same own storage.
+No software clock or validity flag is injected. Check the cold trace and full
+13:47 frame with `tools/noki8890_cold_clock_check.py SEED_CCONT COLD_RUN`.
+Controller-domain retention is
+separately checked by `tools/run_ccont_rtc_retention.py`; this does not prove
+complete battery-backed calendar continuity.
+
+`make verify-8890-calendar-rollover RUN_DIR=RUN` validates midnight and
+cold calendar continuity from empty storage and the unchanged own acquired PMM.
+Physical entry of 23:59 and 07/10/2026 is followed by 23:59:59/day 0,
+00:00:00/day 1 with minute IRQ pending, firmware reads of day register `0a`,
+and a firmware write clearing that counter. The application date scalar at
+`0x137420` advances from `d44b1580` to `d44c6700`, exactly 86400 seconds.
+A second isolated process receives only the first process's NVRAM, enters
+the security code without time/date keys, and restores `d44c6700` through
+the own journal. Physical Menu/seven Down/Menu opens Calendar: its reviewed
+84x48 frame shows **8 October 2026, Thursday**. Both processes must also
+complete laboratory registration. This proves one ordinary midnight and
+same-supply cold persistence, not offline elapsed time or battery-removal
+behavior. CCONT supplies the elapsed-day counter;
+the handset firmware owns the Gregorian date.
+
+`verify-8890-calendar-restore` additionally saves at 80 seconds before that
+midnight and runs to 100 seconds, then restores and repeats the same 20-second
+interval. The checkpoint and replay each require identical emulated time,
+all 37 ARM/banked registers, RAM digest and own date scalar. Both intervals
+must organically produce midnight, firmware day-counter read and clear;
+reference/replayed 84x48 pixels must match. A separate cold process then
+proves the same reviewed 8 October Calendar frame and own-journal date,
+with registration verified in both processes. The isolated run
+`run_8890_calendar_restore_acceptance_20261009` passes. This is save-state
+continuation of the research-HLE composition, not offline elapsed time,
+battery-removal retention or native DSP/speech validation.
+
+`make verify-8890-calendar-leap-day RUN_DIR=RUN` independently starts
+from physical 23:59 and 28/02/2024. The same day-register read/clear
+sequence advances the scalar from `cf640180` to `cf655300`; a cold
+Calendar readback shows **29 February 2024, Thursday**. The checker
+requires this date's own scalar pair and full reviewed frame, not the
+ordinary October oracle. This validates entry into a leap day, not leaving
+February or non-leap February.
+
+`make verify-8890-calendar-year-end RUN_DIR=RUN` physically enters
+23:59 and 31/12/2026 from empty storage with the unchanged own PMM. Midnight
+advances the scalar from `d4bb2500` to `d4bc7680`; cold journal restoration
+and physical Calendar selection display **1 January 2027, Friday**.
+Both isolated processes must register, and the complete 84x48 date frame is
+checked independently of the October and leap-day oracles. This establishes
+the December-to-January month/year boundary. Other month lengths, February
+exit, century rules and offline elapsed time remain outside the acceptance
+scope. No RTC/date RAM or provisioning record is forced by these fixtures.
+
+`verify-8890-calendar-non-leap` separately enters 23:59 and 28/02/2025
+through physical keys. Midnight consumes the CCONT day counter and advances
+the own-ROM scalar `d1468680` to `d147d800`. A separate process loads only
+that own saved journal and physically displays **1 March 2025, Saturday**,
+with its distinct full-frame oracle and preserved-location registration.
+This proves non-leap February exit, not leap-day exit or century rules.
+
+`make verify-8890-alarm RUN_DIR=RUN` independently seeds a physically entered
+13:47 clock using the checked cold-clock fixture, then enters Settings 4-1
+(`Erinnerungsfunktion`) and 13:48 with physical keys. Confirmation programs
+CCONT `0b=30`, `0c=0d`. At emulated second 60, RTC reaches 13:48:00;
+firmware reads alarm status `b3`, acknowledges `a0` and drives PUP buzzer
+control. Physical Stop at second 75 returns to the exact registered idle
+frame with buzzer control off. The alarm confirmation, visible 75-second
+alarm phase and stopped frame have independent full 84x48 reviewed hashes
+in `run_noki8890_alarm.py`; no 6210 rendering oracle or acknowledgement is
+imported. The fresh permanent runner checks own uploads/self-test and
+retained-location GSM900 registration (`run_8890_alarm_acceptance`). No
+clock, IRQ, UI or provisioning state is injected. This is research-HLE
+alarm control/presentation acceptance, not audible output, Snooze,
+powered-off wake or native DSP validation.
+
+`verify-8890-alarm-snooze` additionally presses the own `Names / C` right
+softkey at 13:48:15. Firmware programs `0b=36`, `0c=0d`: the observed next
+deadline is 13:54, not the 6210 fixture's 13:53. At second 420 the natural
+RTC alarm again presents `b3`; firmware acknowledges `a0` and restarts
+buzzer control. Physical Stop at second 435 returns to exact 13:54 idle.
+Separate reviewed full frames cover `Später erinnern eingeschaltet`, the
+recurrent alarm's title-blank/icon-visible phase and final idle. No rendering
+or alarm state is changed to choose that phase. Fresh physical-clock-seeded
+acceptance passes in `run_8890_alarm_snooze_acceptance`. This establishes the
+deadline for this observed input timing, not a universal interval/rounding
+algorithm, powered-off wake or audible-output acceptance.
+
+The unchanged acquired PMM is a negative control: RTC-only powered-off wake
+reaches `Sicherheitscode`, but `12345` is rejected after a settings reload.
+`noki8890_alarm_power_probe.lua` reproduces it from an own cold-clock seed
+in 95 seconds; raw evidence is retained in `run_8890_alarm_off_review` and
+`run_8890_alarm_off_security_review`. The runtime code record is inconsistent
+with its startup repair. Firmware-owned user provisioning resolves this,
+without a CCONT wake-cause change or manufactured record.
+
+The read-only own-ROM probe in `run_8890_alarm_startup_reader_valid`
+narrows the initial status consumer without closing the wake contract.
+At `0x2f0c44`, selector `90ff` reads CCONT register `0e`: ordinary cold
+startup returns `03`, whereas alarm wake returns `b3` at 60.250708615
+seconds. `0x2f0c48..0x2f0c54` extracts **bit 0 only** and stores its Boolean
+value at `0x137411`; the retained PWRONX bit 1 cannot distinguish these
+paths at this consumer. The following `0x2e2394` call separately reads
+MAD2 reset status at `0x20001`, not CCONT status. Likewise selector `84ff`
+through `0x2e2220` returns chip ID `b2` on both starts and checks
+`(value & fc) == b0`; it is a self-test, not a wake-cause selector.
+These observations do not exclude later CCONT-status consumers. Decode this ROM as
+big-endian Thumb; the 3210 swap16 decoding convention does not apply.
+The other observed full-status reads are the interrupt drain at
+`0x2fc74e/0x2fc7dc`: it subtracts the interrupt mask with BIC and applies
+`f8` before dispatch, excluding all three low reset-cause bits. The observed
+`9004` reads through `0x2458e0` select bit 2 only. Thus none of the observed
+CCONT-status helper callers makes the retained PWRONX bit a selector; this
+is bounded runtime coverage, not a proof that no other reader exists.
+The isolated physical retry in `run_8890_alarm_security_digits` captures
+the editor after each key: `12345` at seconds 86..91 produces exactly one
+through five asterisks, then Menu displays `Code falsch`. This excludes
+duplicate logical digits in that retry despite repeated low-level keypad
+decode observations. The same run accepts the cold-start security sequence
+before arming the alarm; no security record or firmware state was changed.
+`run_8890_alarm_security_nv` observes matching initial low-record requests
+and byte-identical `70:13/14/15/16` payloads on both starts. This is not
+an identity/security DSP verdict or proof that all NV bytes are unchanged.
+Offset-`000c` reader `0x28c40c` unpacks identity digits, not the phone code.
+The exact own-ROM five-digit reader is `0x28c140`: it reads three packed
+bytes at NV offset `0110`, converts high/low nibbles to characters, validates
+the first five digits and terminates at byte 5. Invalid digit content selects
+the ROM's `12345` fallback at `0x28c18a`. In
+`run_8890_alarm_security_code`, cold and alarm startup both call it through
+`0x2c250a` and return valid packed `123450`, decoded `313233343500`.
+Its caller initializes the encoded runtime setting through `0x2fa270`,
+using storage `0x1377e4`. The encoder combines a compact code representation
+with identity-derived context from `0x2e10ac`; this is firmware behavior,
+not an emulated security verdict.
+
+`run_8890_alarm_security_compare` identifies the actual validator
+`0x2fa48c`, called by `0x2cb872`: five input characters are encoded through
+`0x2fa270`, compared with the four runtime bytes at `0x1377e4` through
+`0x305e9c`, then passed to the retry/verdict handler `0x2fa438`.
+Both physical entries are `313233343500` and encode to `d83b30d8`.
+Cold startup compares against `d83b30d8` and returns match; alarm startup
+compares against `d33098dc` and returns mismatch. Retry count is initially
+zero in both cases, so this is not a pre-existing retry-limit rejection.
+
+The write tap in `run_8890_alarm_security_writer` locates the change:
+`0x2fa2a8` initializes the correct encoded bytes at 1.990148538 seconds;
+`0x3062cc` overwrites them at 32.065452231 after alarm confirmation.
+After wake, initialization repeats at 62.005513769, followed by the same
+overwrite at 63.485831769, before code entry. The NV getter census identifies
+that copy as offset `056c`, length 8, destination `0x1377e4`, through owner
+`0x2f4da0`. Its restored bytes are `d33098dc00000301`; the packed `0110`
+record remains valid `123450`. The startup repair calls the encoder but
+does not persist that setting; reload therefore restores the acquired
+record. Do not patch RAM, suppress the reload, or invent a replacement PMM
+record to pass it.
+
+The firmware-owned remedy is independently exercised in
+`run_8890_security_change_save`: physical Settings `4-6-5-3`, old code
+`12345`, new code `54321` twice, produces **Sicherheitscode geaendert**.
+Setter `0x2fa4d2` encodes `d87d3698` and persists through `0x2f4d2a` with
+selector `0709` (not the initializer's read selector `0701`). Independent
+cold run `run_8890_security_change_cold` compares `54321` against
+`d87d3698` successfully without invoking the packed-code fallback reader.
+Thus `0110` is a startup fallback source, not authority for every later
+code-validation transaction.
+
+`verify-8890-code-change` makes this a permanent isolated acceptance gate:
+generate an own physical clock seed, save `54321` through the menu, then
+cold-boot only the resulting storage. It requires the physical confirmation
+before the unique `0709` persistence call, the actual cold input and matched
+encoded comparison, reviewed save/cold frames, and runtime/self-test
+transport predicates. `run_8890_code_change_acceptance` reproduces it.
+This is firmware-owned user provisioning, not a shipped replacement PMM,
+security bypass or native DSP-verdict claim.
+
+Preserved negative controls prevent two false claims:
+`run_8890_alarm_changed_code` selects a non-future `13:48` on its retained
+clock seed and remains off; a blank frame alone is not a failed wake.
+`run_8890_alarm_changed_code_stop` shows that early Menu opens the normal
+menu, while Stop after alarm presentation returns to idle and the subsequent
+right softkey opens Names. It is not a 6210-style No activation choice.
+
+`make verify-8890-alarm-wake-security RUN_DIR=RUN` independently runs the
+physical code-change/cold-retention gate, then copies only its own saved
+storage into a fresh alarm process. Physical `13:49` entry programs
+CCONT `0b=31`, `0c=0d`; a four-second power hold removes rails near second
+40. RTC alone wakes them at second 60. Physical `54321` is accepted,
+the alarm is visibly presented, and Stop at second 87 returns to registered
+idle with buzzer control off and rails on. A digit may silence the buzzer
+before Stop, so no Stop-only buzzer edge is asserted. Each boot independently
+passes native-upload/HLE-boundary and retained-location registration checks;
+full reviewed frames cover off, security, accepted code, ringing and idle.
+Fresh acceptance is preserved in `run_8890_alarm_wake_acceptance`.
+The permanent checker rejects additional rail events and failed comparisons.
+This proves research-HLE wake/unlock/Stop after user-owned provisioning,
+not an alarm-only Yes/No activation path, native speech or audible output.
+
+`verify-8890-alarm-wake-restore` additionally saves the powered-off countdown
+at second 45. All 37 exported ARM registers (including banked state), the
+mapped SRAM digest and emulated time restore exactly. Reference and restored
+1.25-second windows contain the same RTC tick, no observed DSP/radio endpoint
+activity and no early rail wake; both off frames are blank. The restored
+timeline then passes the same deadline, security, registration and full-frame
+checks through physical Stop. Fresh full-register acceptance is retained in
+`run_8890_alarm_wake_restore_fullarch`. This validates the emulated countdown,
+not offline wall-clock passage or native DSP speech.
+
+NSB-6's passive persistent-flash census covers `0x3d0000..0x3fffff` under
+verbose logging, using the existing bus observer rather than firmware-state
+hooks. Physical time confirmation near 25 seconds and date confirmation near
+37 seconds both reach RAM-resident programmer PC `0x13d72a`. Its command
+sequence writes clear-status `50`, word-program `40`, a PMM halfword and
+read-array `ff` (command address `0x3fff00`). The date-confirmation tail writes
+`1134` then `1034` at `0x3d9654`, with surrounding payload writes retained in
+flash NVRAM. Thus the cold editor cannot be attributed to absent persistent
+writes alone. The cold-reader observation `tools/noki8890_clock_nv_read.lua`
+further proves that `0x3064ac` reads the committed `1034/047c/d44b/1580`
+sequence through caller `0x2e8650`. The journal copies the two payload
+halfwords to cache `0x11ee94`; its last observed value is `d44b1580`.
+At startup, NV getter `0x2c641c` receives offset `047c`, destination
+`0x137420` and length 12 through wrapper `0x304cd0`. It copies three words
+from the cache through `0x3062cc` and returns **1**, with validity flags
+zero, at `0x2c6456`. The record is therefore restored successfully, not
+skipped or rejected at this boundary. The writer association does not establish each
+field's clock semantics. The NSE-5 single-sector journal parser is not an
+established NSB-6 contract; no clock field, checksum or validity flag
+should be changed from these observations alone.
+
+The restored block belongs to context `0x137410`: NV data occupy `+10..+1b`.
+Original initializer `0x2dff5c` consumes the restored alarm deadline at `+14`
+and snapshot bytes at `+18/+19/+1a`. Its helpers `0x2fd32e`, `0x2fd3f2`
+and `0x2fd370` read the upper CCONT IRQ mask, hardware alarm seconds-of-day,
+and physical register `0x0d`, respectively. These are descriptor-derived
+physical registers, not identical logical descriptor indices. Disabled
+deadline `7fffffff` expects hardware alarm scalar `0x1a5e0` (hour 30,
+minute zero). The physical clock-entry run actually programs alarm `00/1e`
+and IRQ mask `50`; its saved register-`0x0d` snapshot is `0b`.
+The restored snapshot is `0b/05/aa`. Matching retained controller fields let
+the original initializer select state `2a` at `0x137414`; time getter
+`0x2dfc28` requires that state. The observed application store is
+`0x2dffde` (`strb r0,[r4,#4]`); `0x2dffdc` only loads constant `0x2a`
+and is not the store-site identity. Mismatched fields select state `34` and
+`0x2e0124` reinitialization. Counter-only persistence is therefore insufficient:
+the firmware validates the complete retained clock domain. No application-state
+override is needed. Offline calendar advance and battery-removal behavior remain
+outside this cold-process acceptance.
+
+`verify-8890-power-cycle` covers the distinct in-process physical lifecycle.
+Its fresh private runner pins own MCU/PMM and the configured ARFCN60 cell,
+physically enters security/time/date, holds Power for four seconds, observes
+firmware rail-off and a blank LCD, then presses Power again without a charger.
+CCONT ticks while the CPU is off and supplies PWRONX cause `02`; firmware
+reads ready/PWRONX/RTC status `13`, re-executes its own native uploads before
+the explicit missing-mask HLE handoff and clears self-test faults normally.
+Passive debugger log caps are re-armed for the second boot, never firmware
+registers or RAM. The ROM writes acquisition control `07=00` after wake;
+the RTC read counter at the same address is independent. The checker anchors
+off-state ticks to the last pre-off sample and requires three continuous
+post-wake samples, including minute rollover, rather than assuming RTC
+seconds equal elapsed emulation time or accepting a seconds reset.
+Physical `12345`/Menu then reaches the reviewed ordinary idle frame without
+re-entering time/date. This is modeled in-process state retention, not
+battery-backed cold-process clock or calendar persistence.
+
+The restarted handset sends Location Updating body
+`05087200f110000123080910101032547698`, carrying retained laboratory LAI,
+not the fresh boot's `05087000f000fffe23080910101032547698`. The strict
+`--configured-gsm900 --preserved-location` registration check requires
+that exact request and contention echo, complete accept/release/paging,
+organic EF_LOCI read before the request, and no redundant EF_LOCI rewrite.
+The final SIM location/status remain valid. The ordinary cold gate still
+requires its original request and the actual LAI/status writes.
+The off interval lasts at least six seconds: continuous RTC ticks are
+required and DSP RX publication, peer shared-RAM writes, FIQ0 notifications,
+native port activity and radio LAPDm output are forbidden. The backend and
+radio endpoint stop their timers on rail-off; the normal full digital reset
+re-arms them on wake. Neither test claims native DSP speech, physical wake
+timing or power gating of every other peripheral.
+
+`verify-8890-power-off-restore` uses the same physical fixture but saves at
+53 s while the rail is off. PC/SP, mapped RAM checksum and emulator time
+must restore exactly; the abandoned and restored one-second windows must
+have identical RTC ticks, blank frames and no DSP/radio activity. The
+restored branch completes the ordinary PWRONX restart, both own native/HLE
+stages, retained-location registration and physical security entry to idle.
+This is an emulator save-state contract, not cold-process RTC persistence.
+
 Incoming-call signaling separately passes IMSI paging, Paging Response,
 contention UA, cipher/MM-information exchange, incoming SETUP, Call
 Confirmed/Alerting, own traffic configuration and Assignment Complete.
@@ -826,12 +1672,53 @@ scenario enabled; check with `noki8890_outgoing_sms_check.py RUN/error.log`.
 The SMS recipient editor preserves digit ordering; the direct-call editor's
 rotation is not a general keypad wiring or numeric-entry defect.
 
-GSM900 and PCS1900 laboratory registration are verified separately;
-clock-notice settlement and invalid-clock error cancellation remain
-presentation/lifecycle questions. Call signaling and SMS are verified on
+GSM900 and PCS1900 laboratory registration are verified separately.
+Valid clock/date entry reaches ordinary idle; `verify-8890-cold-clock`
+additionally proves entered 13:47 survives a cold process when the CCONT
+clock/control domain and handset storage are both retained. Phone/SIM storage
+alone is insufficient. Offline calendar advance and battery-removal behavior
+remain unproved; invalid-clock cancellation has its separate presentation gate.
+Call signaling and SMS are verified on
 both bands; speech/media remains unproved.
 
 ### 8890 PCS1900 Acquisition Contract
+
+`verify-8890-pin-pcs-registration` independently covers physical PIN `1234`
+and PCS registration after VERIFY acceptance. The handset's GSM scan is
+empty; its subsequent `55:04080000` receives 600/601, with the same response
+object reaching own parser `2809fc` as ARFCN `0258`/RSSI `c3`. Acceptance
+requires the complete existing PCS scan/SI1/channel/EF_LOCI/release contract,
+not the GSM900 type-57 response. No additional peer behavior is selected.
+The no-PIN PCS composition also passes.
+
+Four `verify-8890-pin-pcs-host-*` gates independently cover incoming/outgoing
+calls and SMS after authentication. Calls require the exact carrier-600
+traffic/release grammar, host caller/called-number correlation, physical
+clock/date and Answer/End or dialing, and reviewed returned-idle pixels.
+SMS requires host correlation and exact CP/RP closure; incoming `hello`
+must additionally persist and render through physical Read. The private
+PCS config retains its carrier/band settings and adds only CALLHOST.
+No extra peer behavior is selected; signaling does not establish native speech.
+
+`verify-8890-pin-pcs-host-rejected-sms` and
+`verify-8890-pin-pcs-host-silent-sms` independently add authenticated PCS
+failure recovery (`run_8890_pin_pcs_rejected_sms_01`,
+`run_8890_pin_pcs_silent_sms_01`). Both require the own PCS measurement
+consumer, scan/SI1/registration/EF_LOCI contract, correlated host decision,
+RP-error or full timeout closure, distinct reviewed failure pixels and
+physical End/Menu recovery. GSM900 results do not substitute for these
+band-specific checks; protocol timers remain unchanged.
+
+Three `verify-8890-pin-pcs-state-*` gates independently add authenticated
+idle/call/SMS restoration with exact architecture, ordered protocol replay,
+whole-screen equality and post-load physical continuation. Idle/call save
+at 46/56 seconds. PCS SMS delivery releases at 24.627 seconds, so its
+dedicated physical fixture saves at 25 and begins reading at 27; the
+23-second GSM900 fixture would save before delivery completes and is rejected
+by the prerequisite check. No firmware or peer timing changes are made.
+The no-PIN PCS baseline likewise releases at 19.190 seconds; the dedicated
+fixture saves at 20 and begins reading at 22 rather than calling an in-flight
+19-second save a delivered-message state.
 
 Current result: fresh own PMM reaches PCS1900 registration on ARFCN 600,
 writes EF_LOCI, acknowledges release and returns to paging. This uses the
@@ -924,6 +1811,87 @@ at 14.575 seconds. These timings and signal levels are laboratory HLE
 observations, not measured silicon latency or calibrated RF units.
 
 ### 8890 PCS1900 Call And SMS Acceptance
+
+Host-originated incoming SMS is independently accepted on GSM900 and PCS1900.
+Use a private copy of `fixtures/noki8890_clock_incoming/nsb6hle.cfg` or
+`fixtures/noki8890_clock_incoming_pcs1900/nsb6hle.cfg`: these enable the host
+adapter, not automatic lab SMS. Run `tools/run_host_incoming_sms_gate.py`
+around `nsb6hle` with HTTP enabled, fresh private cfg/NVRAM/snapshot directories,
+verbose logging, `tools/noki8890_incoming_sms_input.lua` and 36 seconds.
+The runner sends external sender `5551234`, GSM7 `hello`, only after the
+adapter reports registration. Require both validators:
+
+```sh
+.venv/bin/python tools/radio_incoming_host_sms_trace_check.py RUN/error.log
+.venv/bin/python tools/noki8890_incoming_sms_check.py RUN/error.log \
+  RUN/nvram/nsb6hle/sim_card RUN/snap/8890_sms_read_2.png
+```
+
+For PCS1900 add `--arfcn 600` to the host checker and `--pcs1900` to the
+handset checker. Host acceptance/queued/delivered identity, firmware CP/RP
+closure, exactly one page, delivery/read-status SIM writes, persistent read
+content and reviewed body pixels all pass. The PCS check also requires the
+complete organic carrier/band registration contract. This is a software host
+SMS boundary, not evidence of native radio/DSP execution or an external SMSC.
+
+Host-decided outgoing SMS is also independently accepted on both bands with
+the same host-enabled configurations. Run `tools/run_host_sms_gate.py` with
+`--user-data 41 --user-data-length 1`, HTTP enabled, fresh private storage,
+`tools/noki8890_outgoing_sms_input.lua` and 52 seconds. Physical inputs compose
+`A` for `5551234`; the runner requires that exact recipient, alphabet, packed
+payload and correlated request before accepting it. Wrong-ID and duplicate
+host decisions are rejected, and handset RP/CP closure returns to paging.
+Require `radio_outgoing_host_sms_trace_check.py --octets 1 RUN/error.log`
+and `noki8890_outgoing_sms_check.py RUN/error.log` (add `--pcs1900` for PCS).
+The latter requires independent PCS acquisition before accepting its transport
+lifecycle. This establishes a software host decision boundary, not SMS delivery
+to a real subscriber or a native DSP radio backend.
+
+Explicit host RP rejection is independently verified on GSM900 and PCS1900. Use the same
+host-enabled configuration and expected `A` payload, add `--decision rp_error`
+to the runner and use `tools/noki8890_sms_reject_input.lua` for 52 seconds.
+The handset receives RP-ERROR, sends CP-ACK, releases the channel and resumes
+paging without any success RP-ACK. The reviewed transient German frame reads
+`Kurzmitt. nicht gesendet`; subsequent physical End (`0f`) and Menu (`19`)
+open `Mitteilungen`. Require:
+
+```sh
+.venv/bin/python tools/noki8890_outgoing_sms_check.py --rejected \
+  --recovery-frames RUN/snap RUN/error.log
+```
+
+For PCS1900 use the PCS host configuration and add `--pcs1900` to the checker;
+the independent fresh run passes the same reviewed text and recovery checks
+after its strict carrier/band registration. This checks exact physical
+submission, rejection signaling, reviewed failure text and post-release
+input/menu recovery. It does not establish silent-peer timeout/retry or
+external-SMSC failure acceptance.
+
+RP-silence completion uses mobile LAPDm release rather than another SMS
+Layer-3 message. In the GSM900 fixture, one exact `A/5551234` submission occurs
+at 39.964 seconds and network CP-ACK at 39.969 seconds. With no RP reply,
+handset firmware sends main-link DISC (`01 53 01`) at 107.505 seconds; the
+network sends UA and the handset deconfigures its assigned channel. The
+session retires the silent request only after that link UA, then the host
+publishes correlated `ended` and idle paging is rearmed. Neither a timeout
+timer nor a handset event is synthesized by the peer. The observed interval
+is not a measured physical timer specification.
+
+Use `--decision rp_silence` with `tools/noki8890_sms_silence_input.lua` and
+125 seconds, fresh private storage and the GSM900 host configuration. Require
+`noki8890_outgoing_sms_check.py --rp-silence --recovery-frames RUN/snap
+RUN/error.log`: it checks exact submission, CP-ACK, silence decision, DISC/UA,
+physical deconfiguration, correlated host completion, resumed paging, reviewed
+failure text and physical End/Menu recovery. It rejects any RP-ACK/RP-ERROR
+or missing mobile DISC. A service-only trace is insufficient here: it omits
+the load-bearing LAPDm release. The reviewed timeout frame reads
+`Übertragungsfehler`, distinct from the explicit rejection's message-not-sent
+text. Independent fresh PCS1900 acceptance passes the same complete lifecycle;
+use the PCS host configuration and add `--pcs1900` to the checker, which
+requires the organic carrier-600 registration contract before timeout
+acceptance. The observed firmware-owned release behavior is shared across
+both bands; this does not establish a physical timer frequency or native DSP
+execution.
 
 Fresh strict-topology runs also complete incoming and outgoing call
 signaling and incoming/outgoing SMS. The network's existing assignment
@@ -1116,6 +2084,287 @@ immediately constructs its own `56/160` candidate window containing ARFCN
 candidate-window continuation. Release/neighbour/handover calibrations not
 yet recovered for this product remain unset. The normal machine is unchanged.
 
+`verify-8850-sim-pin-registration` independently enters SIM PIN `1234`, then
+the phone code `12345`, through the product-local matrix. It checks decoded
+physical PIN input, enabled CHV1/unchanged PIN/retry state, registration after
+VERIFY, persisted EF_LOCI, own staged uploads/self-test and reviewed Messages,
+Inbox and Names pixels. No new background-measurement response is enabled:
+the existing `55` scan provides the ARFCN 1 measurements before authentication.
+`run_noki8850_pin_registration.py --without-pin` separately protects the
+ordinary phone-code-only composition. Acquired PMM is unchanged in both;
+native DSP runtime and speech remain unproved.
+
+`.venv/bin/python tools/run_noki8850_pin_retry_cold.py RUN_DIR` separately
+qualifies durable PIN1 retry state through two isolated processes. The first
+starts with a declared PIN-enabled laboratory card and physically submits9999
+once. It must receive `9804` with two PIN1 attempts remaining, display the
+reviewed84x48 **Code error** frame and never acknowledge Location Updating.
+The complete serialized card must equal the initialized profile with only
+PIN1's retry allowance reduced. The second process inherits all predecessor
+NVRAM, physically submits1234 and enters the phone code12345 through the
+existing own-product input sequence. It must receive one `9000`, restore all
+PIN1 retries, register, and pass the reviewed Messages/Inbox/Names checks.
+Complete card equality permits only that retry reset and the expected EF_LOCI
+update; credential/configuration/record mutations are rejected. Both phases
+retain own input hashes, staged uploads, exclusive HLE/self-test and physical
+input checks. Distinct launch identities, complete initial-storage hashes and
+predecessor immutability checks retain the cold-process boundary. This does
+not qualify PIN exhaustion, PUK recovery, PIN2 or native DSP/speech by itself.
+Capture: `tmp/nsm2-pin-retry-cold-final`.
+
+The separate `--puk` variant runs three isolated processes. Physical9999
+submissions at8/16/24s must yield `9804`, `9804`, `9840` with PIN1 retry
+counts2/1/0; both **Code error** frames and the **SIM card blocked** frame
+are exact pixel oracles. No registration is allowed. A cold process inherits
+the entire blocked card and all phone NVRAM, enters PUK12345678, new PIN2468
+twice, and the ordinary phone code12345. Its sole UNBLOCK CHV1 APDU must use
+selector00 and return `9000`; no VERIFY is allowed in that phase. The exact
+new-PIN, confirmation and **Code accepted** frames and the stable physical
+Messages menu title are checked. Complete card equality permits only the
+replacement PIN, restored allowances and expected EF_LOCI update. A third
+cold process physically authenticates with2468, must not unblock again,
+retains the complete card unchanged and uses preserved-location registration
+before the established physical navigation checks. This establishes one
+successful PUK1 recovery, not wrong-PUK handling, permanent PUK loss or PIN2.
+Capture: `tmp/nsm2-puk-recovery-final`. These remain research-HLE observations,
+not native DSP, physical RF or speech acceptance.
+
+Adding `--wrong-puk-first` inserts a fourth independent process between
+blocking and recovery. It physically enters99999999 and confirms proposed
+PIN2468 twice; its sole selector00 UNBLOCK must return `9804`, retain zero
+PIN1 retries and consume only one PUK1 allowance (10 to9). The complete card
+must otherwise remain unchanged, including the original PIN. The blocked,
+new-PIN, confirmation and rejected-result frames are exact pixel oracles;
+neither registration nor protected post-authentication file reads are
+required of this still-blocked phase. The next cold process inherits the
+nine-allowance card, recovers with the correct PUK, and the final cold process
+authenticates with2468 under the original recovery checks. Capture:
+`tmp/nsm2-wrong-puk-recovery-final`. This qualifies one persistent wrong-PUK
+attempt and subsequent recovery, not permanent exhaustion or PIN2.
+
+The independent `--puk --exhaust-puk` variant uses twelve processes: fresh
+physical PIN1 exhaustion, ten cold wrong-PUK attempts and a final cold
+permanent-rejection check. Every wrong PUK is entered physically with both
+proposed-PIN confirmations. The complete inherited card must lose exactly
+one PUK1 allowance, preserving the original PIN and all unrelated bytes.
+The first nine UNBLOCK responses are `9804`; the tenth is `9840` with zero
+allowances and the reviewed **Code error** result frame. No blocked phase
+may register. Each attempt's own staged uploads, HLE boundary, physical input
+and exact editor/result frames are required, not inferred from the first.
+The final cold process must retain the entire exhausted card unchanged and
+issue no VERIFY or UNBLOCK despite physical digit/softkey input. Its reviewed
+**SIM card rejected** screen, ordinary numeric-entry frames and End return
+are pinned. The shared fixture's `new_pin`/`confirm` stage filenames do not
+identify PUK editors in this permanently rejected lifecycle: those keys enter
+ordinary dial text, and no new PIN is installed. It starts no call or Location
+Updating. Capture: `tmp/nsm2-permanent-puk-final`. This establishes permanent
+PUK1 loss for this laboratory card, not PIN2, native DSP, RF or speech.
+
+`.venv/bin/python tools/run_noki8850_pin2_change.py RUN_DIR` independently
+qualifies PIN2 credential persistence. Both processes authenticate startup
+PIN1 and the phone code through the existing product-local sequence, then
+physically navigate Settings / Security settings / Change access codes /
+Change PIN2 code. The first enters5678 and confirms replacement2468 twice.
+After inheriting all predecessor NVRAM, the second cold process uses2468 as
+the old PIN2 and changes it back to5678. Each requires exactly one accepted
+selector02 CHANGE CHV (`A0 24 00 02 10`), no other credential/configuration
+mutation, and complete card equality allowing only the PIN2 replacement and
+the expected laboratory location state. PIN1 and all retry/PUK allowances
+remain unchanged. Current/new/confirmation/**PIN2 code changed** frames are
+exact pixel oracles; End followed by physical Menu must render the reviewed
+stable Messages title. Own staged uploads, exclusive HLE/self-test, physical
+contacts and ordinary/preserved registration checks remain mandatory.
+Capture: `tmp/nsm2-pin2-change-final`. This proves cold use of the replacement
+credential, not merely a serialized edit; it does not establish rejected
+PIN2 changes, PIN2 exhaustion/PUK2 recovery, FDN or native DSP/speech.
+
+Its independent `--reject-first` variant adds a fresh first process that
+physically enters old PIN2=9999 and confirms proposed2468 twice. Exactly one
+CHV2 CHANGE must return `9804`, consume one PIN2 retry (3 to2), preserve5678
+and render the existing **Code error** oracle. Complete card equality rejects
+premature installation of2468 or unrelated changes. The next cold process
+inherits all NVRAM, uses the unchanged5678 to install2468 and restores the
+PIN2 allowance to3. A final cold process uses2468 to change back to5678.
+Every leg retains its physical/editor/result/menu, own upload/HLE and
+ordinary/preserved registration checks. Capture:
+`tmp/nsm2-pin2-rejection-final`. This qualifies one rejected CHANGE and durable
+retry recovery, not PIN2 exhaustion, PUK2 or FDN.
+
+The separately executed `--puk2` variant uses five isolated processes. Three
+physical wrong-old-PIN2 changes consume allowances3/2/1 to2/1/0, with
+`9804`/`9804`/`9840` and the reviewed **PIN2 code blocked** final frame.
+PIN1 authentication and ordinary/preserved registration remain valid on
+every leg; PIN2 blocking is not whole-card rejection. A cold process inherits
+the complete blocked card, physically enters PUK2=87654321 and confirms
+new PIN2=2468 twice. It must send one selector02 UNBLOCK CHV returning9000,
+then organically send selector02 VERIFY for the installed PIN2 and obtain
+9000 again. That follow-up verification is required, not treated as a
+duplicate startup PIN1 attempt. Exact blocked/new/confirmation/**Code
+accepted** frames and the responsive Messages title are required. The last
+cold process uses2468 to change PIN2 back to5678. Complete card equality
+permits only each PIN2 retry decrement or authorized PIN2 replacement/reset;
+PIN1, both PUKs and all unrelated bytes remain unchanged. All successor
+processes inherit complete predecessor NVRAM. Capture:
+`tmp/nsm2-puk2-recovery-final`. This qualifies successful PUK2 recovery after
+organic PIN2 exhaustion, not rejected PUK2, permanent PUK2 loss or FDN.
+
+Adding `--wrong-puk2-first` independently extends this to six processes.
+Between PIN2 blocking and correct recovery, a cold process physically enters
+PUK2=99999999 and confirms proposed2468 twice. One selector02 UNBLOCK must
+return9804, retain the original5678 and zero PIN2 retries, and reduce only
+PUK2 allowance10 to9. It must not issue the follow-up PIN2 VERIFY used by the
+successful path. Complete card equality, the shared **Code error** oracle,
+own boot/HLE, continuing registration and responsive menu checks remain
+mandatory. Correct recovery inherits the nine-allowance card, restores the
+allowances and installs2468; the final cold process uses2468 to change back.
+Capture: `tmp/nsm2-wrong-puk2-final`. This qualifies one rejected PUK2 and cold
+recovery, not permanent PUK2 loss or FDN.
+
+The independent `--puk2 --exhaust-puk2` variant uses fourteen processes:
+three physical rejected PIN2 changes, ten cold wrong-PUK2 attempts and a
+final cold permanently rejected entry. Every PUK2 attempt loses exactly one
+allowance in the complete inherited card, preserves5678 and zero PIN2
+retries, and emits one selector02 UNBLOCK without a subsequent VERIFY.
+Nine `9804` results precede final `9840` and the reviewed **PIN2 code rejected**
+frame. PIN1 authentication and ordinary/preserved laboratory registration
+remain mandatory on every leg; this is not whole-SIM rejection.
+
+The final cold process physically opens Change PIN2 code and must display
+**PIN2 code rejected**, with no PIN2 credential APDU available. One digit
+enters the ordinary dial screen; End cancels it and physical Menu renders
+the stable Messages title. The complete exhausted card remains unchanged,
+and no call/SMS transaction is allowed. Do not replay the usual PUK2
+digit/softkey sequence after the rejected-entry dialog: it has left the
+credential flow and can invoke ordinary SIM contact saving. The permanent
+fixture therefore observes that boundary and cancels dial entry rather
+than treating later screens as PUK2 editors. Capture:
+`tmp/nsm2-permanent-puk2-final`. Exact frame, card, physical-contact,
+own-upload/HLE and predecessor-storage checks apply throughout. FDN,
+native DSP/RF and speech remain separate contracts.
+
+`.venv/bin/python tools/run_noki8850_fdn.py RUN_DIR` independently qualifies
+the physical FDN validity cycle on a declared laboratory card with ten empty
+FDN records and initially valid ADN. Four isolated processes perform On,
+cold On inspection, Off and cold Off inspection. Physical PIN2=5678 is
+required only for toggles; every boot still authenticates PIN1 and registers.
+On sends INVALIDATE EF_ADN (`6f3a`); Off sends REHABILITATE EF_ADN. The own
+firmware additionally rehabilitates identity files `6f7e`/`6f07` on On,
+cold On and Off, but no validity command is expected on cold Off. All ten
+FDN records are read on each boot. Complete card equality permits only the
+expected ADN-validity flag and laboratory location state; credentials,
+allowances and every FDN record remain unchanged. No credential changes or
+UPDATE RECORD are allowed. Own upload/HLE, complete predecessor NVRAM
+inheritance, immutability, physical contacts, exact current/selected/PIN2/
+result frames and the stable Messages title remain required. Capture:
+`tmp/nsm2-fdn-validity-final`. This qualifies cold On/Off persistence, not
+FDN record editing, listed/unlisted dial permission, native DSP/RF or speech.
+
+The independently executed `--records` extension adds a PIN2-protected
+A / 12345 Save and a separate cold Search/Details process. Its input branch
+inherits the verified On phase, not the later Off phase. The 8850 Add entry
+UI is name-first, then number; menu order is product-specific fixture policy,
+not a shared hardware contract. Physical PIN2 verification precedes Save,
+which must issue exactly one successful UPDATE RECORD to EF_FDN (`6f3b`),
+record1, length32. Whole-card comparison requires the canonical A / 12345
+record at that slot, all nine other FDN records erased, ADN unchanged and
+no unrelated credential/validity/location mutation. The writer reads all ten
+FDN records at startup, probes record1 before UPDATE and reads it again after
+success. The cold process authenticates PIN1 only, reads all ten plus three
+record1 selections, leaves the entire card unchanged and renders the reviewed
+A / 12345 detail frame. Exact PIN2/name/number/save/detail and responsive-menu
+oracles, own upload/HLE, preserved registration and immutable complete
+predecessor NVRAM apply throughout. Capture: `tmp/nsm2-fdn-record-final`.
+This qualifies protected Save/cold retrieval, not edit/erase/cancel or listed/
+unlisted dial permission.
+
+The independent `--dial-controls` extension runs ten isolated processes,
+including the validity and protected-record prerequisites. Listed12345 and
+unlisted12346 both start from the same saved FDN-On card. The own firmware
+rereads EF_FDN record1 after physical Send in both cases. Listed12345 must
+complete CM service, CC SETUP/assignment/connect, physical End and the full
+CC/RR release back to paging. Unlisted12346 must render **Call not allowed**
+and emit no CM Service Request, CC SETUP, assignment or connect. A separate
+physical PIN2-protected Off process inherits the same saved On card, keeps
+A / 12345 intact and rehabilitates ADN; its cold successor must connect and
+release unlisted12346 under the same complete signaling checks. That Off
+control distinguishes FDN denial from a network that rejects the number.
+
+All three dial controls explicitly configure `CALLHOST=0` for an isolated
+automatic laboratory peer, retain the whole card unchanged, authenticate
+only startup PIN1, load all ten FDN records and pass own upload/HLE,
+preserved registration and physical input checks. The two On controls also
+require the post-Send record1 lookup; Off requires no such lookup. Exact
+Calling/connected/denial frames and the stable responsive Messages title
+are pinned. Capture: `tmp/nsm2-fdn-dial-final`. This qualifies one listed/
+unlisted pair and physical Off, not every number-normalization/prefix case,
+protected edit/erase/cancel, physical RF, native DSP or speech.
+
+The independent `--record-lifecycle` extension uses twelve processes for
+validity, Save/cold Details, protected Edit/cold Details, erase cancellation/
+cold Details, and confirmed erase/cold empty Search. On this product, opening
+an FDN contact's Options asks for PIN2 before displaying Edit/Erase. Physical
+Edit retains nameA, changes12345 to12346 and must update only EF_FDN record1;
+the next cold Details must render A / 12346. Both cancellation and erase
+present the identical reviewed **Erase? A** dialog after PIN2 authentication.
+Back must issue no UPDATE and preserve the full edited card through another
+cold Details. Confirming must issue one record1 UPDATE of32 erased bytes,
+display **Memory erased**, and leave a cold empty query displaying **No phone
+numbers**. A blank Search editor is not accepted as empty-result evidence.
+
+Complete card comparisons retain ADN validity, every other record,
+credentials and all allowances. Own upload/HLE, PIN1/preserved registration,
+physical contact timing, exact dialogs/editors/save/cold outcomes, responsive
+Messages title and full immutable predecessor NVRAM remain mandatory.
+Capture: `tmp/nsm2-fdn-record-lifecycle-final`. This covers one record's edit,
+cancel and erase, not capacity, multi-record ordering, arbitrary name encodings,
+physical RF, native DSP or speech.
+
+The same isolated runner accepts `--scenario host-incoming-call`. It verifies
+physical answer/end input, the complete host-originated CC/RR exchange,
+traffic-channel assignment and release, and reviewed ringing/returned-idle
+pixels after PIN authentication. `--without-pin` passes the same call checks.
+The PIN fixture delays its menu-exit key by four seconds to match the added
+authentication sequence; firmware and peer timing are unchanged. This is
+research-HLE signaling coverage, not native speech.
+
+`--scenario host-incoming-sms` independently checks host delivery after PIN
+acceptance, CP/RP closure, exact read SIM storage, physical Read decoding and
+reviewed `hello` pixels. Its physical reader starts four seconds later only
+for PIN fixtures. Both incoming scenarios pass with `--without-pin` as well.
+Permanent gates are `verify-8850-pin-host-incoming-call` and
+`verify-8850-pin-host-incoming-sms`.
+
+The corresponding `host-outgoing-call` and `host-outgoing-sms` scenarios
+verify physical dialing of `5551234`, host connection and complete CC/RR
+release, or physical composition of `A` with exact SMS-SUBMIT and host CP/RP
+closure. Both require registration after PIN acceptance. Their permanent
+gates are `verify-8850-pin-host-outgoing-call` and
+`verify-8850-pin-host-outgoing-sms`; no native speech is claimed.
+
+`verify-8850-pin-host-rejected-sms` and `verify-8850-pin-host-silent-sms`
+also pass own-PMM authenticated registration, physical composition, correlated
+host outcome, RP-error or full firmware-timeout closure, distinct reviewed
+failure pixels and physical End/Menu recovery. Fresh evidence is
+`run_8850_pin_host_rejected_sms_01` and `run_8850_pin_host_silent_sms_01`.
+Timeout uses 125 emulated seconds; protocol timers and handset state are
+not altered. Native DSP and speech remain unproved.
+
+`verify-8850-pin-phonebook` saves `A / 123` through physical keys with PIN
+enabled, then starts a second process on the same acquired PMM and SIM
+storage. It requires physical PIN acceptance again, retained-LAI/TMSI
+registration, byte-identical SIM storage after readback, no ADN rewrite,
+and the reviewed contact-detail pixels. The first process's trace is retained
+as `write.log`; the second process owns `error.log`.
+
+Authenticated restoration is covered by `verify-8850-pin-state-idle`,
+`verify-8850-pin-state-call` and `verify-8850-pin-state-sms`. Physical PIN
+entry precedes registration; save points are 36, 44 and 23 seconds
+respectively. The call must already be connected, and SMS must already be
+stored with its channel released. Exact CPU/RAM/time, nonempty protocol
+replay and whole-screen equality are required, followed by physical Menu,
+End or message reading after load. These are emulator restoration contracts,
+not cold-clock persistence or native DSP speech.
+
 Run `noki8850_radio_observe.lua` for 60 simulated seconds with the isolated
 research invocation above, then check:
 
@@ -1151,6 +2400,225 @@ and stable top-left 72x16 pixel crops from Messages, Inbox and Names.
 The crop excludes the animated menu icon and scrollbar. Raw IRQ delivery
 alone cannot pass this acceptance. Stock absent DSP-mask warnings are not
 evidence of native mask execution.
+
+For physical USSD acceptance, use the same fresh private run setup with
+`tools/noki8850_ussd_input.lua` and a 43-second run. Then run:
+
+```sh
+.venv/bin/python tools/noki8850_ussd_check.py RUN
+```
+
+`make verify-8850-ussd RUN_DIR=NEW_RUN` automates the isolated run with
+own MCU/PMM provenance checks. `verify-8850-call-divert` uses the same
+own startup with physical `*#21#`, exact inactive service-21 result,
+reviewed `Service not active` frame, physical Back to DCT3LAB idle and
+persisted EF_LOCI. The divert fixture runs for 36 seconds and captures
+the transient result early, before automatic dismissal. Activation and
+actual call forwarding are not proved by this gate.
+
+The fixture enters the security code through physical keys, then `*123#`
+and Send. Acceptance requires the exact GSM 04.80 request and correlated
+laboratory response, channel release, the reviewed `Nokia test network`
+frame, physical Back to registered idle, and persisted updated EF_LOCI.
+The own MCU and acquired PMM remain unchanged. The own table at `33f504`
+matches the 8210 `33ee78` and 8890 `339f4c` tables: Star is column 2,
+Hash column 4. Shared port labels express that contract without changing
+matrix bits. This proves research-HLE supplementary signaling and UI,
+not native DSP execution or speech.
+
+`verify-8850-pin-host-incoming-ussd` additionally qualifies a host-originated
+notification through the WebSocket backend on fresh own-PMM `nsm2hle`.
+Physical PIN1234 and phone-code12345 precede settled admission at30s.
+The host submits `Host notice`; the firmware acknowledges the notification,
+releases RR, and physical Menu at35s displays the reviewed exact text frame.
+End at38s returns to the existing registered-idle oracle; Menu at41s opens
+the existing Messages title/list crop, excluding its animated icon. Every
+physical contact release is checked. The complete SIM must equal the
+PIN-enabled laboratory profile plus its ordinary registered EF_LOCI and
+default identity trailer; no SIM write or credential change may occur after
+notification admission. Wrong epoch, duplicate notification, absent release,
+changed card bytes and missing read/recovery frames reject. This establishes
+one-way host notification, not a host request/reply dialogue or native radio.
+
+`verify-8850-pin-host-ussd-network-request` covers one host-originated
+`Choose 2` request after the same physical authentication. Menu reads the
+prompt at35s; a second Menu selects Answer at37s. Physical Keypad2 at39s
+and Send/Menu at41s produce the exact nonempty response DCS0f/data32,
+followed by RR release and the correlated epoch1 answered state. Reviewed
+prompt, numeric editor containing2, Done and recovered Messages title pixels
+are mandatory, as are exact contact releases and complete expected SIM
+contents. The first Read does not open the editor: omitting Answer returns
+an empty result on End rather than the intended reply. No handset state is
+injected. This qualifies one request/reply, not a multi-turn session or native
+DSP/radio execution.
+
+`verify-8850-pin-host-ussd-network-restore` saves that pending handset
+request at33s, before any Read/Answer input, and restores all37 ARM/banked
+registers, PC/SP, mapped RAM digest and emulated time exactly. The adapter
+republishes queued request1 under epoch2; only the restored branch receives
+the physical reply. One admission, queued epochs1/2 and one epoch2 nonempty
+reply/answered state are required. The same reviewed prompt/editor/Done/menu
+images, released contacts and whole-card invariants apply. This preserves
+an in-flight network-originated transaction, not external packet replay or
+multi-turn-session acceptance.
+
+`verify-8850-pin-host-ussd-empty-reply` independently opens the same
+network request's Read and Answer screens, then dismisses the empty editor
+with physical End at39s. Firmware returns the exact empty result
+`8b3a05a203020101`; the host receives DCS00, no data and `empty=true`
+before one answered state. Exact empty-editor, existing registered-idle and
+Messages recovery pixels and complete expected card bytes are mandatory.
+An empty result is not accepted by the typed-reply gate. This product-local
+dismissal contract does not qualify restored dismissal or other handsets'
+editor behavior; notably the NPE-3 dismissal boundary remains separate.
+
+`verify-8850-pin-host-outgoing-ussd` independently covers physical `*123#`
+and Send on the same authenticated own-PMM composition. The host rejects a
+wrong request identity before accepting the matching response; the handset
+renders the reviewed `Host network` result and releases RR. Physical Back
+returns to the existing registered-idle image, then Menu recovers the existing
+Messages title crop. The request appears exactly once in epoch1, with accepted
+then ended states; the complete card and post-request no-write/security-command
+checks are shared with notification acceptance. The host runner independently
+checks the exact packed `*123#` request. This is one host-decided response,
+not multi-turn dialogue, pending-request restoration or native DSP evidence.
+
+`verify-8850-pin-host-ussd-restore` separately saves the pending host decision
+at31.8s, after physical authentication, registration and the first request.
+The shared snapshot helper records all37 ARM/banked registers, PC/SP, mapped
+RAM digest and emulated time; saved/restored records must match exactly and
+PC/SP must agree with the register inventory. The adapter republishes the
+same request once under epoch2. The host withholds a response in epoch1,
+then tests stale-epoch and wrong-ID rejection before replying to the restored
+identity. No response or SS release may precede restoration. Reviewed
+`Host network`, registered idle and Messages recovery, complete expected card
+bytes and post-request no-write checks remain mandatory. Reference/restored
+protocol traffic is intentionally unequal because only the restored branch
+receives a host answer; this is not a deterministic packet-replay claim.
+Cancelled host-side fixture waits exit cleanly without changing handset state.
+
+MAME also audits the declared shared `dsp_prom`, `dsp_drom` and `dsp_pdrom`
+files in the product ROM directory. Their presence is a run prerequisite,
+not evidence of a product-matched resident ROM6 mask; do not substitute
+another product's MCU, PMM or NVRAM to satisfy this fixture.
+
+`verify-8850-sim-toolkit` separately selects the card-owned Phase 2+
+DISPLAY TEXT profile in fresh configuration. The own firmware reads
+EF_PHASE=3, sends a nine-byte TERMINAL PROFILE, receives STATUS `91 16`
+and issues FETCH `A0 12 00 00 16`. The reviewed 84x48 `DCT3 SAT` frame
+has pixel SHA256 `0c609d0fc7f1f59534f7e29ccaa995d441ff52f701b76093661b2458380ff558`.
+A physical Menu/OK press produces TERMINAL RESPONSE
+`810301218002028281030100` and `90 00`, followed by the independently
+reviewed numeric-PLMN registered idle frame. The gate also requires own
+NSM-2 laboratory registration and persisted EF_LOCI. This establishes
+DISPLAY TEXT only, not other proactive commands, native DSP execution,
+or inherited 8890 Toolkit support. Acquired MCU/PMM bytes are unchanged.
+
+`verify-8850-sim-toolkit-interactive` independently selects card profile 3
+and composes DISPLAY TEXT with GET INKEY and GET INPUT. Status words
+`91 15` and `91 1a` announce the next FETCH. Physical digit 5 and OK
+produce response `8103022200020282810301000d020435`; physical digits 4/2
+and OK produce `8103032300020282810301000d03043432` and `90 00`.
+The gate checks reviewed `Press 5`, `Enter 42` and `DCT3 LAB` idle pixels,
+own registration and persisted EF_LOCI. The interactive idle oracle is
+distinct from the DISPLAY TEXT-only numeric-PLMN frame. Arbitrary text,
+UCS2, cancellation, menu selection and native DSP are outside this gate.
+
+The separate own-ROM 8850 menu, SMS, accepted-call and refused-call gates
+extend this coverage without changing the acquired MCU/PMM. Their current
+contracts are summarized in [Model Coverage](model_coverage.md): physical
+item selection produces the card ENVELOPE; SEND SHORT MESSAGE completes
+through CP/RP/RR; SET UP CALL requires physical consent and complete CC/RR
+release; physical Cancel returns result `22` without starting a GSM call.
+These are laboratory research-HLE contracts, not native DSP or speech claims.
+
+`verify-8890-sim-toolkit-busy` independently covers the NSB-6 cold-start
+response, not successful DISPLAY TEXT. Its own nine-byte TERMINAL PROFILE
+arms the card; STATUS returns `91 16` and FETCH reaches the firmware while
+physical date entry is active. TERMINAL RESPONSE is
+`81030121800202828103022001`: terminal currently unable, screen busy.
+The card acknowledges `90 00`; the same physical date-entry sequence
+finishes at the reviewed 84x48 DCT3LAB/12:00 idle frame (pixel SHA256
+`03cd1654572ac2cbe001a2fda57cdc3ead7b8d578d81efcaffe2af3350e0d6bc`).
+Own laboratory registration and persisted EF_LOCI remain required.
+Successful NSB-6 DISPLAY TEXT is independently observed after restarting
+with this handset's own physically entered clock/date storage. The ordinary
+STATUS poll at 62.016 seconds returns `91 16`; FETCH follows at 62.070
+seconds. Physical Menu at 71 seconds produces successful TERMINAL RESPONSE
+`810301218002028281030100` and `90 00`, then returns to DCT3LAB idle.
+`make verify-8890-sim-toolkit` reproduces this in two isolated processes:
+the seed passes the cold-start screen-busy gate while physically entering
+clock/date; the second process copies only that seed's own NVRAM and
+configuration. Retained-LAI registration uses the independently checked
+default-channel grammar, preserves EF_LOCI and resumes paging.
+The reviewed 84x48 DISPLAY TEXT pixel SHA256 is
+`6a0bd20bfe0a7f57ae82a570eceb3a0f29fdc8a9a1e047fb294e85d61e610f6f`;
+the post-dismissal 12:01 idle hash is
+`8187cbe68f4b7fe0a15cf10c16b742b3236f3240af3f79556c319d5ed337f2ee`.
+`noki8890_toolkit_retained_input.lua` supplies only physical security entry,
+snapshots and dismissal. The shared DISPLAY TEXT protocol checker passes
+the captured exchange, and the gate requires retained registration,
+persistent SIM location and both exact frames. This gate proves DISPLAY TEXT,
+not other proactive commands or native DSP speech. The cold-start screen-busy
+gate remains unchanged. The earlier 43-second observation window missed this
+later poll; no polling interval, card-ready timing or firmware UI state was
+forced to obtain the result.
+
+`verify-8890-sim-toolkit-interactive` uses the same fresh physical clock seed,
+then selects card profile 3 in an isolated retained process. Physical Menu
+dismisses DISPLAY TEXT; the card supplies GET INKEY (`9115`, FETCH `15`).
+Unlike the independently tested 6210/6250 UI, NSB-6 retains entered `5` in an
+OK editor: a second physical Menu is required before successful command-2
+TERMINAL RESPONSE `8103022200020282810301000d020435`. The gate explicitly
+requires this confirmation before the response, not merely somewhere in the
+run. Card-owned GET INPUT (`911a`, FETCH `1a`) then receives physical `4`,
+`2`, Menu and exact command-3 text TLV `0d03043432` with successful result.
+Five own 84x48 frames cover DISPLAY TEXT, INKEY, empty INPUT, entered `42`
+and registered idle. Registration and persistent SIM location are checked
+independently. No firmware memory, task messages or reply bytes are injected;
+Network Toolkit commands and native DSP speech remain unpromoted.
+
+`verify-8890-sim-toolkit-menu` extends the same fresh-seed/retained process
+with card profile 4. SET UP MENU is announced with `9128`, fetched at length
+`28` and accepted by TERMINAL RESPONSE `810304250002028281030100`.
+Physical Menu, Scroll Up and Menu open the installed card menu; physical
+selection emits ENVELOPE `d30702020181100101` for item 1 and receives `9000`.
+Physical End restores registered idle. Four additional own localized 84x48
+frames pin menu entry, item list, selection result and idle. The gate retains
+the NSB-6 INKEY OK requirement and independent registration/SIM-location
+checks. Card-menu selection alone does not establish network proactive commands.
+
+`verify-8890-sim-toolkit-sms` independently selects card profile 5 after
+the same own physical clock seed. Item-1 ENVELOPE returns `9124`, firmware
+FETCHes the card-owned SEND SHORT MESSAGE at length `24`, and submits exactly
+one 8-bit `SAT` message to `5551234`. The checker pins the full GSM payload,
+observed CP identifier `39`/message reference `01`, CP-ACK/RP-ACK, successful
+TERMINAL RESPONSE `810305130002028281030100`, final CP-ACK and RR release.
+Ten own 84x48 frames cover interactive input, card menu, post-network menu
+and physical End to 12:02 idle (the network wait crosses a minute boundary).
+The earlier menu gate retains its separate 12:01 oracle. The extra INKEY OK, retained registration and SIM
+location remain independently required. This is laboratory SMS signaling,
+not public delivery or native DSP speech.
+
+`verify-8890-sim-toolkit-call` independently uses card profile 6. Item-1
+ENVELOPE announces SET UP CALL (`911c`, FETCH `1c`) and the localized
+Call/Cancel prompt. Physical Menu consent precedes the outgoing `5551234`
+request. The gate requires successful TERMINAL RESPONSE
+`810306100002028281030100`, SETUP, Call Proceeding, one traffic assignment,
+Assignment Complete, Alerting, Connect and Connect Acknowledge. Physical
+End precedes Disconnect, Release, Release Complete and RR release.
+
+`verify-8890-sim-toolkit-call-decline` uses physical Names/C at the same
+prompt. Firmware returns result `22` in
+`810306100002028281030122`, with no outgoing request, SETUP, traffic
+assignment or Connect. Own prompt and connected-or-menu frames are
+checked separately. Accepted-call recovered idle displays 12:01, while
+refused-call idle displays 12:02; these are separate pixel observations,
+not a claim about the underlying RTC or redraw mechanism. Idle frames are
+checked separately, alongside retained registration and SIM location. Both
+gates retain the NSB-6 INKEY OK requirement and start with a fresh own-PMM
+physical clock seed. They prove HLE laboratory consent/signaling, not native
+DSP speech, physical duplex or end-to-end audio.
 
 Use `noki8850_startup_observe.lua` for a passive startup/one-softkey run.
 The ten-second and end-of-run frames are authoritative for the first
@@ -1244,10 +2712,279 @@ handset Connect Acknowledge, physical Disconnect, Release/Release Complete,
 RR release, the product-local channel transaction and confirmation, and
 return to paging. Reviewed operator-only pixel crops show numeric `001 01`
 before dialing and `DCT3 LAB` after release, excluding animated indicators.
-The wire also contains `860b`/`840a` speech-control commands, but no NSM-2
-speech-media contract is selected; this acceptance does not prove audio.
+This signaling acceptance alone does not prove audio; the independently
+validated NSM-2 PCM composition and its narrower result are described below.
+
+#### Own PCM Documentation
+
+The complete three-volume [Nokia NSM-2 service archive](https://www.eserviceinfo.com/downloadsm/5444/Nokia_8850.html)
+is acquired under ignored `roms/research/nsm2/`; `unrar t manual.rar`
+passes with both continuation volumes. `03SYS.PDF`, Issue 1 12/1999,
+printed page 24, has SHA256
+`d87c5261c8d80b2a1b6e94883614041440c4e37acfbfb82dab2c26c388456244`.
+It independently specifies a 1 MHz PCMDClk (13 MHz RFIClk divided by 13)
+and 8 kHz PCMSClk (PCMDClk divided by 125). The rendered timing diagram
+shows one active-high sync clock and a 16-clock, MSB-first word, with bits
+15..13 extending the sign of the 13-bit sample. Data changes on rising
+edges; the stable sampling edge is falling. This is NSM-2 evidence, not an
+inference from the similarly shaped NSM-3 interface.
+
+`04UI.PDF`, same issue, has SHA256
+`b4d0816473d2d2dc353f077741317044eed21e5c586ed2c3f743d06e9df11013`.
+Its audio description identifies internal MIC2 versus headset MIC1;
+the receiver table connects EARP/EARN to COBBA. Page 15 explicitly maps
+slide connector X300/2 MICP to MIC2N and X300/1 MICN to MIC2P. Preserve
+that documented polarity rather than normalizing names. Electrical test
+levels are not runtime codec gains or a decoded COBBA control-register map.
+
+These documents close the missing bus-shape and physical-endpoint evidence
+for 8850 only. The own-ROM field writer and physical Send/End correspondence
+are verified below, including bidirectional PCM/media. No native
+DSP speech, audible call or 8890 PCM contract is established by this finding.
+
+The acquired `8850v531.fls` (SHA1
+`9f966787403b68a09530680ad911302403eb1521`) now has a ROM-pinned static
+check:
+
+```sh
+.venv/bin/python tools/noki8850_speech_control_check.py roms/noki8850/8850v531.fls
+```
+
+Compiler `2cb0b8` bounds selectors to `0..34` and dispatches through the
+BE32 table at `2cb0ec`. Selector 17 targets `2cb334`, preserves the other
+bits with `fdff` and updates field `0200` in shadow `135666` (base
+`135664`, offset 2). Selector 8 targets `2cb37c`, constructs the `8000`
+command prefix and stores the command shadow at `135668`; the common
+publisher writes DSPIF `100a8` at `2cb3ca`. These are independently decoded
+NSM-2 addresses, not relocated NSM-3 guesses. The checker validates the ROM
+digest, instruction forms, selector targets and pool literals.
+
+The live speech-enable lifecycle is independently verified by a fresh
+isolated no-PIN host outgoing call (`run_8850_speech_control_probe`). The
+own-product runner's registration and call acceptance passes. Physical Send
+is followed by `860b` at `2cb3ca`, selector 8, at 33.079237 seconds; physical
+End is followed by `840a` through the same publisher at 41.562303 seconds.
+The runtime checker rejects a sibling publisher, wrong selector, missing
+disable or incorrectly ordered physical actions:
+
+```sh
+.venv/bin/python tools/noki8850_speech_control_check.py \
+  roms/noki8850/8850v531.fls --log RUN/error.log
+```
+
+The explicit `nsm2hle` research composition now selects command 8,
+mask/value `0200`, the independently documented NSM-2 PCM bus and MIC2/EAR
+endpoints at neutral HLE gain. Normal `noki8850` configuration is unchanged.
+A fresh isolated outgoing call (`run_8850_pcm_enabled_probe`) passes the
+full own-product signaling/frame acceptance after the change. It produces
+345 uplink and 338 downlink HLE speech frames on the 1 MHz/8 kHz PCM link,
+then stops with control `040a` after physical End. Reproduce the transport
+check with `--pcm` added to the command above; it rejects absent downlink,
+unsupported clocks, differing PCM/uplink counts and missing physical stop.
+
+Real outgoing SIP HLE media transport is also verified by
+`run_8850_sip_media_verified`: physical dialing reaches SIP 200/confirmed,
+336 uplink and 326 downlink frames traverse the bridge, and physical End
+completes the full own-product release and return-to-paging checks. The
+bridge records 336 PCM transmitted and 371 received frames (37 dropped).
+The gate requires at least 100 executed frames in each direction, ordered
+downlink admission/closure, exact dialed digits, and the existing full
+`noki8850_outgoing_call_check` lifecycle rather than a generic release regex.
+
+```sh
+make verify-8850-sip-outgoing-media RUN_DIR=NEW_RUN
+```
+
+Connected outgoing SIP restoration passes
+`verify-8850-sip-outgoing-restore` (`run_8850_sip_outgoing_restore_probe`).
+CPU, stack, RAM checksum and emulated time restore exactly. A fresh host
+epoch closes the old SIP dialog with BYE, clears the firmware call with
+cause 41 and completes release without redialing. External SIP state is
+not serialized; this gate does not claim continuous media across restore.
+
+`verify-8850-sip-incoming-restore` separately passes with physical Answer
+before the connected snapshot (`run_8850_sip_incoming_restore_probe`).
+The saved/restored PC, stack, RAM checksum and time match exactly; epoch 2
+clears the call once with cause 41, SIP BYE and ordered GSM release.
+The checker rejects missing or wrong-product Answer, duplicate delivery,
+duplicate clearing, old epochs and incomplete release.
+`verify-8850-sip-incoming-alerting-restore` also passes
+(`run_8850_sip_alerting_restore_probe`): an exact snapshot at 36 seconds
+restores while ringing, rejects the stale SIP invite and clears GSM once
+under epoch 2 without Answer, CONNECT, accepted media or redelivery.
+These restoration gates do not claim native DSP speech or restored SIP dialogs.
+
+`verify-8850-sip-outgoing-pending-restore` passes independently
+(`run_8850_sip_pending_restore_probe`). A remote SIP 180 holds the physical
+outgoing request pending across the exact 40-second handset snapshot.
+Acceptance requires ordered SIP CANCEL/487, one fresh-epoch cause-41
+clear and completed GSM release, with no redial, CONNECT or accepted media.
+Together the four restore gates cover incoming/outgoing calls both before
+and after connection; external dialog state is always discarded, not replayed.
+
+Outgoing HLE waveform delivery is separately verified by
+`run_8850_sip_waveform_probe/handset`. The isolated Pulse fixture supplies
+440 Hz through MAME's actual microphone stream and receives 660 Hz through
+its speaker stream; both recordings contain six consecutive accepted seconds.
+The checker requires at least two consecutive seconds, RMS >= 500 and tone
+energy fraction >= 0.5, rejecting silence, wrong tones and frame-count-only
+evidence. The run retains the full SIP transport and physical call checks;
+Pulse defaults and temporary routing modules are restored on exit.
+
+```sh
+make verify-8850-sip-outgoing-waveform RUN_DIR=NEW_RUN
+```
+
+This establishes outgoing bidirectional **HLE** microphone/earpiece delivery
+through real local SIP. Native DSP speech and physical codec gains remain
+unverified.
+
+Incoming SIP media is independently verified by
+`run_8850_sip_incoming_media_verified`. The existing physical incoming fixture
+publishes the registered-idle snapshot before external paging, presses
+Call/Send at 38 seconds and End at 46 seconds. Acceptance reuses the complete
+own-product incoming lifecycle and caller/operator frame checks, plus real
+SIP confirmation and sustained bidirectional media. The speech-control
+checker accepts incoming physical markers only in its explicit `--incoming`
+mode; it still requires both `860b` and the eventual `840a` at `2cb3ca`.
+
+The release ordering matters: incoming bearer closure stops speech while
+control remains `060b`, before the later firmware `840a` write. A queued
+terminal downlink frame can therefore be rejected as `session_closed`.
+The shared media checker requires the explicit correlated closure, ordered
+wire RR Channel Release followed by traffic UA before final completion,
+and no accepted media after closure. The outgoing-only service-release log
+message is not evidence for this incoming route. This is a checker correction,
+not changed handset or peer behavior.
+
+```sh
+make verify-8850-sip-incoming-media RUN_DIR=NEW_RUN
+```
+
+The independent incoming waveform run
+`run_8850_sip_incoming_waveform_probe/handset` also passes sustained
+440 Hz microphone-to-remote and 660 Hz remote-to-earpiece checks through
+actual MAME audio streams. The full incoming caller/operator presentation,
+physical Answer/End and SIP media checks remain enforced; fixture routing
+is isolated and cleaned up on exit.
+
+```sh
+make verify-8850-sip-incoming-waveform RUN_DIR=NEW_RUN
+```
+
+Both call directions have HLE waveform acceptance. The separate connected
+and alerting incoming and connected and pending outgoing restoration gates
+validate external-dialog invalidation and fresh-epoch GSM release. They do
+not restore a host dialog, preserve external media across load or establish
+native speech.
+
+Active-call save/load is independently verified with
+`tools/noki8850_state_call.lua`, fresh private cfg/NVRAM/state/snapshot
+directories, verbose logging and 60 seconds. The physical `5551234` call is
+saved at 40 seconds. R15/R13, the mapped RAM digest and emulated time restore
+exactly; a nonempty one-second ordered protocol interval and whole connected
+screen replay identically. Only the physical End schedule is resumed after
+load. Require:
+
+```sh
+.venv/bin/python tools/noki8850_state_check.py RUN/error.log RUN/snap
+```
+
+The checker additionally requires the complete own-product intended-number
+CC/RR lifecycle and reviewed operator pixels after release. Original NSM-2
+flash/PMM inputs and the declared research DSP composition are unchanged.
+This is active signaling/UI restoration, not native speech or cold clock
+continuity.
+
+Settled-idle restoration is independently verified with
+`tools/noki8850_state_idle.lua`, fresh private cfg/NVRAM/state/snapshot
+directories, verbose logging and 45 seconds. The ordinary physical startup
+returns to idle without dialing; the fixture saves at 32 seconds. Exact
+CPU/RAM/time, nonempty ordered protocol replay and whole-screen pixel equality
+pass. Reviewed operator text is `DCT3 LAB`; a post-load physical Menu press
+decodes `19` and opens the reviewed English Messages menu. Require:
+
+```sh
+.venv/bin/python tools/noki8850_state_check.py --idle RUN/error.log RUN/snap
+```
+
+The idle checker rejects an accidental physical call start. This verifies
+interactive continuation, not cold RTC persistence or native speech.
+
+Delivered-SMS restoration is independently verified by
+`tools/noki8850_state_sms.lua` with a private copy of
+`fixtures/noki8850_incoming_sms/nsm2hle.cfg`, fresh cfg/NVRAM/state/snapshot
+directories, verbose logging and 36 seconds. The shared replay fixture saves
+at 19 seconds, before the physical read schedule. Exact CPU/RAM/time,
+nonempty ordered protocol replay and identical reference/restored pixels
+pass; only physical reading resumes after load. Require:
+
+```sh
+.venv/bin/python tools/noki8850_state_check.py --sms \
+  --storage RUN/nvram/nsm2hle/sim_card RUN/error.log RUN/snap
+```
+
+Exactly one page and two SIM writes (delivery and read-status), persistent
+read `hello`, CP/RP closure and reviewed body pixels are required. No
+redelivery or record rewrite repairs restoration. The ordinary non-restored
+SMS fixture and active-call restoration also pass after sharing the replay
+and physical-read helpers. This is delivered-message restoration, not replay
+during an unfinished CP/RP exchange.
 
 #### Incoming Call Acceptance
+
+`verify-8850-sip-outgoing-busy` uses the same isolated runner with
+`--outgoing-busy` for physical dialing
+of `5551234` against a real local SIP 486 response. A fresh own-PMM run
+reproduced the 18-byte SETUP
+`03450404600200815e0581551532f4150101`, correlated busy decision,
+CC RELEASE/RELEASE COMPLETE and LAPDm release acknowledgement. Every
+firmware SETUP must decode to the physical number; no CONNECT or media
+is accepted. Product checks retain native-loader/HLE ownership, carrier 1,
+decoded physical Send and the existing operator-text frame crops. Those
+crops establish operator presentation, not whole-screen pixel identity.
+This does not promote answered SIP, speech or outgoing-dialog restoration.
+
+`verify-8850-sip-outgoing-unavailable` uses `--outgoing-unavailable` and
+requires a real SIP 480, correlated no-answer decision and consumed cause
+18 before release. A fresh run completed LAPDm release and host phase
+`ended`, with all media counters zero and the same reviewed operator
+presentation. Busy and unavailable are distinct fixtures; neither
+substitutes a synthetic handset termination for the remote SIP response.
+
+`verify-8850-sip-cancel` runs a real local PJSIP INVITE/CANCEL from settled
+own-PMM idle using the same host-enabled configuration, without physical
+Answer. Its private runner pins own MCU/PMM hashes, native-loader/HLE
+ownership, security-key decoding, `nsm2` registration and persisted SIM
+location. The common SIP checker requires correlated alerting/CANCEL/487,
+exactly one termination and full CC/RR release with no connection/media.
+Own captures show `1 missed call`, List/Exit, and decoded physical Exit
+back to idle. The post-call operator label is `00101`, not the initial
+`DCT3 LAB`; this presentation difference is retained explicitly in the
+frame oracles. Its cause is not decoded. This adds unanswered signaling,
+not speech, answered SIP or save-state coverage of an external dialog.
+
+`verify-8850-sip-idle-restore` independently saves/restores settled idle
+before a fresh INVITE: exact PC/SP/RAM/time, identical reference/replayed
+pixels and one-second transport/SIM replay are required. Admission occurs
+after that window, using host epoch 2; pre-load paging and stale epoch 1
+are failures. The same own-product caller, cancellation, persistent SIM
+and physical Exit checks remain required. No dialog exists at save time,
+and no external SIP dialog or speech restoration is claimed.
+
+Host-originated incoming calls compose with settled physical startup. Copy
+`fixtures/noki8850_host/nsm2hle.cfg` into a private cfg directory; it enables
+the host adapter without an automatic laboratory incoming call. Launch
+`tools/run_host_incoming_signaling_gate.py --caller 5551234` around `nsm2hle`
+with HTTP enabled, fresh private NVRAM/snapshots, verbose logging,
+`tools/noki8850_host_incoming_input.lua` and 65 seconds. Set `--ready-file`
+to `RUN/snap/8850_registered_idle.png`, which the physical fixture produces
+after returning to idle. The runner requires correlated
+queued/paging/alerting/connected/ended phases. Independently require
+`noki8850_incoming_call_check.py --frames RUN/snap RUN/error.log` for the
+own-product signaling, physical Answer/End, reviewed `5551234` caller pixels
+and `DCT3 LAB` after release. No native speech or other caller-number shape
+is promoted by this acceptance.
 
 Copy `fixtures/noki8850_incoming_call/nsm2hle.cfg` into a private run's
 configuration directory. Run `noki8850_incoming_call_input.lua` for 45
@@ -1313,6 +3050,49 @@ exchange, followed by acknowledged RR release and paging return. The final
 captured frame returns to the text editor, not a claimed success banner.
 This verifies signaling against the declared HLE network, not delivery to
 an external carrier or speech media.
+
+#### Host SMS Acceptance
+
+The same GSM900 composition verifies both directions through the external
+WebSocket adapter. Use `fixtures/noki8850_host/nsm2hle.cfg` in a private
+configuration directory, fresh NVRAM for each direction, and `-http` with
+the runner's port. Do not enable automatic incoming-message delivery.
+
+For incoming SMS, wrap the 43-second `noki8850_incoming_sms_input.lua` run
+with `tools/run_host_incoming_sms_gate.py`. Require both
+`radio_incoming_host_sms_trace_check.py RUN/error.log` and the handset
+storage/frame check above: the external `hello` must complete paging and
+CP/RP delivery, persist in EF_SMS, and appear through physical Read.
+
+For outgoing SMS, wrap the 52-second `noki8850_outgoing_sms_input.lua` run
+with `tools/run_host_sms_gate.py --user-data 41 --user-data-length 1`.
+Require `radio_outgoing_host_sms_trace_check.py --octets 1 RUN/error.log`
+and `noki8850_outgoing_sms_check.py RUN/error.log`. The host receives exact
+`A/5551234`, rejects a mismatched request decision, accepts the correlated
+request once and rejects its duplicate; the handset closes CP/RP and
+returns to paging. These are HLE signaling/storage tests, not external
+carrier delivery or native DSP execution.
+
+Host RP rejection is independently verified with fresh storage, the same
+host configuration, `run_host_sms_gate.py --decision rp_error --user-data
+41 --user-data-length 1`, and `noki8850_sms_reject_input.lua` for 55 seconds.
+Validate with `noki8850_outgoing_sms_check.py --rejected --recovery-frames
+RUN/snap RUN/error.log`. The handset receives RP-ERROR rather than RP-ACK,
+closes CP/RP and RR, displays **Message not sent this time**, then physically
+decoded End and Menu reopen Messages. The reviewed error-text crop excludes
+the result icon. This proves failure handling, not successful delivery.
+
+For an unanswered request use `--decision rp_silence` and
+`noki8850_sms_silence_input.lua` for 125 seconds, again with fresh storage.
+The host supplies CP-ACK but no RP result. At about 103.5 seconds the
+handset sends main-link DISC; the peer responds UA, physical channel
+deconfiguration ends the correlated host request, and idle paging resumes.
+The transient error says **Message sending failed**, distinct from explicit
+RP rejection. Physical End and Menu run only after this release. Validate
+with `noki8850_outgoing_sms_check.py --rp-silence --recovery-frames RUN/snap
+RUN/error.log`; an RP-ACK or RP-ERROR makes the silence test fail. The common
+8850/8890 protocol checker is shared, while presentation and band checks
+remain product-specific. No handset timeout or release event is injected.
 
 ### Capability acceptance boundary
 

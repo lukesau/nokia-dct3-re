@@ -1,0 +1,212 @@
+import json
+from pathlib import Path
+import tempfile
+import unittest
+
+from tools.run_sip_handset_gate import verify_restore
+
+
+LOG = '''
+incoming state id=1 epoch=1 phase=connected
+sip_state: saved
+sip_state: restored
+termination id=1 cause=41 result=accepted
+GSM service downlink kind=13 sapi=0 pd=03 message=25
+GSM service uplink sapi=0 pd=03 message=2a
+LAPDm service Channel Release acknowledged
+incoming state id=1 epoch=2 phase=ended
+'''
+BRIDGE = '''
+SIP incoming identity=(1, 1) caller=5551234
+SIP epoch changed old=1 new=2
+SIP restored call cleared identity=(2, 1)
+'''
+REMOTE = 'state changed to CONFIRMED\nRequest msg BYE/\n'
+
+
+class SipRestoreCheckTest(unittest.TestCase):
+    def test_8890_alerting_requires_zero_external_media_inventory(self):
+        log = LOG.replace('phase=connected', 'phase=alerting') + '8890_sip_cancel: physical Exit\n'
+        counts = dict(uplink=0, downlink=0, pcm_transmitted=0, pcm_received=0)
+        bridge = BRIDGE + 'SIP epoch media discarded ' + json.dumps(counts) + '\n'
+        remote = 'Response msg 603/INVITE/\n'
+        self.check(log=log, bridge=bridge, remote=remote, phase='alerting', product='8890')
+        for field in counts:
+            invalid = BRIDGE + 'SIP epoch media discarded ' + json.dumps({**counts, field: 1})
+            with self.subTest(field=field), self.assertRaisesRegex(RuntimeError, 'carried media'):
+                self.check(log=log, bridge=invalid, remote=remote, phase='alerting', product='8890')
+        with self.assertRaisesRegex(RuntimeError, 'inventory'):
+            self.check(log=log, bridge=BRIDGE, remote=remote, phase='alerting', product='8890')
+        for invalid in (log.replace('8890_sip_cancel: physical Exit', ''),
+                        log.replace('8890_sip_cancel: physical Exit\n', '').replace(
+                            'termination id=1', '8890_sip_cancel: physical Exit\ntermination id=1')):
+            with self.assertRaisesRegex(RuntimeError, 'physical Exit'):
+                self.check(log=invalid, bridge=bridge, remote=remote, phase='alerting', product='8890')
+
+    def test_6210_alerting_restore_rejects_media_or_missing_alert(self):
+        log = LOG.replace('phase=connected', 'phase=alerting')+'6210_sip_cancel: physical Exit\n'
+        remote = 'Response msg 603/INVITE/\n'
+        self.check(log=log, remote=remote, phase='alerting', product='6210')
+        for wrong in (LOG, log + 'gsm_call_adapter: media direction=downlink id=1 result=accepted\n'):
+            with self.assertRaises(RuntimeError):
+                self.check(log=wrong, remote=remote, phase='alerting', product='6210')
+        for wrong in (log.replace('6210_sip_cancel: physical Exit',''),
+                      log.replace('6210_sip_cancel: physical Exit\n','').replace(
+                          'termination id=1','6210_sip_cancel: physical Exit\ntermination id=1')):
+            with self.assertRaisesRegex(RuntimeError,'physical Exit'):
+                self.check(log=wrong,remote=remote,phase='alerting',product='6210')
+
+    def test_8850_requires_own_decoded_physical_answer(self):
+        prefix = ('8850_incoming_physical: action=Call / Send\n'
+                  '8850_keypad_decoded key=0e\n'
+                  'GSM service uplink sapi=0 pd=03 message=07 length=2\n')
+        self.check(log=prefix + LOG, product='8850')
+        for wrong in (LOG, prefix.replace('key=0e', 'key=0f') + LOG,
+                      prefix.replace('8850', '8210') + LOG, LOG + prefix):
+            with self.subTest(log=wrong), self.assertRaises(RuntimeError):
+                self.check(log=wrong, product='8850')
+
+    def test_8210_requires_own_decoded_physical_answer(self):
+        prefix = ('8210_incoming_physical: action=Call / Send\n'
+                  '8210_keypad_decoded: key=0e\n'
+                  'GSM service uplink sapi=0 pd=03 message=07 length=2\n')
+        self.check(log=prefix + LOG, product='8210')
+        for wrong in (LOG, prefix.replace('key=0e', 'key=0f') + LOG,
+                      LOG + prefix):
+            with self.assertRaises(RuntimeError):
+                self.check(log=wrong, product='8210')
+
+    def check(self, log=LOG, bridge=BRIDGE, remote=REMOTE, phase='connected', product='3210', signaling_only=False):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'error.log').write_text(log)
+            (root / 'sip-bridge.log').write_text(bridge)
+            verify_restore(root, remote, phase, product, signaling_only=signaling_only)
+            result = json.loads((root / 'sip-result.json').read_text())
+            self.assertTrue(result['passed'])
+            self.assertTrue(result['scope'].startswith(product + ' '))
+            return result
+
+    def test_6210_connected_restore_requires_physical_answer_and_media_absence(self):
+        prefix = ('6210_incoming_physical: action=Send\n'
+                  '6210_keypad_decoded: key=0e\n'
+                  'GSM service uplink sapi=0 pd=03 message=07 length=2\n')
+        bridge = BRIDGE.replace('SIP epoch changed',
+            'SIP physical answer identity=(1, 1)\n'
+            'SIP confirmed status=200 identity=(1, 1)\n'
+            'SIP epoch media discarded {"uplink": 0}\nSIP epoch changed')
+        result = self.check(log=prefix + LOG, bridge=bridge, product='6210', signaling_only=True)
+        self.assertFalse(result['speech_tested'])
+        self.assertFalse(result['native_dsp_complete'])
+        for bad_log, bad_bridge in (
+                (LOG, bridge), (prefix.replace('key=0e', 'key=0f') + LOG, bridge),
+                (prefix + LOG, bridge.replace('"uplink": 0', '"uplink": 1')),
+                (prefix + LOG + 'dsp_hle: speech tick\n', bridge),
+                (prefix + LOG, bridge.replace('SIP epoch media discarded {"uplink": 0}\n', '')),
+                (prefix + LOG, bridge.replace('SIP physical answer identity=(1, 1)',
+                                              'SIP physical answer identity=(2, 1)')),
+                (prefix + LOG, bridge + 'SIP physical answer identity=(1, 1)\n')):
+            with self.subTest(log=bad_log, bridge=bad_bridge), self.assertRaises(RuntimeError):
+                self.check(log=bad_log, bridge=bad_bridge, product='6210', signaling_only=True)
+
+    def test_6250_connected_restore_requires_own_matrix_answer(self):
+        prefix = ('6250_call_input: step=1 pressed=1\n'
+                  '6250_raw_matrix_key: value=0a\n'
+                  'GSM service uplink sapi=0 pd=03 message=07 length=2\n')
+        bridge = BRIDGE.replace('SIP epoch changed',
+            'SIP physical answer identity=(1, 1)\n'
+            'SIP confirmed status=200 identity=(1, 1)\n'
+            'SIP epoch media discarded {"uplink": 0}\nSIP epoch changed')
+        result = self.check(log=prefix + LOG, bridge=bridge, product='6250', signaling_only=True)
+        self.assertFalse(result['speech_tested'])
+        for bad_log, bad_bridge in (
+                (LOG, bridge), (prefix.replace('value=0a', 'value=0f') + LOG, bridge),
+                (prefix + LOG, bridge.replace('"uplink": 0', '"uplink": 1')),
+                (prefix + LOG, bridge.replace('identity=(1, 1)', 'identity=(2, 1)')),
+                (prefix + LOG + 'dsp_hle: speech tick\n', bridge)):
+            with self.subTest(log=bad_log, bridge=bad_bridge), self.assertRaises(RuntimeError):
+                self.check(log=bad_log, bridge=bad_bridge, product='6250', signaling_only=True)
+
+    def test_8890_connected_restore_requires_own_decoded_answer(self):
+        prefix = ('8890_incoming_physical: action=Call / Send\n'
+                  '8890_keypad_decoded: key=0e\n'
+                  'GSM service uplink sapi=0 pd=03 message=07 length=2\n')
+        bridge = BRIDGE.replace('SIP epoch changed',
+            'SIP physical answer identity=(1, 1)\n'
+            'SIP confirmed status=200 identity=(1, 1)\n'
+            'SIP epoch media discarded {"uplink": 0}\nSIP epoch changed')
+        result = self.check(log=prefix + LOG, bridge=bridge, product='8890', signaling_only=True)
+        self.assertFalse(result['speech_tested'])
+        for bad_log, bad_bridge in (
+                (LOG, bridge), (prefix.replace('key=0e', 'key=0f') + LOG, bridge),
+                (prefix + LOG, bridge.replace('"uplink": 0', '"uplink": 1')),
+                (prefix + LOG, bridge.replace('identity=(1, 1)', 'identity=(2, 1)')),
+                (prefix + LOG + 'dsp_hle: speech tick\n', bridge)):
+            with self.subTest(log=bad_log, bridge=bad_bridge), self.assertRaises(RuntimeError):
+                self.check(log=bad_log, bridge=bad_bridge, product='8890', signaling_only=True)
+
+    def test_connected_restore_clears_both_sides(self):
+        self.check()
+        self.check(product='3310')
+        self.check(product='3330')
+        self.check(product='3410')
+        self.check(product='5210')
+
+    def test_bye_before_confirmation_is_rejected(self):
+        with self.assertRaises(RuntimeError):
+            self.check(remote='Request msg BYE/\nstate changed to CONFIRMED\n')
+
+    def test_end_flag_without_radio_release_is_rejected(self):
+        for checkpoint in ('GSM service downlink kind=13',
+                           'GSM service uplink sapi=0 pd=03 message=2a',
+                           'LAPDm service Channel Release acknowledged'):
+            with self.assertRaises(RuntimeError):
+                self.check(log=LOG.replace(checkpoint, 'missing'))
+
+    def test_duplicate_clear_or_rejected_repeat_is_rejected(self):
+        for extra in ('termination id=1 cause=41 result=accepted\n',
+                      'termination id=1 cause=41 result=rejected\n'):
+            with self.assertRaises(RuntimeError):
+                self.check(log=LOG + extra)
+
+    def test_missing_external_clear_is_rejected(self):
+        with self.assertRaises(RuntimeError):
+            self.check(remote='state changed to CONFIRMED')
+
+    def test_old_epoch_or_wrong_cause_is_rejected(self):
+        for log in (LOG.replace('epoch=2', 'epoch=1'),
+                    LOG.replace('cause=41', 'cause=16')):
+            with self.assertRaises(RuntimeError):
+                self.check(log=log)
+
+    def test_replayed_incoming_dialog_is_rejected(self):
+        with self.assertRaises(RuntimeError):
+            self.check(bridge=BRIDGE + 'SIP incoming identity=(2, 1)\n')
+
+    def test_alerting_restore_requires_rejected_invite(self):
+        log = LOG.replace('phase=connected', 'phase=alerting')
+        self.check(log=log, remote='Response msg 603/INVITE/\n', phase='alerting')
+        self.check(log=log, remote='Response msg 603/INVITE/\n', phase='alerting', product='3330')
+        self.check(log=log, remote='Response msg 603/INVITE/\n', phase='alerting', product='5210')
+        self.check(log=log, remote='Response msg 603/INVITE/\n', phase='alerting', product='8850')
+        with self.assertRaises(RuntimeError):
+            self.check(log=log, remote='Response msg 180/INVITE/\n', phase='alerting')
+
+    def test_alerting_restore_rejects_answer_or_connection(self):
+        log = LOG.replace('phase=connected', 'phase=alerting')
+        for remote in ('Response msg 603/INVITE/\nstate changed to CONFIRMED',):
+            with self.assertRaises(RuntimeError):
+                self.check(log=log, remote=remote, phase='alerting')
+        with self.assertRaises(RuntimeError):
+            self.check(log=log + 'GSM service uplink sapi=0 pd=03 message=07\n',
+                remote='Response msg 603/INVITE/\n', phase='alerting')
+        with self.assertRaises(RuntimeError):
+            self.check(log=log, bridge=BRIDGE + 'SIP physical answer\n',
+                remote='Response msg 603/INVITE/\n', phase='alerting')
+        with self.assertRaises(RuntimeError):
+            self.check(log=log + 'gsm_call_adapter: media direction=downlink id=1 sequence=0 result=accepted\n',
+                remote='Response msg 603/INVITE/\n', phase='alerting')
+
+
+if __name__ == '__main__':
+    unittest.main()

@@ -344,6 +344,12 @@ duplicate and MM-service-reject values fail the public post-SETUP submission
 contract. This establishes the scheduler/save-state seam for a future host
 adapter without making host wall-clock time part of GSM behavior.
 
+A queued session downlink remains pending until LAPDm acknowledges it. The
+radio scheduler must preserve the handset's uplink opportunity while that
+SAPI has an outstanding I frame or SABM, rather than promoting the same
+message again. Retransmission belongs to LAPDm's T200/N200 lifecycle, not to
+the host-policy polling cadence.
+
 The optional host binding is `nokia_gsm_call_adapter_device`, enabled
 independently of the laboratory fallback. With MAME's HTTP server enabled it
 registers `/nokia/dct3/calls` and publishes one text WebSocket event:
@@ -546,8 +552,11 @@ its physical Options -> Save path selects and confirms a PMM-backed user slot.
 An ordinary cold process then lists `Test for Dhiram` at Tones 5-4-1 and
 Options -> Play replays the reconstructed note stream through PUP. The gate
 compares a no-save reference and confines durable changes to NHM-6's
-product-management flash region; its setup editors are completed physically,
-not bypassed. This lifecycle is gated by
+product-management flash region while requiring SIM and EEPROM equality with
+the no-save reference. Fresh provisioning completes the setup editors
+physically. Cold receipt and playback retain RTC/date, enter the phone code
+and acknowledge Code accepted before opening Menu; replaying first-boot
+time/date digits into the settled UI is not a valid cold fixture. This lifecycle is gated by
 `make verify-3330-radio-smart-message-persistence`.
 
 The NSE-8 persistence continuation is now independently gated by `make
@@ -900,6 +909,54 @@ knowledge available for those extensions, the local ownership boundary, and
 the order in which each item can enter the validated model.
 
 The checkpoint is accepted when:
+
+NHM-5 encrypted-call fixtures must align the external laboratory cell with
+the handset's ARFCN-88 acquisition request (`NEIGHBORCFG`, mask 12, value 4).
+The default ARFCN-1 composition produces zero channel headers and fails the
+strict lifecycle contract; it must not be accepted by relaxing `041202` to
+`040000`. The carrier-aligned impaired run passes that unchanged contract,
+A5, NHM-5 speech control, PCM/concealment, FACCH and SACCH checks: 500 encoded
+microphone frames, 467 decoded earpiece frames, 68 impaired bursts per
+direction, 32 impairment-induced bad blocks and clean physical End. These
+are HLE media results, not native DSP speech validation. The permanent
+`make verify-3310-radio-a5-1-degraded` gate requires all six independent
+checks from fresh storage and physical Navi Answer/End.
+`make verify-3310-radio-a5-1-degraded-state` additionally saves at 21 seconds
+inside encrypted speech and compares a two-second restored interval exactly
+against its reference (50 digital speech records). Physical Navi End after
+restoration must release CC/RR and return to idle; the same impaired-media,
+FACCH and SACCH predicates remain required. This proves saved HLE protocol
+and digital-media continuity, not persistence of an external SIP dialog.
+Cipher-burst observation samples the first and every 104th burst in each
+direction, without keys or payloads. A rebuilt NHM-5 run passes the replay
+checker's `--require-cipher` option: repeated uplink/downlink A5 frame/count
+observations occur inside the two-second reference interval and match exactly
+after restoration (56 total selected replay records). The option rejects
+media-only intervals and divergent cipher records. This verifies observed
+frame/count progression, not ciphertext equality or native DSP execution.
+The encrypted degraded-state gates for 3310, 3330, 3410 and 5210 now require
+`--require-cipher`; each passes an independent fresh run with repeated
+observations in both directions. Their exact selected replay record counts
+are 56, 58, 52 and 47 respectively. These counts describe the accepted runs,
+not protocol constants or fixed checker thresholds.
+The strict checker also validates each observed GSM frame-to-COUNT mapping
+and requires forward frame progression per direction, with hyperframe wrap
+allowed. Identical invalid COUNT values or a stalled frame number cannot
+satisfy restoration acceptance merely by repeating in both intervals.
+
+NHM-6 v4.50E also independently carries an encrypted impaired incoming call
+after its own physical first-boot PMM provisioning and cold phone-code entry.
+The product-local degraded fixture passes A5 and the unchanged NHM-6 physical
+Answer/End lifecycle: 500 microphone frames, 471 earpiece frames, 60 impaired
+bursts per direction, 28 impairment-induced bad blocks, FACCH 3/2 uplink/
+downlink and 83 SACCH/TF slots. The permanent
+`make verify-3330-radio-a5-1-degraded-state` gate independently provisions
+fresh own PMM, cold-boots with physical phone-code entry, saves during
+encrypted impaired speech at 15 seconds, and requires exact two-second
+speech/radio replay plus physical End to idle. Its fresh-provisioning run
+replayed 50 digital speech records exactly. Existing NHM-6 A5/0 resilience
+and clean A5/1 gates remain separate. No external dialog or native DSP state
+is claimed by this HLE restoration gate.
 
 1. `make verify-radio-camp` passes;
 2. `make verify-radio-registration` proves one accepted update and steady camp;

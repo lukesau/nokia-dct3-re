@@ -9,6 +9,19 @@ local nv_copy_count = 0
 local keypad_readers = {}
 local scalar_posts = {}
 local channel_confirmations = {}
+local accessory_decisions = {}
+taps[#taps + 1] = memory:install_read_tap(0x3b27c0, 0x3b27c3,
+    "6250_accessory_decision", function(offset, value, mask)
+        -- Observe the branch target, not a mid-block fetch the ARM core can cache.
+        if cpu.state["PC"].value ~= 0x3b27c0 then return end
+        local state = memory:read_u8(cpu.state["R6"].value)
+        local sample = memory:read_u16(cpu.state["R5"].value)
+        local key = state * 0x10000 + sample
+        if accessory_decisions[key] then return end
+        accessory_decisions[key] = true
+        machine:logerror(string.format("6250_accessory_decision: state=%02x sample=%04x t=%.6f\n",
+            state, sample, machine.time:as_double()))
+    end)
 taps[#taps + 1] = memory:install_read_tap(0x464738, 0x46473b,
     "6250_channel_confirmation", function(offset, value, mask)
         if cpu.state["PC"].value ~= 0x464738 then return end
@@ -23,7 +36,8 @@ taps[#taps + 1] = memory:install_read_tap(0x464738, 0x46473b,
             expected, pending = memory:read_u8(context + 2), memory:read_u8(context + 3)
         end
         local key = string.format("%x:%x:%x:%x", body, input, expected, pending)
-        if channel_confirmations[key] then return end
+        -- Outgoing fixtures must observe a repeated signaling release after SETUP.
+        if channel_confirmations[key] and os.getenv('NOKIA_DCT3_6250_OUTGOING') ~= '1' then return end
         channel_confirmations[key] = true
         machine:logerror(string.format("6250_channel_confirmation: body=%02x input=%04x expected=%02x pending=%02x t=%.6f\n",
             body, input, expected, pending, machine.time:as_double()))
@@ -307,6 +321,8 @@ emu.register_periodic(function()
     local deadline = captured == 0 and 8 or 20
     if captured >= 2 or machine.time:as_double() < deadline then return end
     captured = captured + 1
+    machine:logerror(string.format("6250_accessory_endpoint: state=%02x sample=%04x t=%.6f\n",
+        memory:read_u8(0x172d70), memory:read_u16(0x172cb4), machine.time:as_double()))
     local dsp = assert(machine.devices[":dsp_staged:cpu"])
     machine:logerror(string.format("6250_analog_endpoint: event=%04x state=%04x t=%.6f\n",
         memory:read_u16(0x1704c4), memory:read_u16(0x1704c6), machine.time:as_double()))

@@ -74,6 +74,56 @@ of those service codes. NSE-8 organically exposes the single-Star registration
 forms used by the routing gates; the other operation/condition combinations
 remain protocol-conformance support unless an organic product route is named.
 
+### Subscription lifetime
+
+Forwarding records currently belong to `nokia_gsm_network_device` and are
+registered with `save_item`: register/active flags, destination and length,
+BasicService kind/code and no-reply duration for each condition. They are
+not handset EEPROM or SIM files. The network now stores these records in its
+own `gsm_network` NVRAM file. Version 1 is a fixed 108-byte record: an eight-byte
+magic/version/geometry header, nine EF_IMSI bytes and three home-PLMN bytes,
+four 21-byte forwarding records and a little-endian CRC-32. Invalid sizes,
+trailing bytes, identity mismatch, checksum failure, out-of-range lengths or
+service kinds and inconsistent active/registered flags are rejected before
+publishing any state. Fresh Make runs clear this file; explicit preserved
+storage retains it. Neither live calls nor pending host requests are persisted.
+Save/load acceptance remains separate from cold-process acceptance.
+
+Executable codec tests cover all four forwarding conditions, identity
+mismatch, every single-bit corruption of the stored image, checksum-valid
+invalid fields and atomic rejection. A two-process NHM-3 research capture
+physically registers forwarding before normal exit, then retains its own
+storage and physically interrogates after restart: the fresh transaction
+returns active status and the 21-byte forwardingInfo result, followed by
+RR deconfiguration. The existing four-transaction lifecycle also passes.
+`make verify-6250-call-divert-cold RUN_DIR=run_6250_divert_cold` now checks
+three separate processes: physical registration, retained cold interrogation
+with a host-originated forwarded call, and independently fresh inactive
+interrogation. The retained process preserves the store byte-for-byte,
+returns the reviewed active-result pixels and registered idle with forwarding
+indicator. The host result must be `queued -> forwarded`, with unconditional
+reason and destination `5551234`, and no handset paging, alerting or buzzer
+activation. The fresh process retains the existing inactive-result and idle
+oracles. Each process owns its working directory and logs; no runtime
+subscription is injected. This promotes NHM-3 research-HLE persistence,
+not native speech, RF or another product's UI acceptance.
+`make verify-6210-call-divert-cold RUN_DIR=run_6210_divert_cold` independently
+passes the same three-process contract with unchanged NPE-3 provisioning,
+its own physical-input fixture and separately reviewed active-idle frame.
+The shared runner retains product-specific preparation and frame acceptance;
+only the established subscription/query/routing checks are shared.
+The NPE-3 gate additionally requires actual MAME loader rejection of a copied,
+checksum-damaged network store and an inactive physical query afterward.
+Do not reconstruct registration from handset UI state, inject
+supplementary results, or change SIM files to make a query pass.
+
+The acceptance contract registers forwarding through physical input in one process,
+exit normally, then cold-start a second process retaining only its own
+storage and physically interrogate the service. Require the actual
+RegisterSS/InterrogateSS exchange, returned destination/status, registered
+idle recovery and normal incoming-call routing. A third fresh-storage run
+must report inactive; save-state replay is an independent gate.
+
 Speech routing honors an omitted BasicService, all-speech teleservice `0x10`
 and telephony `0x11`. Other teleservices and all bearer-service selectors do
 not divert a speech call. This applicability rule is an isolated, exhaustively
@@ -148,23 +198,25 @@ supplementary session remains pending for at least the 38-second acceptance
 window. No emulator timeout is invented where the firmware has not yet shown
 one.
 
-The network can also issue the phase-2 continuation shape specified by
-[ETSI TS 124 090](https://www.etsi.org/deliver/etsi_ts/124000_124099/124090/10.00.00_60/ts_124090v100000p.pdf):
-a FACILITY message containing an `UnstructuredSS-Request` (`0x3c`) Invoke in
-the still-active mobile-originated transaction. NSE-8 v6.00 does not
-accept the standards-shaped request tested here. It replies with RELEASE
-COMPLETE and cause `0x60` (invalid mandatory information), for both short and
-segmented text and with either tested Invoke identifier. The emulator therefore
-records this as a product-capability negative; it does not synthesize an
-interactive continuation that the firmware has not demonstrated.
+The network can also issue a phase-2 continuation: a FACILITY message
+containing an `UnstructuredSS-Request` (`0x3c`) Invoke in the still-active
+mobile-originated transaction. The mandatory Facility field is **LV**, not
+TLV: [ETSI TS 124 080 table 2.2](https://www.etsi.org/deliver/etsi_TS/124000_124099/124080/04.00.00_60/ts_124080v040000p.pdf).
+REGISTER and RELEASE COMPLETE retain their tagged Facility fields. The old
+tagged-FACILITY rejection was an encoder defect, not handset-capability evidence.
+Correct framing is accepted on both NSE-8 v6.00 and NSB-7 v5.22.
+Physical NSE-8 Back sends RELEASE COMPLETE `1b2a` and releases the channel.
+NSB-7 additionally proves physical Answer, numeric reply `2`, Send, correlated
+ReturnResult Invoke 2, the network's final result for original Invoke 1,
+RR release and idle/menu recovery. See `8290_bringup.md` for product acceptance.
 
 `make verify-radio-ussd-outcomes` validates the exact ReturnError and Reject
-components and their releases, the exact continued-request rejection and its
+components and their releases, physical continued-request cancellation and
 release, then saves and reloads MAME in the silent active dialogue and requires
 that neither a response nor a release appears after restore. These remain
-terminal-response, conformance-negative, and no-response contracts. A working
-continued dialogue requires an organic handset FACILITY response and remains
-unclaimed.
+terminal-response, cancellation, and no-response contracts. The separate
+NSB-7 continued-dialogue gate requires the organic typed FACILITY response;
+arbitrary multi-turn menus and host-controlled continuation remain unclaimed.
 
 ## Network-initiated USSD
 
@@ -172,14 +224,20 @@ unclaimed.
 the ordinary IMSI paging, Paging Response and dedicated SAPI-0 path. It covers
 the two network-originated operations separately:
 
-- An `UnstructuredSS-Request` (`0x3c`) REGISTER with the phase-2 SS-version
-  indicator is rejected by NSE-8 v6.00 with RELEASE COMPLETE cause `0x60`.
-  This is retained as an exact product-capability negative; no reply editor is
-  synthesized.
-- An `UnstructuredSS-Notify` (`0x3d`) REGISTER without the optional version IE
+- An `UnstructuredSS-Request` (`0x3c`) REGISTER presents `Enter reply` on
+  NSE-8 v6.00. Physical Read, Answer, numeric `2` and Send produce the typed
+  ReturnResult `8b7a12a210020101300b02013c300604010f040132`. The session checks
+  transaction `8b` and invoke `1`, sends RELEASE COMPLETE and releases RR.
+- An `UnstructuredSS-Notify` (`0x3d`) REGISTER
   is accepted. Firmware displays `01 Message: Nokia test network`, sends the
   empty ReturnResult FACILITY `8b 7a 05 a2 03 02 01 01`, accepts the network's
   RELEASE COMPLETE and returns to the idle common-control channel.
+
+Network-to-mobile REGISTER has no SS-version IE; that optional field belongs
+to the mobile-to-network form ([ETSI TS 124 080, tables 2.3 and 2.4](https://www.etsi.org/deliver/etsi_TS/124000_124099/124080/04.00.00_60/ts_124080v040000p.pdf)).
+The former cause-`0x60` request rejection used the wrong direction's field and
+does not establish a handset limitation. This gate qualifies one laboratory
+request/reply, not arbitrary host-controlled multi-turn dialogue.
 
 The notification result and transaction ownership match the network-initiated
 procedure in [ETSI TS 124 090](https://www.etsi.org/deliver/etsi_ts/124000_124099/124090/10.00.00_60/ts_124090v100000p.pdf).
@@ -199,6 +257,11 @@ request under a new transport epoch.
 The reverse direction accepts a packed host notification only while registered
 and idle. The radio peer then owns paging and dedicated-channel admission, and
 the host sees `delivered` only after the firmware ReturnResult and ordinary
-channel release. Interactive network-originated requests remain unsupported
-because this firmware rejects the tested standards-shaped form. The complete
-wire contract and gates are in `external_call_bridge.md`.
+channel release. An explicit `operation: request` instead opens the handset's
+reply editor. After a validated handset ReturnResult and RR release, the host
+receives `incoming_ussd_response` with the unchanged DCS/packed reply and then
+`answered`; handset cancellation reports `cancelled` without a fabricated reply.
+The authenticated NSB-7 physical reply and pending-editor restoration are
+independently qualified, including new-epoch host reply ownership. Arbitrary
+multi-turn continuation remains unqualified.
+The complete wire contract is in `external_call_bridge.md`.

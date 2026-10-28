@@ -144,6 +144,62 @@ Some recurring mistakes need stronger checks than ordinary source review:
 - An address hit does not establish dispatcher or subsystem ownership. Confirm
   the containing function boundary and exhaustively decode the relevant
   dispatch extent or caller set before assigning an input to a handler.
+- An encoded operand number is not an effective address. Recover its addressing
+  mode and live page/frame controls before naming a mapped register. On C54x,
+  a short direct Smem operand inherits DP/CPL, while a literal dmad/MMR
+  address may not; identical numeric fields can name different storage.
+  For register-based stores, follow the last dominating base reload and
+  callee preservation: a routine can reuse the same register for MMIO and RAM.
+- Zero-valued writes do not establish a clear operation. Decode the source
+  and destination paths: a copy of zero-filled data can produce the same
+  write trace. Keep copy source, copy destination and initializer length
+  separate until their caller contract is established.
+- Exact output matching can still be degenerate coverage. Require transitions
+  and nondegenerate output specific to the claimed feature: zero PCM does not
+  establish nonzero comfort-noise synthesis, and a blank frame does not
+  establish an interactive display. Preserve those coverage checks alongside
+  the byte-comparison oracle.
+- Inspect inverse-video selections at pixel/row resolution before declaring
+  a missing label. Separate the selected item from adjacent rows and recover
+  their producer namespaces; unrelated stale user records are not evidence
+  that the selected SIM name or LCD font is broken.
+- Similar addressing names need not have the same legal operand domain.
+  On C54x, short MOD=3 preincrement is write-only (SPRU131G table 5-4),
+  while long-offset MOD=13 preincrement can read. A passing fixture for
+  a mechanically decoded form does not establish that the form is legal.
+  Classify the encoded operand's role, not the instruction's overall effect:
+  a data-to-program transfer writes memory but its Smem is still a read source.
+  Read/modify/write operands require their own admission analysis.
+  When correcting admission, audit legacy default/atomic checks as well as
+  isolated staged profiles; otherwise an obsolete positive expectation can
+  survive the new rejection bank. Disassembler recognition is a separate claim.
+- Widening an operation classifier requires auditing all of its consumers,
+  not just the primary execution path. Forwarding, bypass, wait arbitration
+  and repeat helpers can retain assumptions about the narrower family.
+  Production and forwarded values should share one calculation where their
+  contract is identical, with an executable producer/consumer test.
+- An executable oracle can preserve a mistaken latency premise. Derive
+  expectations from the instruction's consumer category, not only a conservative
+  summary: SPRU131G table 7-13 distinguishes T used for shifting/bit tests from
+  T used for multiplication. Include both an older producer and a younger writer
+  so a live-register shortcut cannot pass the dependency test.
+- Check fixture inputs against the documented domain before interpreting a
+  mismatch. Circular addressing, for example, constrains the initial index
+  and nonzero-buffer step size; an out-of-domain modulo oracle does not prove
+  a CPU arithmetic defect. Keep empirical behavior outside that domain
+  separately scoped rather than silently generalizing it.
+- A repeated PC does not identify one pipeline instance. Lifetime release
+  must respect the owning instruction's age/stage, so an older loop iteration
+  cannot clear a younger instruction's protection. Include the shortest
+  legal loops with pending interrupts and save/replay in composition tests.
+- An unsupported word that decodes as a valid opcode may still be data reached
+  by bad control flow. Establish upload/program provenance, physical mapping
+  and the preceding executed transfer before extending the ISA. Debugger
+  history may disassemble current raw memory rather than the bytes executed
+  through an overlay; retain PCs and recover instruction bytes independently.
+  Admission guards must also distinguish a completed opcode slot from retained
+  extension words. Test opcode-shaped address/literal values inside legal
+  multiword instructions and loops; matching raw bits alone is insufficient.
 
 ## Protect surprising facts
 
@@ -152,10 +208,55 @@ compact caution when a fact is easy to misread, corrects a common assumption,
 or was expensive to discover. Current examples include:
 
 - swap16 byte-lane handling for byte tables;
-- PC hooks firing only at actual branch targets;
+- keeping data/program spaces and logical/physical addresses distinct: an
+  absent image word is not a zero word, and overlay projection must follow
+  a proven mapping rather than a merged numeric-address dictionary;
+- fetch-based PC taps missing sequential instructions between block-entry
+  fetches; establish the hook's coverage rather than assuming it observes
+  the same events as an Execute instruction hook;
+- a program-bus read matching the live PC not establishing an execution:
+  data reads and speculative fetches can match too; count retained Execute
+  identities before assigning invocation or completion semantics. Match
+  logical Execute addresses against translated physical bus addresses explicitly
+  under overlay mappings; the same instruction need not have the same number;
+- instruction observers omitting accelerated repeat or resumed-transfer paths;
+  test execution coverage and save/replay, not only the main dispatch loop;
+- an input harness logging the requested key name while an unrecognized research
+  clone falls back to another product's matrix. Register the clone's physical
+  input/profile alias and verify firmware consumption before attributing a
+  resulting screen or waveform to that key;
+- memory ranges serving as samples, control tables or stack in different
+  lifecycle phases; scope observations to the consumer's actual footprint
+  and active interval, and report partial masks, truncation and alias limits
+  before making a producer/absence claim;
+- treating a reused scratch buffer as persistent state; observe its value at
+  the evidenced construction or consumption boundary, not an arbitrary endpoint;
+- a staged CPU's unsupported Decode frontier not proving that preceding
+  instructions reached Execute; validate retirement with a positive-controlled
+  stage observation rather than the reported PC alone;
+- Access/Read-owned register writes not inheriting the PC or loop membership
+  of the different instruction currently occupying Execute; an Execute-entry
+  breakpoint's SP can already include younger prologue stack effects, so it
+  is not an atomic function-entry register snapshot;
 - Lua tap subscriptions needing a live owner for the entire observation
   window; retain them in a callback/upvalue and validate positive-control
   detail records, not just counters, before interpreting absent events;
+- Lua waits waking early on state load: external physical-input fixtures must
+  recheck absolute emulated deadlines, not mistake an early key release for
+  failed device restoration;
+- repeated Lua field lookups returning different wrappers for one physical
+  contact: restore input timelines by stable port/mask identity, not userdata
+  identity or unordered wrapper iteration. Include repeated presses and a held
+  key at save in replay controls before blaming a timing mismatch on hardware;
+- debugger register exports exposing cached values: compare named PC with
+  architectural GENPC before attributing a mismatch to CPU save-state loss;
+- banked ARM7 state: MAME's `R8..R14` exports are the user bank, not an
+  automatic view of the active exception bank. Record CPSR mode and select
+  `FR8..FR14` in FIQ, or the corresponding IRQ/SVC/ABT/UND SP/LR exports,
+  before attributing an interrupt-time caller or stack to firmware;
+- shift/carry selectors: `LSRS #n` puts original bit `n-1` into carry.
+  Decode the conditional branch and intervening flag writers explicitly;
+  a later CPSR snapshot need not retain the carry used for that branch;
 - constructors that acknowledge an incoming command rather than initiate it;
 - report code 7 belonging to shutdown/power lifecycle rather than ordinary
   boot readiness; and

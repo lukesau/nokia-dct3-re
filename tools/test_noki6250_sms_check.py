@@ -2,7 +2,7 @@ import unittest
 from hashlib import sha256
 from unittest.mock import patch
 
-from tools.noki6250_sms_check import verify, verify_sent
+from tools.noki6250_sms_check import verify, verify_sent, TEXT_DELIVER_BODY
 from tools.radio_sms_acceptance_common import FIRST_SMS_DELIVER_BODY, SMS_NVRAM_OFFSET
 
 LOG = """sim_device: update fid=6f3c record=1 length=176
@@ -36,6 +36,23 @@ class SmsCheckTests(unittest.TestCase):
             verify_sent(SENT_LOG.replace("ff02c834", "ff02c824"),
                         bytes(96 * 60), (96, 60))
 
+    def test_ciphered_submission_requires_own_service_and_completion(self):
+        cipher = (
+            'GSM service downlink kind=7 sapi=0 pd=06 message=35\n'
+            'GSM service uplink sapi=0 pd=06 message=32 length=2 data=0632\n'
+            'gsm_cipher: event=activated algorithm=1\n'
+            'GSM service downlink kind=8 sapi=0 pd=05 message=32\n'
+            'GSM service downlink kind=5 sapi=0 pd=05 message=21\n')
+        log = SENT_LOG.replace('052474\n', '052404\n' + cipher).replace('nr=2', 'nr=4')
+        pixels = bytes(96 * 60)
+        with patch('tools.noki6250_sms_check.CIPHER_SENT_FRAME', sha256(pixels).hexdigest()):
+            verify_sent(log, pixels, (96, 60), ciphered=True)
+            for fragment in ('data=052404', 'data=0632', 'kind=5', 'nr=4'):
+                with self.subTest(fragment=fragment), self.assertRaises(ValueError):
+                    verify_sent(log.replace(fragment, 'missing'), pixels, (96, 60), ciphered=True)
+            with self.assertRaises(ValueError):
+                verify_sent(log, pixels, (96, 60))
+
     def test_missing_rp_ack_rejected(self):
         with self.assertRaisesRegex(ValueError, "RP-ACK"):
             verify_sent(SENT_LOG.replace("kind=18", "kind=99"),
@@ -62,6 +79,18 @@ class SmsCheckTests(unittest.TestCase):
     def test_wrong_frame_rejected(self):
         with self.assertRaisesRegex(ValueError, "outcome frame"):
             verify(LOG, self.record(1), bytes(96 * 60), (96, 60))
+
+    def test_extension_text_exact_storage(self):
+        pixels = bytes(96 * 60)
+        storage = bytes(SMS_NVRAM_OFFSET) + b'\x01' + TEXT_DELIVER_BODY + bytes(176)
+        with patch('tools.noki6250_sms_check.TEXT_FRAME', sha256(pixels).hexdigest()):
+            verify(LOG, storage, pixels, (96, 60), text_fixture=True)
+
+    def test_character_count_is_not_septet_count(self):
+        wrong = TEXT_DELIVER_BODY[:-7] + b'\x04' + TEXT_DELIVER_BODY[-6:]
+        storage = bytes(SMS_NVRAM_OFFSET) + b'\x01' + wrong + bytes(176)
+        with self.assertRaisesRegex(ValueError, 'text payload'):
+            verify(LOG, storage, bytes(96 * 60), (96, 60), text_fixture=True)
 
 
 if __name__ == "__main__":

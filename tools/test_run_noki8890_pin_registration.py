@@ -1,0 +1,62 @@
+import unittest
+from unittest.mock import patch
+from tools import run_noki8890_pin_registration as runner
+from tools.run_noki8890_pin_registration import check_pin_inputs
+
+
+class PinRegistrationTest(unittest.TestCase):
+    def test_gsm_and_pcs_host_sms_failure_scenarios_admitted(self):
+        for scenario in ('host-rejected-sms', 'host-silent-sms'):
+            for options in ([], ['--pcs1900']):
+                with self.subTest(scenario=scenario, options=options), \
+                        patch('sys.argv', ['runner', 'unused', '--scenario', scenario] + options), \
+                        patch.object(runner.Path, 'read_bytes', return_value=b''), \
+                        patch.object(runner, 'verify_inputs', side_effect=RuntimeError('admitted')), \
+                        self.assertRaisesRegex(RuntimeError, 'admitted'):
+                    runner.main()
+
+    def fixture(self):
+        lines = []
+        for key, code in (('Keypad 1', '01'), ('Keypad 2', '02'),
+                          ('Keypad 3', '03'), ('Keypad 4', '04'), ('Menu', '19')):
+            lines += ['8890_pin_physical: key=' + key,
+                      '8890_keypad_decoded: key=' + code]
+        measurement = ['TX packet type=57 payload=4 words=3 data=01140000',
+                       'RX enqueue type=8b payload=166 producer=1 data=0010003c00c4',
+                       '8890_band_rx: object=001168e8',
+                       '8890_band_parse: object=001168e8 arfcn=003c rssi=c4']
+        return '\n'.join(measurement + lines + ['SIM status ins=20 sw=9000',
+                                 'LAPDm Location Updating Accept acknowledged nr=1'])
+
+    def test_physical_pin_then_registration(self):
+        check_pin_inputs(self.fixture())
+
+    def test_missing_decode(self):
+        with self.assertRaisesRegex(ValueError, 'physical PIN decode'):
+            check_pin_inputs(self.fixture().replace('key=04', 'key=05'))
+
+    def test_rejected_pin(self):
+        with self.assertRaisesRegex(ValueError, 'physical PIN acceptance'):
+            check_pin_inputs(self.fixture().replace('sw=9000', 'sw=9804'))
+
+    def test_registration_before_acceptance(self):
+        event = 'LAPDm Location Updating Accept acknowledged nr=1'
+        with self.assertRaisesRegex(ValueError, 'physical PIN acceptance'):
+            check_pin_inputs(event + '\n' + self.fixture().replace(event, ''))
+
+    def test_unrelated_measurement_object(self):
+        with self.assertRaisesRegex(ValueError, 'consumer correlation'):
+            check_pin_inputs(self.fixture().replace('parse: object=001168e8', 'parse: object=001168ec'))
+
+    def test_pcs_own_response(self):
+        text = self.fixture().replace('type=57', 'type=55').replace('01140000', '04080000')
+        text = text.replace('0010003c00c4', '0010025800c3025900b9').replace('003c rssi=c4', '0258 rssi=c3')
+        check_pin_inputs(text, gsm900_measurements=False)
+
+    def test_gsm_response_is_not_pcs_evidence(self):
+        with self.assertRaisesRegex(ValueError, 'PCS measurement'):
+            check_pin_inputs(self.fixture(), gsm900_measurements=False)
+
+
+if __name__ == '__main__':
+    unittest.main()

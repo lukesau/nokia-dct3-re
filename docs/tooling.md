@@ -2,9 +2,11 @@
 
 ## In-repo tools
 
-- `tools/*.py` — small Thumb-disassembly / cross-reference helpers built on
-  [capstone](https://www.capstone-engine.org/). They operate on the **swap16**
-  firmware image (see `roms/README.md`). Set the image path via the `NOKI_BIN`
+- `tools/` contains firmware RE helpers, protocol/state validators and isolated
+  acceptance runners. Thumb-disassembly / cross-reference helpers use
+  [capstone](https://www.capstone-engine.org/). Legacy 3210 helpers operate on
+  the **swap16** image (see `roms/README.md`); other tools declare their own
+  input format. Set the legacy image path via the `NOKI_BIN`
   environment variable (default points at `roms/3210f600a_swap16.bin`).
   - `disrom.py ADDR:LEN ...` — **the** disassembler. Thumb-1 (ARMv4T) correct:
     it rejects capstone's Thumb-2 mis-decodes and resolves pc-relative pool
@@ -13,7 +15,9 @@
   - `findcalls.py ADDR...` — find `bl`/branch callers of an address
   - `find_thumb_signature.py REF TARGET ADDR:LEN` — locate a Thumb-1 region in
     another image while masking only relocated direct `BL`/`BLX` encodings;
-    reports exact compared-byte coverage and every match.
+    reports exact compared-byte coverage and every match. Halfwords default
+    to little-endian; use `--byteorder big` for raw big-endian NSK images.
+    A match is a candidate, not transferred function ownership or semantics.
   - `find_scalar_uses.py VALUE...` — enumerate exact Thumb-1 immediate,
     literal-pool and two-instruction scalar constructions with decode coverage.
   - `find_struct_access.py OFFSET...` — find and contextualize Thumb-1 loads and
@@ -37,6 +41,15 @@
   - `display_trace_check.py` — validates the version-specific NV descriptor
     `0x0749` mapping and the selected PCD8544 command/data stream captured by
     `make verify-display`.
+  - `nse2_native_state_check.py` — shared architecture/I/O/physical-input
+    contract for bounded native restoration; product wrappers own executable,
+    storage, configuration and pixel acceptance. Snapshot fields and DSP
+    register names must be unique, with complete 37-register ARM and 36-field
+    DSP records. DSP values obey the core's exported widths/masks, not an
+    inferred silicon-validity rule. Save/load, replay, contact and completion
+    controls reject malformed, extra or suffixed records. Model-owned periodic
+    `_state: t=...` samples are separate observations, not save/load controls.
+    Rolling checksums and bounded replay do not prove exhaustive state coverage.
   - `dct3_pmm_catalog.py` — enumerates linked entry families from every
     `PMMCAT` segment in a flash-backed product-state image without assigning
     unproved semantics to entry types or indices.
@@ -114,6 +127,10 @@
   - `dsp_rom4_upload_trace_check.py` — checks a sibling-harness trace for the
     ordered ROM4 cold upload, reset-preserved warm entry, loader2 request and
     catalogue-backed run-mode demand uploads. Raw traces remain local.
+  - `nsm3d_loader_compare.py` — manual hash-pinned 8250 v5.02/v6.00
+    upload comparison. Classifies all changed first-loader branch operands
+    and retains overlapping declared destination coverage without promoting
+    program ownership, native boot or fitted-mask completeness.
   - `dsp_upload_extract.py` — reconstructs contiguous type-`0x51`
     DSP-addressed images or bounded shared-RAM staging snapshots from passive
     traces, with explicit word byte order.
@@ -186,18 +203,17 @@ byte-paired incorrectly and must not be used as evidence. The Ghidra scripts nam
 functions and export analysis. The naming list is also exported as a
   portable symbol map at `ghidra/symbols/3210.csv` (address, kind, name) so you
   get the names without running Ghidra.
-- `mame_nokia_dct3_coverage.lua`, `mame_nokia_dct3_snapshot.lua` and
-  `mame_nokia_dct3_force_game.lua` wrap the exerciser (`RUN_EXTRA_ARGS=
+- `mame_nokia_dct3_coverage.lua` and `mame_nokia_dct3_snapshot.lua`
+  wrap the exerciser (`RUN_EXTRA_ARGS=
   '-autoboot_script ../mame_nokia_dct3_coverage.lua -debug -debugger none'`):
   per-phase function coverage with an optional raw trace window
   (`NOKIA_DCT3_COVERAGE_ENTRIES`, `NOKIA_DCT3_COVERAGE_PHASES`,
   `NOKIA_DCT3_TRACE_WINDOW`), MAME's own screen snapshot
-  (`NOKIA_DCT3_SNAPSHOT_AT`), and the games research hook that pins
-  `game_index_11fd1b` (`NOKIA_DCT3_FORCE_GAME`, `NOKIA_DCT3_FORCE_GAME_AT`).
+  (`NOKIA_DCT3_SNAPSHOT_AT`). Neither writes firmware-owned state.
   `make run-keys KEYS=enter,x,x,6` drives a scripted key sequence headlessly.
 - `mame_nokia_dct3_ram_probe.lua` wraps the exerciser with a RAM write tap
-  (`NOKIA_DCT3_RAM_TAP=start:end`, logged as `RAMTAP t=... addr=...`) and an
-  optional held byte (`NOKIA_DCT3_RAM_POKE=addr:value:at`). It measured the
+  (`NOKIA_DCT3_RAM_TAP=start:end`, logged as `RAMTAP t=... addr=...`).
+  It observes writes without changing memory and measured the
   Snake step interval recorded in `games_applications.md`.
 - `mame_nokia_dct3_input_exerciser.lua` — MAME Lua harness used by the run targets
   to capture structural/LCD evidence and drive keypad input. Delayed input uses
@@ -243,8 +259,57 @@ which correctly recovers Delphi forms/units and names. IDR's output (the `.pas`
 reconstruction, `.idc`, `.lst`) is a derivative of NokTool's copyrighted binary
 and is likewise **not redistributed** here.
 
+## Research-run retention
+
+`make clean` removes the ordinary root run state; it does not purge the
+disk-backed research collection under `tmp/`. Review that collection with:
+
+```sh
+.venv/bin/python tools/prune_research_runs.py --report tmp/retention.json
+.venv/bin/python tools/prune_research_runs.py --report tmp/retention.json --apply
+```
+
+The inventory protects runs named in tracked sources/docs and follows JSON
+seed/source dependencies from those runs. It also retains unknown directories,
+NAND images, source archives and runs modified within 24 hours. Only
+unreferenced old directories with MAME console/error output are candidates.
+Apply recomputes references, rejects changed file counts/timestamps/inodes and
+checks process working directories before deletion. This is conservative
+retention, not proof that every unreferenced experiment is scientifically
+worthless. Review the JSON before applying; move irreplaceable inputs into the
+ROM/research collection and document their provenance before pruning.
+Do not use a blanket `rm -rf tmp` as a substitute.
+
+Referenced evidence need not retain uncompressed trace logs. After checking
+that no process is still writing or consuming a run, older logs can be archived
+losslessly with `zstd --rm -- PATH/error.log`; this leaves `error.log.zst`.
+Keep summaries, input manifests, frames and source/seed artifacts in place.
+The pruner recognizes compressed console/error logs under the same retention
+rules. Checkers still expect plain text: run
+`zstd -d --keep -- PATH/error.log.zst` before replaying one. Use `zstd -t` to
+verify archive integrity. Compression is not evidence retirement; delete a
+referenced run only after preserving its needed conclusions and reproduction
+inputs, not simply because it is large or old.
+
 ## MAME
+
+`tools/process_runner.py` owns process-group startup, timeout/SIGTERM cleanup,
+reaping and optional terminal metadata. The C54x runner and NSE-2 lifecycle
+runners share this implementation; product preparation and acceptance stay in
+their own modules. `run_emulator` records command/returncode/interrupted in
+the private run's`exit_status.json`; `run_stage` raises on a failed child
+without writing into a shared parent working directory. Older imports from
+the C54x and PUK2 runners remain thin compatibility exports, not another
+implementation. Lifecycle tests exercise real completion/timeout and mocked
+group termination.
 
 The driver `driver/nokia_dct3.cpp` is overlaid onto an upstream
 [MAME](https://github.com/mamedev/mame) checkout (pinned commit in the Makefile);
 MAME is not vendored. See `LICENSE` for the licensing split.
+
+A zero MAME exit status does not prove a Lua acceptance observer completed:
+failed coroutines can emit `[LUA ERROR]` only to the captured console and still
+return zero. Check that console as well as `error.log`, and require the complete
+expected action/protocol/output sequence. The5190 and6150 Toolkit input guards
+share `sim_toolkit_display_check.check_observer_console`; neither suppresses
+observer errors merely because the requested emulation duration elapsed.

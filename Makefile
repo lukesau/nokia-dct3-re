@@ -5,33 +5,50 @@ MAME_REPO   ?= https://github.com/mamedev/mame.git
 MAME_COMMIT ?= 58fca9a8a20f75ac2010980e1a2ec0465c595583
 MAME_DIR    ?= mame
 JOBS        ?= 4
+DCT3_RESEARCH_TRACES ?= 1
 
 PYTHON ?= python3
 VENV   := .venv
+# Shared native acceptance frontend; retain the earlier menu-only selector.
+NSE1_MACHINE ?= $(if $(strip $(NSE1_MENU_MACHINE)),$(NSE1_MENU_MACHINE),noki5110)
 DRIVER := driver/nokia_dct3.cpp
 MAME_PATCHES := patches/mame-nokia-dct3-driver-name.patch \
-	patches/mame-intelfsh-dct3.patch patches/mame-pcd8544-geometry.patch \
+	patches/mame-arm7-pc-export.patch \
+	patches/mame-intelfsh-geometry.patch \
+	patches/mame-intelfsh-c3.patch \
+	patches/mame-intelfsh-st.patch patches/mame-pcd8544-geometry.patch \
 	patches/mame-sed1565.patch \
+	patches/mame-nandflash-mu4.patch \
 	patches/mame-i2cmem-write-cycle.patch \
 	patches/mame-pulseaudio-input.patch \
+	patches/mame-sound-input-stride.patch \
 	patches/mame-tms320c54x-build.patch \
 	patches/mame-tms320c54x-test.patch \
+	patches/mame-c54x-backend-bsp-test.patch \
 	patches/mame-sed1565-test.patch \
+	patches/mame-simi-test.patch \
+	patches/mame-intelfsh-c3-test.patch \
+	patches/mame-nandflash-test.patch \
 	patches/mame-nse5-rom4-compat.patch \
 	patches/mame-nsm3d-runtime-hle.patch \
 	patches/mame-nsm2-staged.patch \
 	patches/mame-nsb6-staged.patch \
 	patches/mame-nsm3-staged.patch \
 	patches/mame-npe3-staged.patch \
-	patches/mame-libgsm-build.patch
+	patches/mame-libgsm-build.patch \
+	patches/mame-nse1-external-pcm-fixture.patch \
+	patches/mame-nse2-model.patch \
+	patches/mame-nse2-native-model.patch
 LIB_COMPONENTS := lib/util/gsmfr.cpp lib/util/gsmfr.h
 CPU_COMPONENTS := cpu/tms320c54x/tms320c54x.cpp \
 	cpu/tms320c54x/tms320c54x.h
-DRIVER_COMPONENTS := driver/nokia_ccont.cpp driver/nokia_ccont.h \
+DRIVER_COMPONENTS := $(filter-out driver/nokia_dct3_trace_config.h,$(wildcard driver/nokia_dct3*.h driver/nokia_dct3_research.cpp)) \
+	driver/nokia_ccont.cpp driver/nokia_ccont.h \
 	driver/nokia_cobba.cpp driver/nokia_cobba.h \
-	driver/nokia_b3_flash.cpp driver/nokia_b3_flash.h \
 	driver/nokia_dsp_backend.h \
+	driver/gsm_subscription_storage.h \
 	driver/nokia_dsp_c54x.cpp driver/nokia_dsp_c54x.h \
+	driver/tms320c54x_bsp_state.h \
 	driver/nokia_dsp_hle.cpp driver/nokia_dsp_hle.h \
 	driver/nokia_record_codec.h \
 	driver/nokia_dsp_staged.cpp driver/nokia_dsp_staged.h \
@@ -58,15 +75,23 @@ DRIVER_COMPONENTS := driver/nokia_ccont.cpp driver/nokia_ccont.h \
 	driver/nokia_kbgpio.cpp driver/nokia_kbgpio.h \
 	driver/nokia_mad2.cpp driver/nokia_mad2.h \
 	driver/nokia_mad2_pcm.cpp driver/nokia_mad2_pcm.h \
+	driver/tms320c54x_dma.cpp driver/tms320c54x_dma.h \
+	driver/tms320c54x_mcbsp.cpp driver/tms320c54x_mcbsp.h \
+	driver/tlv320aic23.cpp driver/tlv320aic23.h \
 	driver/nokia_mbus.cpp driver/nokia_mbus.h \
 	driver/nokia_mbus_terminal.cpp driver/nokia_mbus_terminal.h \
 	driver/nokia_pup.cpp driver/nokia_pup.h \
-	driver/nokia_radio_peer.cpp driver/nokia_radio_peer.h \
+	driver/nokia_radio_peer.cpp driver/nokia_radio_peer.h driver/nokia_radio_timing.h \
 	driver/nokia_simi.cpp driver/nokia_simi.h \
 	driver/nokia_sim_card.cpp driver/nokia_sim_card.h \
 	driver/nokia_uif.cpp driver/nokia_uif.h \
 	driver/nokia_dct3_trace.inc
-TEST_DRIVER_COMPONENTS := driver/tms320c54x_test.cpp driver/sed1565_test.cpp
+C54X_TEST_COMPONENTS := $(wildcard driver/tms320c54x_test*.cpp driver/tms320c54x_test*.h)
+empty :=
+space := $(empty) $(empty)
+comma := ,
+C54X_TEST_MAME_SOURCES := $(subst $(space),$(comma),$(patsubst driver/%,src/mame/nokia/%,$(filter %.cpp,$(C54X_TEST_COMPONENTS))))
+TEST_DRIVER_COMPONENTS := $(C54X_TEST_COMPONENTS) driver/sed1565_test.cpp driver/nandflash_test.cpp driver/mu4_storage_test.cpp driver/nokia_simi_test.cpp driver/intelfsh_c3_test.cpp
 PHONE ?= noki3210
 BIOS ?=
 
@@ -87,10 +112,12 @@ RUN_ENV ?=
 RUN_VERBOSE ?= 0
 RUN_EXTRA_ARGS ?=
 RUN_NVRAM_DIR ?= $(abspath $(RUN_DIR))/nvram
-NVRAM_SYSTEM := $(strip $(if $(and $(filter noki3210,$(PHONE)),$(filter 501,$(BIOS))),noki3210_1,\
-	$(if $(and $(filter noki3310,$(PHONE)),$(filter 639,$(BIOS))),noki3310_3,\
-	$(if $(and $(filter noki3330,$(PHONE)),$(filter 450e,$(BIOS))),noki3330_1,\
-	$(if $(and $(filter noki5210,$(PHONE)),$(filter 540e,$(BIOS))),noki5210_3,$(PHONE))))))
+# The isolated runner otherwise rebases relative MAME paths against MAME_DIR.
+# Unlike make's abspath function, realpath treats a quoted space as path data.
+RUN_NVRAM_ABSPATH = $(shell realpath -m -- "$(RUN_NVRAM_DIR)")
+# Resolve lazily so target-specific PHONE/BIOS values are honored. Never clean
+# a guessed namespace when a selection is invalid or its declaration unknown.
+NVRAM_SYSTEM = $(or $(shell $(PYTHON) tools/dct3_products.py --nvram-system '$(PHONE)' --bios '$(BIOS)'),$(error Cannot resolve NVRAM namespace for $(PHONE) BIOS=$(BIOS)))
 NVRAM_SYSTEM_5210 := noki5210_3
 PRESERVE_NVRAM ?= 0
 PROVISIONED_IMEI_PREFIX ?=
@@ -150,9 +177,10 @@ ORACLE_3610_CONTACT_SERVICE_SHA ?= dd5322bd6175d71dfea6d222d0572eab6fa787f3e2321
 # firmware editors; keeping the sequence named makes the lengthy first-boot
 # precondition reviewable in every 3330 gate.
 NOKI3330_FIRST_BOOT_KEYS := 1,2,3,4,5,enter,wait8000,1,2,0,0,enter,wait1200,0,1,0,1,2,0,0,2,wait600,enter
-NOKI3330_COLD_SETUP_KEYS := $(NOKI3330_FIRST_BOOT_KEYS)
+# Preserved RTC skips the time/date editors; acknowledge Code accepted before Menu.
+NOKI3330_COLD_SETUP_KEYS := 1,2,3,4,5,enter,wait4000,enter
 NOKI3330_SECURITY_SETTINGS_KEYS := $(NOKI3330_FIRST_BOOT_KEYS),wait4000,enter,wait700,6,wait700,3,wait700,5,wait700,enter,wait700,1,2,3,4,5,enter
-NOKI3330_SMS_READ_KEYS := $(NOKI3330_COLD_SETUP_KEYS),wait4000,enter,wait800,down,wait800,enter,wait800,down,wait800,enter,wait800,enter
+NOKI3330_SMS_READ_KEYS := $(NOKI3330_COLD_SETUP_KEYS),wait1200,enter,wait800,down,wait800,enter,wait800,down,wait800,enter,wait800,enter
 NOKI3330_SMS_DELETE_KEYS := $(NOKI3330_SMS_READ_KEYS),wait1000,enter,wait800,enter,wait800,enter
 NOKI3330_SMART_SAVE_KEYS := $(NOKI3330_COLD_SETUP_KEYS),wait4000,enter,wait800,down,wait800,enter,wait1200,enter,wait1200,enter,wait1200,enter
 NOKI3330_SMART_PLAY_KEYS := $(NOKI3330_COLD_SETUP_KEYS),wait4000,enter,wait800,5,wait800,4,wait1000,enter,wait1200,enter,wait1200,enter
@@ -215,6 +243,32 @@ HOST_SMS_PORT ?= 18093
 HOST_USSD_PORT ?= 18094
 HOST_USSD_RESTORE_PORT ?= 18095
 HOST_INCOMING_USSD_PORT ?= 18096
+HOST_INCOMING_USSD_TEXT ?= Host notice
+SIP_PROJECT_DIR ?= $(abspath tmp/sip-build/pjproject-2.16)
+SIP_PJSUA_BIN ?= $(abspath $(firstword $(wildcard $(SIP_PROJECT_DIR)/pjsip-apps/bin/pjsua-*)))
+SIP_PYTHON_PATH ?= $(abspath $(SIP_PROJECT_DIR)/pjsip-apps/src/swig/python):$(abspath $(firstword $(wildcard $(SIP_PROJECT_DIR)/pjsip-apps/src/swig/python/build/lib.*)))
+export SIP_PROJECT_DIR SIP_PJSUA_BIN SIP_PYTHON_PATH
+SIP_HANDSET_RUNNER_ARGS ?=
+SIP_HANDSET_KEYS ?= $(NOKI3210_OUTGOING_DIAL_KEYS)
+SIP_HANDSET_CONFIG ?= ../fixtures/radio_outgoing_host_adapter
+SIP_HANDSET_SECONDS ?= 45
+SIP_HANDSET_SCRIPT ?= ../mame_nokia_dct3_input_exerciser.lua
+SIP_HANDSET_SOUND ?= none
+SIP_HANDSET_MACHINE ?= noki3210
+SIP_HANDSET_BIOS ?=
+SIP_HANDSET_NVRAM_DIR ?= $(abspath $(RUN_DIR))/nvram
+SIP_HANDSET_PRESERVE_NVRAM ?= 0
+SIP_3330_INCOMING_KEYS ?= 1,2,3,4,5,enter,wait500,c,wait500,c,waitalerting,enter
+SIP_3330_INCOMING_RUNNER_ARGS ?= --incoming --product 3330
+SIP_3330_INCOMING_SCRIPT ?= ../mame_nokia_dct3_input_exerciser.lua
+SIP_3330_OUTGOING_RUNNER_ARGS ?= --product 3330
+SIP_3330_OUTGOING_SCRIPT ?= ../mame_nokia_dct3_input_exerciser.lua
+SIP_3410_INCOMING_KEYS ?= end,waitalerting,send
+SIP_3410_INCOMING_RUNNER_ARGS ?= --incoming --product 3410
+SIP_3410_INCOMING_SCRIPT ?= ../mame_nokia_dct3_input_exerciser.lua
+SIP_HANDSET_KEY_DELAY_MS ?= 12000
+SIP_HANDSET_KEY_DURATION_MS ?= 220
+SIP_HANDSET_KEY_GAP_MS ?= 280
 HOST_INCOMING_USSD_RESTORE_PORT ?= 18099
 HOST_SMS_RESTORE_PORT ?= 18097
 HOST_INCOMING_SMS_RESTORE_PORT ?= 18098
@@ -229,7 +283,7 @@ NOKI3210_OUTGOING_NO_ANSWER_KEYS := $(NOKI3210_OUTGOING_DIAL_KEYS),waitalerting,
 define prepare_host_run
 $(MAKE) --no-print-directory prepare-run-files \
 	PHONE=$(2) BIOS=$(3) RUN_DIR="$(1)" \
-	RUN_NVRAM_DIR="$(abspath $(1))/nvram" PRESERVE_NVRAM=0
+	RUN_NVRAM_DIR="$(if $(4),$(4),$(abspath $(1))/nvram)" PRESERVE_NVRAM=$(if $(5),$(5),0)
 endef
 
 RADIO_PCM_MISSING_ARGS := -cfg_directory ../fixtures/radio_pcm_missing
@@ -315,6 +369,8 @@ INTERACTIVE_EXTRA_ARGS ?=
 .PHONY: verify-3410-radio-outgoing-call-lifecycle
 
 help:
+	@echo "make check-tracefree exclude firmware-PC probes and reproduce both 3210 menu oracles"
+	@echo "DCT3_RESEARCH_TRACES=0 disables the trace quarantine (repository default: 1)"
 	@echo "make venv           create .venv from requirements.txt (for tools/)"
 	@echo "make build          clone MAME at the pin, overlay $(DRIVER), build"
 	@echo "make swap16         derive $(SWAP) from $(ROM) (16-bit byteswap, for the static tools)"
@@ -326,6 +382,17 @@ help:
 	@echo "make census-docs    refresh the committed report; refuses missing scoped runtime"
 	@echo "make evidence-check validate reviewed evidence ledgers and runtime manifests"
 	@echo "make test-tools     run the static-tool and EEPROM-profile unit tests"
+	@echo "make check-c54x-rom4-codec-tone verify native boot serial and physical tone-control boundaries; retains isolated evidence under RUN_DIR"
+	@echo "make check-c54x-rom4-tone-levels verify physical Off/three-level native tone controls (no audio claim)"
+	@echo "make check-c54x-rom4-pcm-clock verify native key-tone words under explicit external frames (not product clock wiring)"
+	@echo "make check-c54x-rom4-pcm-restore verify exact active native DTMF word/time replay with external frames"
+	@echo "make check-c54x-rom4-pcm-wire verify native DTMF under explicit 1 MHz edges (assumed sync/fan-out)"
+	@echo "make check-c54x-rom4-clocked-boot verify pin-clocked native boot loopback, DTMF and replay"
+	@echo "make check-c54x-rom4-staged-codec compare atomic/staged laboratory codec clocks and replay"
+	@echo "make check-c54x-rom4-staged verify the reset-free ten-second staged DSP checkpoint"
+	@echo "make check-c54x-backend-bsp verify native BSP frames, serial pins and save/load (no handset clock/audio claim)"
+	@echo "make check-c54x-backend-requests verify slot pending storage and save/load (no physical request-map claim)"
+	@echo "make check-c54x-rom4-transfers verify native timed descriptor consumption (no physical RF timing claim)"
 	@echo "make verify-gsm-a3a8 verify the explicitly profiled laboratory A3/A8 example"
 	@echo "make verify-radio-authentication-boundary reproduce organic 3210 authenticated registration"
 	@echo "make verify-3310-radio-authentication-boundary reproduce organic 3310 authenticated registration"
@@ -401,10 +468,11 @@ help:
 	@echo "make verify-3410-radio-unsuitable-cells check NHM-2 cell and assignment rejection"
 	@echo "make verify-3410-radio-paging check NHM-2 PCH access and Paging Response"
 	@echo "make verify-3310-frontier boot local v6.39 to its deterministic idle frame"
-	@echo "make verify-5110-menu boot ROM4/C54x and open the NSE-1 Phone book menu"
-	@echo "make verify-5110-late-input open the NSE-1 menu after the later idle interval"
-	@echo "make verify-5110-power-lifecycle check short and sustained NSE-1 power presses"
-	@echo "make verify-5110-save-state restore ROM4/C54x idle then open the menu"
+	@echo "make verify-5110-menu boot ROM4/C54x and open the NSE-1 Phone book menu (NSE1_MACHINE=nse1pipe for staged CPU)"
+	@echo "make probe-c54x-timer-boundary observe synthetic timer reload/mask timing (not a fidelity gate)"
+	@echo "make verify-5110-late-input open the NSE-1 menu after the later idle interval (NSE1_MACHINE=nse1pipe for staged CPU)"
+	@echo "make verify-5110-power-lifecycle check short and sustained NSE-1 power presses (NSE1_MACHINE=nse1pipe for staged CPU)"
+	@echo "make verify-5110-save-state restore ROM4/C54x idle then open the menu (NSE1_MACHINE=nse1pipe for staged CPU)"
 	@echo "make verify-3310-menu drive the v6.39 keypad to its Phone book menu"
 	@echo "make verify-3310-navigation navigate the v6.39 Phone book and return to idle"
 	@echo "make verify-3330-frontier complete virgin-PMM setup and reach v4.50 idle"
@@ -469,6 +537,7 @@ help:
 	@echo "make verify-mad2-interrupts check simultaneous, masked-pending and extended-FIQ routing"
 	@echo "make verify-mad2-clocks check reset/clock/watchdog boot contracts in both 3210 ROMs"
 	@echo "make verify-mad2-sleep  check Timer-1 and physical-key wake from MAD2 clock stop"
+	@echo "make verify-mad2-wake-gates  check local wake versus global interrupt delivery"
 	@echo "make verify-mad2-timer1 check Timer-1 destination/FIQ5 at accelerated controller time"
 	@echo "make verify-mad2-reset check software/MAD2/CCONT watchdog reset domains and retained state"
 	@echo "make verify-mbus    check two-ROM MBUS init and external RX/FIQ2 contracts"
@@ -515,18 +584,20 @@ download-mame:
 
 # Overlay the local driver and component sources onto the upstream tree (MAME is not vendored).
 overlay: download-mame
-	@set -e; for patch in $(MAME_PATCHES); do \
-		if git -C $(MAME_DIR) apply --reverse --check "../$$patch" >/dev/null 2>&1; then :; \
-		else git -C $(MAME_DIR) apply "../$$patch"; fi; \
-	done
+	$(PYTHON) tools/check_mame_patch_stack.py --apply --repo $(MAME_DIR) --commit $(MAME_COMMIT) $(MAME_PATCHES)
 	@dst="$(MAME_DIR)/src/mame/nokia/nokia_dct3.cpp"; mkdir -p "$$(dirname "$$dst")"; cmp -s "$(DRIVER)" "$$dst" 2>/dev/null || cp -f "$(DRIVER)" "$$dst"
 	@set -e; for src in $(DRIVER_COMPONENTS); do dst="$(MAME_DIR)/src/mame/nokia/$$(basename "$$src")"; mkdir -p "$$(dirname "$$dst")"; cmp -s "$$src" "$$dst" 2>/dev/null || cp -f "$$src" "$$dst"; done
+	$(PYTHON) tools/dct3_trace_build.py configure driver/nokia_dct3_trace_config.h $(MAME_DIR)/src/mame/nokia/nokia_dct3_trace_config.h --enabled $(DCT3_RESEARCH_TRACES)
 	@set -e; for src in $(TEST_DRIVER_COMPONENTS); do dst="$(MAME_DIR)/src/mame/nokia/$$(basename "$$src")"; mkdir -p "$$(dirname "$$dst")"; cmp -s "$$src" "$$dst" 2>/dev/null || cp -f "$$src" "$$dst"; done
 	@set -e; for src in $(CPU_COMPONENTS); do dst="$(MAME_DIR)/src/devices/$$src"; mkdir -p "$$(dirname "$$dst")"; cmp -s "$$src" "$$dst" 2>/dev/null || cp -f "$$src" "$$dst"; done
 	@set -e; for src in $(LIB_COMPONENTS); do dst="$(MAME_DIR)/src/$$src"; mkdir -p "$$(dirname "$$dst")"; cmp -s "$$src" "$$dst" 2>/dev/null || cp -f "$$src" "$$dst"; done
 	@set -e; for src in $(LIBGSM_COMPONENTS); do dst="$(MAME_DIR)/3rdparty/$${src#third_party/}"; mkdir -p "$$(dirname "$$dst")"; cmp -s "$$src" "$$dst" 2>/dev/null || cp -f "$$src" "$$dst"; done
 	# makedep discovers a .cpp beside an included header; remove the retired overlay source.
 	rm -f $(MAME_DIR)/src/mame/nokia/nokia_gsm_fr_codec.cpp
+	# The ordered C54x dispatcher and family modules replace this bench monolith.
+	rm -f $(MAME_DIR)/src/mame/nokia/tms320c54x_test_cases.cpp
+	# Native ST flash owns the retired Nokia adapter's command/protection state.
+	rm -f $(MAME_DIR)/src/mame/nokia/nokia_b3_flash.cpp $(MAME_DIR)/src/mame/nokia/nokia_b3_flash.h
 
 # Replay in a temporary Git index; leave the local MAME overlay untouched.
 check-mame-patches: download-mame
@@ -547,6 +618,18 @@ eeprom-profile:
 	$(PYTHON) tools/make_eeprom_profile.py --flash $(ROM) --output "roms/noki3210/$(EEPROM_BASENAME)" \
 		$(if $(PROVISIONED_IMEI_PREFIX),--provisioned-imei-prefix $(PROVISIONED_IMEI_PREFIX)) \
 		$(if $(ERASED_IDENTITY_SECURITY_CODE),--erased-identity-security-code $(ERASED_IDENTITY_SECURITY_CODE))
+
+normalize-3350:
+	$(PYTHON) tools/nhm9_package_check.py roms/archive-dct3-packages/nhm9_05.30_install.EXE \
+		--ppm A --output roms/noki3350/3350f530a.fls
+
+.PHONY: normalize-3350
+
+normalize-5190:
+	$(PYTHON) tools/nsb1_package_check.py roms/archive-dct3-packages/5190e671.zip \
+		--ppm A --output roms/noki5190/5190f671a.fls
+
+.PHONY: normalize-5190
 
 normalize-2100:
 	@test "$$(sha256sum roms/2100-nam2-v584/NAM205.840 | cut -d' ' -f1)" = "6382beb1f8ba2d768f53ccc3111586657f26eff961900249c69061cb710db283"
@@ -703,11 +786,11 @@ normalize-6110-v548:
 
 
 roms: $(if $(filter noki3210,$(PHONE)),eeprom-profile) $(if $(filter noki5110,$(PHONE)),rom4-dsp-inputs)
-	@for src in roms/noki*/; do \
+	@set -e; for src in roms/noki*/; do \
 		[ -d "$$src" ] || continue; \
 		dst="$(MAME_DIR)/roms/$$(basename "$$src")"; \
 		mkdir -p "$$dst"; \
-		cp -a "$$src". "$$dst"/; \
+		cp -af "$$src". "$$dst"/; \
 	done
 
 .PHONY: rom4-dsp-inputs
@@ -721,7 +804,17 @@ rom4-dsp-inputs:
 		roms/noki5110/nse1_rom4_dsp_data.bin
 
 build: overlay roms
-	$(MAKE) -C $(MAME_DIR) REGENIE=1 SOURCES=src/mame/nokia/nokia_dct3.cpp,src/mame/nokia/tms320c54x_test.cpp,src/mame/nokia/sed1565_test.cpp,src/mame/nokia/nokia_b3_flash.cpp,src/mame/nokia/nokia_ccont.cpp,src/mame/nokia/nokia_cobba.cpp,src/mame/nokia/nokia_dsp_c54x.cpp,src/mame/nokia/nokia_dsp_hle.cpp,src/mame/nokia/nokia_dsp_staged.cpp,src/mame/nokia/nokia_dspif.cpp,src/mame/nokia/nokia_external_service.cpp,src/mame/nokia/nokia_gensio.cpp,src/mame/nokia/gsm_a3a8.cpp,src/mame/nokia/gsm_a5.cpp,src/mame/nokia/gsm_cell_broadcast.cpp,src/mame/nokia/gsm_ems.cpp,src/mame/nokia/gsm_mm_authentication.cpp,src/mame/nokia/gsm_tch_f_l1.cpp,src/mame/nokia/gsm_xcch_l1.cpp,src/mame/nokia/nokia_gsm_network.cpp,src/mame/nokia/nokia_gsm_session.cpp,src/mame/nokia/nokia_gsm_voice_peer.cpp,src/mame/nokia/nokia_lapdm_link.cpp,src/mame/nokia/nokia_kbgpio.cpp,src/mame/nokia/nokia_mad2.cpp,src/mame/nokia/nokia_mad2_pcm.cpp,src/mame/nokia/nokia_mbus.cpp,src/mame/nokia/nokia_mbus_terminal.cpp,src/mame/nokia/nokia_pup.cpp,src/mame/nokia/nokia_radio_peer.cpp,src/mame/nokia/nokia_simi.cpp,src/mame/nokia/nokia_sim_card.cpp,src/mame/nokia/nokia_uif.cpp USE_QTDEBUG=0 -j$(JOBS)
+	$(MAKE) -C $(MAME_DIR) REGENIE=1 SOURCES=src/mame/nokia/intelfsh_c3_test.cpp,src/mame/nokia/nokia_dct3.cpp,src/mame/nokia/nokia_dct3_research.cpp,$(C54X_TEST_MAME_SOURCES),src/mame/nokia/sed1565_test.cpp,src/mame/nokia/nandflash_test.cpp,src/mame/nokia/mu4_storage_test.cpp,src/mame/nokia/nokia_simi_test.cpp,src/mame/nokia/tms320c54x_dma.cpp,src/mame/nokia/tms320c54x_mcbsp.cpp,src/mame/nokia/tlv320aic23.cpp,src/mame/nokia/nokia_ccont.cpp,src/mame/nokia/nokia_cobba.cpp,src/mame/nokia/nokia_dsp_c54x.cpp,src/mame/nokia/nokia_dsp_hle.cpp,src/mame/nokia/nokia_dsp_staged.cpp,src/mame/nokia/nokia_dspif.cpp,src/mame/nokia/nokia_external_service.cpp,src/mame/nokia/nokia_gensio.cpp,src/mame/nokia/gsm_a3a8.cpp,src/mame/nokia/gsm_a5.cpp,src/mame/nokia/gsm_cell_broadcast.cpp,src/mame/nokia/gsm_ems.cpp,src/mame/nokia/gsm_mm_authentication.cpp,src/mame/nokia/gsm_tch_f_l1.cpp,src/mame/nokia/gsm_xcch_l1.cpp,src/mame/nokia/nokia_gsm_network.cpp,src/mame/nokia/nokia_gsm_session.cpp,src/mame/nokia/nokia_gsm_voice_peer.cpp,src/mame/nokia/nokia_lapdm_link.cpp,src/mame/nokia/nokia_kbgpio.cpp,src/mame/nokia/nokia_mad2.cpp,src/mame/nokia/nokia_mad2_pcm.cpp,src/mame/nokia/nokia_mbus.cpp,src/mame/nokia/nokia_mbus_terminal.cpp,src/mame/nokia/nokia_pup.cpp,src/mame/nokia/nokia_radio_peer.cpp,src/mame/nokia/nokia_simi.cpp,src/mame/nokia/nokia_sim_card.cpp,src/mame/nokia/nokia_uif.cpp USE_QTDEBUG=0 -j$(JOBS)
+
+.PHONY: build-tracefree check-tracefree
+# These modes reuse one overlay/object tree. Never run builds/gates concurrently.
+build-tracefree:
+	$(MAKE) --no-print-directory build DCT3_RESEARCH_TRACES=0
+
+check-tracefree:
+	$(MAKE) --no-print-directory verify-mmi-menu RUN_DIR=$(RUN_DIR)_tracefree_v600 DCT3_RESEARCH_TRACES=0
+	$(MAKE) --no-print-directory verify-mmi-menu-501 RUN_DIR=$(RUN_DIR)_tracefree_v501 DCT3_RESEARCH_TRACES=0
+	$(PYTHON) tools/dct3_trace_build.py check $(MAME_DIR)/mame --enabled 0
 
 swap16:
 	@test -f $(ROM) || { echo "Missing $(ROM) — see roms/README.md"; exit 1; }
@@ -923,6 +1016,8 @@ prepare-run-files:
 	@if [ "$(PRESERVE_NVRAM)" != "1" ]; then \
 		rm -f "$(RUN_NVRAM_DIR)/$(NVRAM_SYSTEM)/flash" \
 			"$(RUN_NVRAM_DIR)/$(NVRAM_SYSTEM)/sim_card" \
+			"$(RUN_NVRAM_DIR)/$(NVRAM_SYSTEM)/ccont" \
+			"$(RUN_NVRAM_DIR)/$(NVRAM_SYSTEM)/gsm_network" \
 			"$(RUN_NVRAM_DIR)/$(NVRAM_SYSTEM)/eeprom"; \
 	fi
 	@if [ "$(PHONE)" = "noki3210" ]; then \
@@ -938,14 +1033,14 @@ run: prepare-run-nvram
 	env $(BOOT_ENV) $(RUN_ENV) NOKIA_DCT3_SNAPSHOT_DIR=$(abspath $(RUN_DIR)) \
 		NOKIA_DCT3_BOOT_SUMMARY=$(abspath $(RUN_DIR))/boot_summary.txt \
 		$(PYTHON) tools/run_mame_isolated.py --mame-dir $(MAME_DIR) --run-dir $(RUN_DIR) -- \
-		$(MAME_ARGS) $(RUN_EXTRA_ARGS) -nvram_directory $(RUN_NVRAM_DIR) -seconds_to_run $(SECONDS)
+		$(MAME_ARGS) $(RUN_EXTRA_ARGS) -nvram_directory "$(RUN_NVRAM_ABSPATH)" -seconds_to_run $(SECONDS)
 	@$(MAKE) --no-print-directory frame RUN_DIR=$(RUN_DIR)
 
 run-prebuilt: prepare-run-files
 	env $(BOOT_ENV) $(RUN_ENV) NOKIA_DCT3_SNAPSHOT_DIR=$(abspath $(RUN_DIR)) \
 		NOKIA_DCT3_BOOT_SUMMARY=$(abspath $(RUN_DIR))/boot_summary.txt \
 		$(PYTHON) tools/run_mame_isolated.py --mame-dir $(MAME_DIR) --run-dir $(RUN_DIR) -- \
-		$(MAME_ARGS) $(RUN_EXTRA_ARGS) -nvram_directory $(RUN_NVRAM_DIR) -seconds_to_run $(SECONDS)
+		$(MAME_ARGS) $(RUN_EXTRA_ARGS) -nvram_directory "$(RUN_NVRAM_ABSPATH)" -seconds_to_run $(SECONDS)
 	@$(MAKE) --no-print-directory frame RUN_DIR=$(RUN_DIR)
 
 run-captured: run
@@ -978,7 +1073,7 @@ call-bridge:
 smoke: build prepare-run-files
 	env $(BOOT_ENV) NOKIA_DCT3_SNAPSHOT_DIR=$(abspath $(RUN_DIR)) \
 		$(PYTHON) tools/run_mame_isolated.py --mame-dir $(MAME_DIR) --run-dir $(RUN_DIR) -- \
-		$(MAME_ARGS) -seconds_to_run $(SECONDS)
+		$(MAME_ARGS) -nvram_directory "$(RUN_NVRAM_ABSPATH)" -seconds_to_run $(SECONDS)
 
 smoke-3310-639:
 	@$(MAKE) --no-print-directory run PHONE=noki3310 BIOS=639 RUN_DIR=$(RUN_DIR) SECONDS=$(SECONDS)
@@ -1051,10 +1146,407 @@ audit-dsp-rom4:
 check-dsp-rom4-cosim:
 	$(PYTHON) tools/dsp_rom4_cosim_check.py $(LOG)
 
+.PHONY: check-mu4-nand
+.PHONY: check-mu4-storage-original
+# Native evidence can include large NAND images; never default to tmpfs.
+NATIVE_SCRATCH_ROOT ?= $(abspath tmp/native-gates)
+# The 1 ms/byte upload plus two complete readbacks at the evidenced reset
+# divider exceed 1200 emulated seconds in the reset/retained fixture.
+MU4_STORAGE_SECONDS ?= 1800
+check-mu4-storage-original: build
+	@set -eu; mkdir -p "$(NATIVE_SCRATCH_ROOT)"; \
+		tmp="$(if $(MU4_STORAGE_RUN_DIR),$(abspath $(MU4_STORAGE_RUN_DIR)),$$(mktemp -d "$(NATIVE_SCRATCH_ROOT)/mu4-storage.XXXXXX"))"; \
+		mkdir -p "$$tmp/roms/mu4nand"; \
+		$(PYTHON) tools/noki5510_a00_inventory.py roms/5510-mu4-reference/InitData_R060.a00 \
+			--extract-container --output "$$tmp/roms/mu4nand/mu4_initdata_container.bin"; \
+		$(PYTHON) tools/noki5510_a00_inventory.py roms/5510-mu4-reference/InitData_R060.a00 \
+			--segment aa55 --extract-section 0x20ae --output "$$tmp/roms/mu4nand/mu4_initdata_library.bin"; \
+		$(PYTHON) tools/noki5510_a00_inventory.py roms/5510-mu4-reference/InitData_R060.a00 \
+			--segment aa55 --extract-section 0x200 --output "$$tmp/roms/mu4nand/mu4_initdata_entry.bin"; \
+		$(PYTHON) tools/noki5510_a00_inventory.py roms/5510-mu4-reference/InitData_R060.a00 \
+			--segment aa55 --extract-section 0x2080 --output "$$tmp/roms/mu4nand/mu4_initdata_trampolines.bin"; \
+		$(PYTHON) tools/noki5510_a00_inventory.py roms/5510-mu4-reference/InitData_R060.a00 \
+			--segment aa55 --extract-section 0xf33 --output "$$tmp/roms/mu4nand/mu4_initdata_cinit.bin"; \
+		$(PYTHON) tools/noki5510_a00_inventory.py roms/5510-mu4-reference/initdisk_R060.a00 \
+			--extract-section 0x256d --output "$$tmp/roms/mu4nand/mu4_initdisk_library.bin"; \
+		$(PYTHON) tools/noki5510_a00_inventory.py roms/5510-mu4-reference/initdisk_R060.a00 \
+			--extract-section 0x2080 --output "$$tmp/roms/mu4nand/mu4_initdisk_cinit.bin"; \
+		$(PYTHON) tools/noki5510_a00_inventory.py roms/5510-mu4-reference/initdisk_R060.a00 \
+			--extract-section 0x4aa9 --output "$$tmp/roms/mu4nand/mu4_initdisk_helpers.bin"; \
+		$(PYTHON) tools/noki5510_a00_inventory.py roms/5510-mu4-reference/initdisk_R060.a00 \
+			--extract-section 0x80 --output "$$tmp/roms/mu4nand/mu4_initdisk_vectors.bin"; \
+		cd "$$tmp"; $(abspath $(MAME_DIR)/mame) mu4nand -rompath "$$tmp/roms" \
+			-video none -sound none -nothrottle -debugger none -log \
+			$(if $(MU4_STORAGE_NVRAM_DIR),-nvram_directory "$(abspath $(MU4_STORAGE_NVRAM_DIR))" -nvram_save,-nonvram_save) \
+			-bios $(or $(MU4_STORAGE_BIOS),setup) -seconds_to_run $(MU4_STORAGE_SECONDS) >output.log 2>&1 || { cat output.log; cat error.log; exit 1; }; \
+		cat output.log; cat error.log; grep -q 'mu4_storage_original: PASS' error.log; \
+		grep -q 'mu4_storage_flush: PASS' error.log; grep -q 'mu4_storage_mount: PASS' error.log; \
+		grep -q 'mu4_storage_template: PASS' error.log; grep -q 'mu4_storage_format: PASS' error.log; \
+		grep -q 'mu4_initdisk_marker: PASS' error.log; grep -q 'mu4_initdisk_scan: PASS' error.log; \
+		grep -q 'mu4_initdisk_serial: PASS' error.log; grep -q 'mu4_initdisk_initialize: PASS' error.log; \
+		grep -q 'mu4_initdisk_segment: PASS' error.log; grep -q 'mu4_initdisk_mount: PASS' error.log; \
+		grep -q 'mu4_file_readback: PASS files=6' error.log; \
+		grep -q 'mu4_dma_conformance: PASS' error.log; grep -q 'mu4_loader: PASS' error.log; \
+		grep -q 'mu4_dma_source_inspection: PASS' error.log; \
+		grep -q 'mu4_dma_read_ownership: PASS' error.log; \
+		grep -q 'mu4_dma_write_ownership: PASS data_program=1 ordinary_write_excluded=1 channel=1 space=1 address=1 source_phase_excluded=1 canceled=1 restored=1' error.log; \
+		grep -q 'mu4_dma_frame_pause: PASS' error.log; \
+		grep -q 'mu4_native_entry: PASS' error.log; grep -q 'mu4_mcbsp_conformance: PASS' error.log; \
+		grep -q 'mu4_mcbsp_overwrite: PASS widths=8,12,16 dxr_replaced=1 xsr_retained=1 ready_edges=1 physical_bits=1' error.log; \
+		grep -q 'mu4_mcbsp_receive_sync: PASS cases=6 widths=8,12,16 replacement=1 ignore=1 drr_retained=1 sticky=1 software_clear=1 software_set=1 reset=1 error_irq=1' error.log; \
+		grep -q 'mu4_mcbsp_receive_packing: PASS normal_cases=36 premature_cases=18 widths=8,12,16 delays=0,1,2 gaps=0,1 ignore=0,1 exact_words=1 ready_edges=1 no_false_error=1' error.log; \
+		grep -q 'mu4_mcbsp_receive_packing_restore: PASS old_tail=1 pending_frame=1 exact_words=1 ready_edges=1 no_false_error=1' error.log; \
+		grep -q 'mu4_mcbsp_transmit_packing: PASS cases=36 widths=8,12,16 delays=0,1,2 gaps=0,1 ignore=0,1 exact_words=1 physical_bits=1 ready_edges=1 no_false_error=1' error.log; \
+		grep -q 'mu4_mcbsp_transmit_packing_restore: PASS old_tail=1 queued_dxr=1 pending_frame=1 physical_bits=1 ready_edges=1 no_false_error=1' error.log; \
+		grep -q 'mu4_mcbsp_receive_sync_restore: PASS partial_word=1 sticky_error=1 irq_level=1 no_duplicate_irq=1 payload_replay=1 reset=1' error.log; \
+		grep -q 'mu4_mcbsp_transmit_sync: PASS cases=6 widths=8,12,16 xsr_restart=1 dxr_retained=1 ignore=1 physical_bits=1 ready_edges=1 sticky=1 software_clear=1 software_set=1 reset=1 error_irq=1' error.log; \
+		grep -q 'mu4_mcbsp_transmit_sync_restore: PASS partial_xsr=1 queued_dxr=1 sticky_error=1 irq_level=1 no_duplicate_irq=1 physical_bits=1' error.log; \
+		grep -q 'mu4_mcbsp_underrun: PASS' error.log; grep -q 'mu4_mcbsp_underrun_restore: PASS' error.log; \
+		grep -q 'mu4_mcbsp_overrun: PASS' error.log; grep -q 'mu4_mcbsp_overrun_restore: PASS' error.log; \
+		grep -q 'mu4_dma_sync_conformance: PASS' error.log; \
+		grep -q 'mu4_dma_sync_level: PASS' error.log; \
+		grep -q 'mu4_mcbsp_external: PASS' error.log; \
+		grep -q 'mu4_codec_clock: PASS' error.log; \
+		grep -q 'mu4_codec_duplex: PASS' error.log; \
+		grep -q 'mu4_mcbsp_receive: PASS' error.log; \
+		grep -q 'mu4_mcbsp_receive_dma: PASS' error.log; \
+		if grep -q 'Exceeded pending input line event queue' error.log; then \
+			echo 'MU4 gate failed: synchronized CPU input queue overflow' >&2; exit 1; fi; \
+		if grep -q 'NAND NVRAM write failed' error.log; then \
+			echo 'MU4 gate failed: NAND persistence did not complete' >&2; exit 1; fi; \
+		case "$(MU4_STORAGE_BIOS)" in stream|sustain|worker|settle|scan|startup|command|wire|wireack|pins|replay|reset) \
+			grep -q 'mu4_native_stream: PASS' error.log; grep -q 'mu4_native_receive: PASS' error.log;; esac; \
+		case "$(MU4_STORAGE_BIOS)" in sustain|worker|settle|scan|startup|command|wire|wireack|pins|replay) \
+			grep -q 'mu4_native_sustained: PASS' error.log; grep -q 'mu4_native_interrupts: PASS' error.log;; esac; \
+		case "$(MU4_STORAGE_BIOS)" in worker|settle|scan|startup|command|wire|wireack|pins|replay|reset) \
+			grep -q 'mu4_native_worker_window: PASS' error.log; grep -q 'mu4_native_stream_binding: PASS' error.log;; esac; \
+		case "$(MU4_STORAGE_BIOS)" in startup|command|wire|wireack|pins|replay|reset) grep -q 'mu4_native_worker_activation: PASS' error.log;; esac; \
+		case "$(MU4_STORAGE_BIOS)" in \
+			command) grep -q 'mu4_native_framed_request: PASS' error.log;; \
+			wire) grep -q 'mu4_native_status_noack: PASS' error.log;; \
+			wireack) grep -q 'mu4_native_status_transaction: PASS' error.log;; \
+			pins) grep -q 'mu4_native_status_transaction: PASS' error.log; grep -q 'mu4_native_receive_pins: PASS' error.log;; \
+			replay) grep -q 'mu4_native_status_transaction: PASS' error.log; grep -q 'mu4_native_receive_pins: PASS' error.log; grep -q 'mu4_native_replay: PASS' error.log;; \
+			reset) grep -q 'mu4_native_reset_storage: PASS' error.log; \
+				grep -q 'mu4_native_worker_activation: PASS' error.log; grep -q 'mu4_native_reset_request:' error.log; \
+				grep -q 'mu4_native_reset_controller:' error.log; grep -q 'mu4_native_reset_frontier: control_restart=0' error.log;; \
+			measure) grep -q 'mu4_native_measurement: PASS' error.log; grep -q 'mu4_native_measurement_result: PASS' error.log; grep -q 'mu4_native_tone: PASS' error.log; grep -q 'mu4_native_worker_activation: PASS' error.log;; esac
+
+.PHONY: check-mu4-retained-original
+check-mu4-retained-original:
+	# The complete 66 MiB NAND and its read-only copy exceed some /tmp quotas.
+	@set -eu; mkdir -p "$(NATIVE_SCRATCH_ROOT)"; \
+		tmp="$(if $(MU4_RETAINED_RUN_DIR),$(abspath $(MU4_RETAINED_RUN_DIR)),$$(mktemp -d "$(NATIVE_SCRATCH_ROOT)/mu4-retained.XXXXXX"))"; \
+		$(MAKE) check-mu4-storage-original MU4_STORAGE_BIOS=reset \
+			MU4_STORAGE_RUN_DIR="$$tmp/seed" MU4_STORAGE_NVRAM_DIR="$$tmp/nvram"; \
+		mkdir -p "$$tmp/nvram/mu4nand_14" "$$tmp/retained"; \
+		if ! test -f "$$tmp/nvram/mu4nand_13/nand" || \
+			! test "$$(wc -c < "$$tmp/nvram/mu4nand_13/nand")" -eq 69206016; then \
+			echo 'MU4 retained gate failed: missing or incomplete firmware-created NAND' >&2; exit 1; fi; \
+		cp "$$tmp/nvram/mu4nand_13/nand" "$$tmp/nvram/mu4nand_14/nand"; \
+		cmp "$$tmp/nvram/mu4nand_13/nand" "$$tmp/nvram/mu4nand_14/nand"; \
+		cd "$$tmp/retained"; $(abspath $(MAME_DIR)/mame) mu4nand -bios retained \
+			-rompath "$$tmp/seed/roms" -nvram_directory "$$tmp/nvram" \
+			-video none -sound none -nothrottle -debugger none -log -nonvram_save \
+			-seconds_to_run 1200 >output.log 2>&1 || { cat output.log; cat error.log; exit 1; }; \
+		cat output.log; cat error.log; \
+		grep -q 'mu4_file_readback: PASS files=6' error.log; \
+		grep -q 'mu4_loader: PASS' error.log; grep -q 'mu4_native_entry: PASS' error.log; \
+		grep -q 'mu4_native_retained_storage: PASS' error.log; \
+		grep -q 'mu4_native_sustained: PASS' error.log; grep -q 'mu4_native_interrupts: PASS' error.log; \
+		grep -q 'mu4_native_worker_activation: PASS' error.log; \
+		grep -q 'mu4_native_status_transaction: PASS' error.log; \
+		grep -q 'mu4_native_receive_pins: PASS' error.log; \
+		grep -q 'mu4_native_retained_control: active=1 rx_words=11 tx_words=14 tail_ms=20000 ' error.log; \
+		grep -q 'mu4_native_runtime_word: leg=2 access=read address=374d value=0001 pc=0290ea' "$$tmp/seed/error.log"; \
+		grep -q 'mu4_native_runtime_word: leg=0 access=read address=374d value=0000 pc=0290ea' error.log; \
+		grep -q 'mu4_native_runtime_word: leg=0 access=write address=374d value=0001 pc=0290ef' error.log; \
+		for snapshot in "$$tmp/seed/mu4_ram_loaded_leg0.bin" "$$tmp/seed/mu4_ram_loaded_leg2.bin" \
+			"$$tmp/seed/mu4_ram_settled_leg2.bin" "$$tmp/retained/mu4_ram_loaded_leg0.bin" \
+			"$$tmp/retained/mu4_ram_settled_leg0.bin"; do \
+			test -f "$$snapshot" && test "$$(wc -c < "$$snapshot")" -eq 130816 || \
+				{ echo "MU4 retained gate failed: incomplete RAM observation $$snapshot" >&2; exit 1; }; \
+		done; \
+		cmp "$$tmp/nvram/mu4nand_13/nand" "$$tmp/nvram/mu4nand_14/nand"
+
+.PHONY: check-mu4-recorder-persistence
+# Fresh original provisioning, native metadata save, then a separate process
+# reopening that exact NAND. This is not playback or MA4 handset acceptance.
+check-mu4-recorder-persistence: build
+	@set -eu; mkdir -p "$(NATIVE_SCRATCH_ROOT)"; \
+		run=$$(mktemp -d "$(NATIVE_SCRATCH_ROOT)/mu4-recorder-persistence.XXXXXX"); \
+		run=$$(cd "$$run" && pwd); echo "MU4 recorder persistence evidence: $$run"; \
+		$(MAKE) -o build check-mu4-retained-original MU4_RETAINED_RUN_DIR="$$run/source"; \
+		$(MAKE) -o build check-mu4-bootstrap-original \
+			MU4_BOOTSTRAP_SOURCE_RUN="$$run/source" MU4_BOOTSTRAP_RUN_DIR="$$run/save" \
+			MU4_BOOTSTRAP_INPUT_NAND="$$run/source/nvram/mu4nand_13/nand" \
+			MU4_BOOTSTRAP_BIOS=bootrecmeta; \
+		$(MAKE) -o build check-mu4-bootstrap-original \
+			MU4_BOOTSTRAP_SOURCE_RUN="$$run/source" MU4_BOOTSTRAP_RUN_DIR="$$run/reopen" \
+			MU4_BOOTSTRAP_INPUT_NAND="$$run/save/mu4_recorder_endpoint.nand" \
+			MU4_BOOTSTRAP_BIOS=bootopenstage; \
+		echo "MU4 native recorder persistence: PASS (metadata/catalogue only; no playback claim)"
+
+.PHONY: check-mu4-bootstrap-original
+check-mu4-bootstrap-original: build
+	@set -eu; source="$(abspath $(MU4_BOOTSTRAP_SOURCE_RUN))"; \
+		if test -z "$(MU4_BOOTSTRAP_SOURCE_RUN)" || ! test -f "$$source/nvram/mu4nand_13/nand"; then \
+			echo 'Set MU4_BOOTSTRAP_SOURCE_RUN to a completed check-mu4-retained-original run directory' >&2; exit 1; fi; \
+		test "$$(wc -c < "$$source/nvram/mu4nand_13/nand")" -eq 69206016; \
+		input="$(if $(MU4_BOOTSTRAP_INPUT_NAND),$(abspath $(MU4_BOOTSTRAP_INPUT_NAND)),$$source/nvram/mu4nand_13/nand)"; \
+		test -f "$$input" && test "$$(wc -c < "$$input")" -eq 69206016 || \
+			{ echo 'MU4 bootstrap input must be one complete 69,206,016-byte NAND image' >&2; exit 1; }; \
+		bios="$(or $(MU4_BOOTSTRAP_BIOS),bootstrap)"; \
+		case "$$bios" in bootstrap) nvtag=mu4nand_15;; bootstatus) nvtag=mu4nand_16;; bootreset) nvtag=mu4nand_17;; bootreplay) nvtag=mu4nand_18;; bootmeasure) nvtag=mu4nand_19;; bootrecord) nvtag=mu4nand_20;; bootrecordram) nvtag=mu4nand_21;; bootreccontrol) nvtag=mu4nand_22;; bootrecpoll) nvtag=mu4nand_23;; bootrecsave) nvtag=mu4nand_24;; bootrecstage) nvtag=mu4nand_25;; bootrecmeta) nvtag=mu4nand_26;; bootopenstage) nvtag=mu4nand_27;; bootplaystage) nvtag=mu4nand_28;; bootrecac) nvtag=mu4nand_29;; \
+			*) echo 'Unsupported MU4 bootstrap diagnostic BIOS' >&2; exit 1;; esac; \
+		mkdir -p "$(NATIVE_SCRATCH_ROOT)"; \
+		tmp="$(if $(MU4_BOOTSTRAP_RUN_DIR),$(abspath $(MU4_BOOTSTRAP_RUN_DIR)),$$(mktemp -d "$(NATIVE_SCRATCH_ROOT)/mu4-bootstrap.XXXXXX"))"; \
+		mkdir -p "$$tmp/nvram/$$nvtag"; \
+		cp "$$input" "$$tmp/nvram/$$nvtag/nand"; \
+		cd "$$tmp"; $(abspath $(MAME_DIR)/mame) mu4nand -bios "$$bios" \
+			-rompath "$$source/seed/roms" -nvram_directory "$$tmp/nvram" \
+			-video none -sound none -nothrottle -debugger none -log -nonvram_save \
+			-seconds_to_run 60 >output.log 2>&1 || { cat output.log; cat error.log; exit 1; }; \
+		cat output.log; cat error.log; \
+		grep -q 'mu4_original_bootstrap_upload: records=7 words=10760 program_only=1 ' error.log; \
+		if test "$$bios" = bootrecstage || test "$$bios" = bootrecmeta || test "$$bios" = bootopenstage || test "$$bios" = bootrecac; then \
+			$(if $(findstring /,$(PYTHON)),$(abspath $(PYTHON)),$(PYTHON)) $(abspath tools/noki5510_bootstrap_check.py) --resident-memory error.log; \
+		elif test "$$bios" = bootreset; then \
+			grep -q 'mu4_original_bootstrap_frontier: entry_count=2 resident_count=2 ' error.log; \
+			grep -q 'mu4_original_bootstrap_reset: PASS' error.log; \
+		elif test "$$bios" = bootrecord || test "$$bios" = bootrecpoll || test "$$bios" = bootrecsave; then \
+			grep -q 'mu4_original_bootstrap_frontier: entry_count=1 resident_count=2 ' error.log; \
+		else grep -q 'mu4_original_bootstrap_frontier: entry_count=1 resident_count=1 ' error.log; fi; \
+		grep -q 'mu4_original_bootstrap_gate_init: value=0000 pc=0008f8' error.log; \
+		grep -q 'mu4_original_bootstrap_gate_init: value=0001 pc=0290ef' error.log; \
+		grep -q 'mu4_original_bootstrap_path: address=3538 ' error.log; \
+		grep -q 'mu4_original_bootstrap_loader: name=004d,0043,0055,0053,0049,0031,0036,0020 ext=0042,0049,004e length=0001,e1e8 ' error.log; \
+		if test "$$bios" = bootmeasure; then \
+			grep -q 'mu4_native_measurement: PASS' error.log; grep -q 'mu4_native_tone: PASS' error.log; \
+			grep -q 'mu4_native_measurement_result: PASS' error.log; \
+			grep -q 'mu4_native_codec_continuous: PASS' error.log; \
+			grep -q 'mu4_native_tone_dma: PASS' error.log; \
+		elif test "$$bios" = bootrecord || test "$$bios" = bootrecordram || test "$$bios" = bootreccontrol || test "$$bios" = bootrecpoll || test "$$bios" = bootrecsave || test "$$bios" = bootrecstage || test "$$bios" = bootrecmeta || test "$$bios" = bootrecac; then \
+			grep -q 'mu4_native_recorder_dispatch: PASS' error.log; \
+			grep -q 'mu4_native_recorder_overlay: PASS' error.log; \
+			if test "$$bios" = bootrecordram || test "$$bios" = bootreccontrol || test "$$bios" = bootrecpoll || test "$$bios" = bootrecsave || test "$$bios" = bootrecstage || test "$$bios" = bootrecmeta || test "$$bios" = bootrecac; then \
+				grep -Eq '^\[:\] mu4_native_recorder_startup: pc=0073f8 opcode=[0-9a-f]{4} pmst=[0-9a-f]{4} identity=execute_entry$$' error.log; \
+				grep -q 'mu4_native_recorder_response: index=0 selector=5e words=11 token=80 class=1' error.log; \
+				grep -q 'mu4_native_recorder_response: index=1 selector=02 words=16 token=01 class=0' error.log; fi; \
+			if test "$$bios" = bootreccontrol; then \
+				grep -q 'mu4_native_recorder_control_receive: PASS packet_received=1 native_ack=1 recording_complete=0 firmware_state_forcing=0' error.log; fi; \
+			if test "$$bios" = bootrecpoll || test "$$bios" = bootrecsave || test "$$bios" = bootrecstage || test "$$bios" = bootrecmeta || test "$$bios" = bootrecac; then \
+				if test "$$bios" = bootrecpoll; then grep -q 'mu4_native_recorder_polled_control: PASS' error.log; \
+				elif test "$$bios" = bootrecmeta || test "$$bios" = bootrecac; then grep -q 'mu4_native_recorder_metadata: PASS native_reply=1 success=1 playback=0 firmware_state_forcing=0' error.log; \
+				else grep -q 'mu4_native_recorder_metadata: PASS native_reply=1 success=0 playback=0 firmware_state_forcing=0' error.log; fi; \
+				$(if $(findstring /,$(PYTHON)),$(abspath $(PYTHON)),$(PYTHON)) $(abspath tools/mu4_recorder_media_inventory.py) \
+					"$$input" mu4_recorder_endpoint.nand >media_inventory.json; \
+				cat media_inventory.json; fi; \
+			grep -q 'mu4_native_recorder_request_ack: words=007f,0001,0055' error.log; \
+			if test "$$bios" != bootrecstage && test "$$bios" != bootrecmeta && test "$$bios" != bootrecac; then \
+				grep -Eq 'mu4_original_bootstrap_loader: name=0052,0045,0052,0053,0049,0031,0036,0020 ext=0042,0049,004e length=0002,aca2 .* index=1' error.log; fi; \
+		elif test "$$bios" != bootstrap; then \
+			grep -q 'mu4_native_status_transaction: PASS' error.log; grep -q 'mu4_native_receive_pins: PASS' error.log; fi; \
+		if test "$$bios" = bootreplay; then grep -q 'mu4_native_replay: PASS' error.log; fi; \
+		if test "$$bios" = bootopenstage; then grep -q 'mu4_native_recorder_reopen: PASS tracks=1 title=MAME packed_title=1 original_scanner=1 original_id3_reader=1 pin_status=1 playback=0 firmware_state_forcing=0' error.log; fi; \
+		if test "$$bios" = bootrecac; then $(if $(findstring /,$(PYTHON)),$(abspath $(PYTHON)),$(PYTHON)) $(abspath tools/noki5510_bootstrap_check.py) --recorder-input error.log; fi; \
+		cmp "$$input" "$$tmp/nvram/$$nvtag/nand"
+
+check-mu4-nand: build
+	# Controller conformance uses an in-memory save; do not emit 99 MiB of test NVRAM.
+	@set -eu; mkdir -p "$(NATIVE_SCRATCH_ROOT)"; tmp="$$(mktemp -d "$(NATIVE_SCRATCH_ROOT)/mu4-nand.XXXXXX")"; \
+		cd "$$tmp"; $(abspath $(MAME_DIR)/mame) nandtest -video none -sound none \
+		-nothrottle -debugger none -log -nonvram_save -seconds_to_run 1 >output.log 2>&1; \
+		cat output.log; cat error.log; grep -q 'nandflash_conformance: PASS' error.log
+
+.PHONY: check-c54x-backend-bsp
+check-c54x-backend-bsp: build
+	$(PYTHON) tools/run_c54x_backend_bsp.py --mame $(MAME_DIR)/mame --output-root tmp
+
+.PHONY: check-c54x-backend-requests
+check-c54x-backend-requests: build
+	$(PYTHON) tools/run_c54x_backend_bsp.py --mame $(MAME_DIR)/mame --output-root tmp --host-requests
+
+.PHONY: check-c54x-rom4-transfers
+check-c54x-rom4-transfers: build
+	$(PYTHON) -m tools.run_c54x_rom4_transfer --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --output-root tmp
+
 check-c54x-core: build
-	@$(MAME_DIR)/mame tms54test -rompath $(MAME_DIR)/roms -video none -sound none -nothrottle -seconds_to_run 1 2>&1 | \
-		tee /tmp/tms320c54x-core-check.log
-	@grep -q "TMS320C54x core conformance: PASS" /tmp/tms320c54x-core-check.log
+	$(PYTHON) tools/run_c54x_core.py --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms
+
+.PHONY: check-c54x-rom4-crc-helper
+check-c54x-rom4-crc-helper: build prepare-c54x-rom4-fixture
+	$(PYTHON) tools/run_c54x_rom4_crc.py --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms
+
+.PHONY: check-c54x-rom4-crc-packed
+check-c54x-rom4-crc-packed: build prepare-c54x-rom4-fixture
+	$(PYTHON) tools/run_c54x_rom4_crc.py --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --packed
+
+.PHONY: check-c54x-rom4-fr-packing
+.PHONY: check-c54x-rom4-efr-crc
+check-c54x-rom4-efr-crc: build prepare-c54x-rom4-fixture
+	$(PYTHON) tools/run_c54x_rom4_crc.py --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --efr-crc
+
+.PHONY: check-c54x-rom4-efr-packing
+ETSI_EFR_ARCHIVE ?= roms/research/etsi-efr/original/ts_146053v080000p0.zip
+.PHONY: check-c54x-rom4-efr-decoder
+check-c54x-rom4-efr-decoder: build prepare-c54x-rom4-fixture
+	$(PYTHON) tools/verify_etsi_efr_reference.py $(ETSI_EFR_ARCHIVE) --fixture-dir $(MAME_DIR)/roms/tms54rom4
+	$(PYTHON) tools/run_c54x_rom4_crc.py --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --efr-decoder
+
+.PHONY: check-c54x-rom4-efr-decoder-staged
+check-c54x-rom4-efr-decoder-staged: build prepare-c54x-rom4-fixture
+	$(PYTHON) tools/verify_etsi_efr_reference.py $(ETSI_EFR_ARCHIVE) --fixture-dir $(MAME_DIR)/roms/tms54rom4
+	$(PYTHON) tools/run_c54x_rom4_crc.py --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --efr-decoder --staged
+
+.PHONY: check-c54x-rom4-efr-encoder
+check-c54x-rom4-efr-encoder: build prepare-c54x-rom4-fixture
+	$(PYTHON) tools/verify_etsi_efr_reference.py $(ETSI_EFR_ARCHIVE) --fixture-dir $(MAME_DIR)/roms/tms54rom4
+	$(PYTHON) tools/run_c54x_rom4_crc.py --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --efr-encoder
+
+.PHONY: check-c54x-rom4-efr-encoder-staged
+check-c54x-rom4-efr-encoder-staged: build prepare-c54x-rom4-fixture
+	$(PYTHON) tools/verify_etsi_efr_reference.py $(ETSI_EFR_ARCHIVE) --fixture-dir $(MAME_DIR)/roms/tms54rom4
+	$(PYTHON) tools/run_c54x_rom4_crc.py --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --efr-encoder --staged
+
+.PHONY: check-c54x-rom4-efr-dtx-decoder
+.PHONY: check-c54x-rom4-efr-erasure-decoder
+.PHONY: check-c54x-rom4-efr-homing-decoder
+.PHONY: check-c54x-rom4-efr-homing-encoder
+check-c54x-rom4-efr-homing-encoder: build prepare-c54x-rom4-fixture
+	$(PYTHON) tools/verify_etsi_efr_reference.py $(ETSI_EFR_ARCHIVE) --encoder-homing-fixture --fixture-dir $(MAME_DIR)/roms/tms54rom4
+	$(PYTHON) tools/run_c54x_rom4_crc.py --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --efr-homing-encoder
+
+.PHONY: check-c54x-rom4-efr-homing-encoder-staged
+check-c54x-rom4-efr-homing-encoder-staged: build prepare-c54x-rom4-fixture
+	$(PYTHON) tools/verify_etsi_efr_reference.py $(ETSI_EFR_ARCHIVE) --encoder-homing-fixture --fixture-dir $(MAME_DIR)/roms/tms54rom4
+	$(PYTHON) tools/run_c54x_rom4_crc.py --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --efr-homing-encoder --staged
+
+check-c54x-rom4-efr-homing-decoder: build prepare-c54x-rom4-fixture
+	$(PYTHON) tools/verify_etsi_efr_reference.py $(ETSI_EFR_ARCHIVE) --homing-fixture --fixture-dir $(MAME_DIR)/roms/tms54rom4
+	$(PYTHON) tools/run_c54x_rom4_crc.py --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --efr-homing-decoder
+
+.PHONY: check-c54x-rom4-efr-homing-decoder-staged
+check-c54x-rom4-efr-homing-decoder-staged: build prepare-c54x-rom4-fixture
+	$(PYTHON) tools/verify_etsi_efr_reference.py $(ETSI_EFR_ARCHIVE) --homing-fixture --fixture-dir $(MAME_DIR)/roms/tms54rom4
+	$(PYTHON) tools/run_c54x_rom4_crc.py --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --efr-homing-decoder --staged
+
+check-c54x-rom4-efr-erasure-decoder: build prepare-c54x-rom4-fixture
+	$(PYTHON) tools/verify_etsi_efr_reference.py $(ETSI_EFR_ARCHIVE) --erasure-fixture --fixture-dir $(MAME_DIR)/roms/tms54rom4
+	$(PYTHON) tools/run_c54x_rom4_crc.py --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --efr-erasure-decoder
+
+.PHONY: check-c54x-rom4-efr-erasure-decoder-staged
+check-c54x-rom4-efr-erasure-decoder-staged: build prepare-c54x-rom4-fixture
+	$(PYTHON) tools/verify_etsi_efr_reference.py $(ETSI_EFR_ARCHIVE) --erasure-fixture --fixture-dir $(MAME_DIR)/roms/tms54rom4
+	$(PYTHON) tools/run_c54x_rom4_crc.py --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --efr-erasure-decoder --staged
+
+.PHONY: observe-c54x-rom4-efr-loss
+observe-c54x-rom4-efr-loss: build prepare-c54x-rom4-fixture
+	$(PYTHON) tools/verify_etsi_efr_reference.py $(ETSI_EFR_ARCHIVE) --erasure-fixture --fixture-dir $(MAME_DIR)/roms/tms54rom4
+	$(PYTHON) tools/run_c54x_rom4_crc.py --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --efr-erasure-observe
+
+.PHONY: observe-c54x-rom4-efr-loss-staged
+observe-c54x-rom4-efr-loss-staged: build prepare-c54x-rom4-fixture
+	$(PYTHON) tools/verify_etsi_efr_reference.py $(ETSI_EFR_ARCHIVE) --erasure-fixture --fixture-dir $(MAME_DIR)/roms/tms54rom4
+	$(PYTHON) tools/run_c54x_rom4_crc.py --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --efr-erasure-observe --staged
+
+.PHONY: check-c54x-rom4-efr-invalid-sid
+check-c54x-rom4-efr-invalid-sid: build prepare-c54x-rom4-fixture
+	$(PYTHON) tools/verify_etsi_efr_reference.py $(ETSI_EFR_ARCHIVE) --invalid-sid-fixture --fixture-dir $(MAME_DIR)/roms/tms54rom4
+	$(PYTHON) tools/run_c54x_rom4_crc.py --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --efr-invalid-sid
+
+.PHONY: check-c54x-rom4-efr-invalid-sid-staged
+check-c54x-rom4-efr-invalid-sid-staged: build prepare-c54x-rom4-fixture
+	$(PYTHON) tools/verify_etsi_efr_reference.py $(ETSI_EFR_ARCHIVE) --invalid-sid-fixture --fixture-dir $(MAME_DIR)/roms/tms54rom4
+	$(PYTHON) tools/run_c54x_rom4_crc.py --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --efr-invalid-sid --staged
+
+.PHONY: check-c54x-rom4-rf-bitmap check-c54x-rom4-rf-bitmap-staged
+check-c54x-rom4-rf-bitmap: build prepare-c54x-rom4-fixture
+	$(PYTHON) tools/run_c54x_rom4_crc.py --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --rf-bitmap
+
+check-c54x-rom4-rf-bitmap-staged: build prepare-c54x-rom4-fixture
+	$(PYTHON) tools/run_c54x_rom4_crc.py --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --rf-bitmap --staged
+
+.PHONY: check-c54x-rom4-efr-homing-errors
+check-c54x-rom4-efr-homing-errors: build prepare-c54x-rom4-fixture
+	$(PYTHON) tools/verify_etsi_efr_reference.py $(ETSI_EFR_ARCHIVE) --homing-error-fixture --fixture-dir $(MAME_DIR)/roms/tms54rom4
+	$(PYTHON) tools/run_c54x_rom4_crc.py --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --efr-homing-errors
+
+.PHONY: observe-c54x-rom4-efr-homing-errors
+observe-c54x-rom4-efr-homing-errors: build prepare-c54x-rom4-fixture
+	$(PYTHON) tools/verify_etsi_efr_reference.py $(ETSI_EFR_ARCHIVE) --homing-error-fixture --fixture-dir $(MAME_DIR)/roms/tms54rom4
+	$(PYTHON) tools/run_c54x_rom4_crc.py --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --efr-homing-errors --observe-homing-errors
+
+.PHONY: observe-c54x-rom4-efr-homing-errors-staged check-c54x-rom4-efr-homing-errors-staged
+observe-c54x-rom4-efr-homing-errors-staged: build prepare-c54x-rom4-fixture
+	$(PYTHON) tools/verify_etsi_efr_reference.py $(ETSI_EFR_ARCHIVE) --homing-error-fixture --fixture-dir $(MAME_DIR)/roms/tms54rom4
+	$(PYTHON) tools/run_c54x_rom4_crc.py --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --efr-homing-errors --observe-homing-errors --staged
+
+check-c54x-rom4-efr-homing-errors-staged: build prepare-c54x-rom4-fixture
+	$(PYTHON) tools/verify_etsi_efr_reference.py $(ETSI_EFR_ARCHIVE) --homing-error-fixture --fixture-dir $(MAME_DIR)/roms/tms54rom4
+	$(PYTHON) tools/run_c54x_rom4_crc.py --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --efr-homing-errors --staged
+
+check-c54x-rom4-efr-dtx-decoder: build prepare-c54x-rom4-fixture
+	$(PYTHON) tools/verify_etsi_efr_reference.py $(ETSI_EFR_ARCHIVE) --dtx-fixture --fixture-dir $(MAME_DIR)/roms/tms54rom4
+	$(PYTHON) tools/run_c54x_rom4_crc.py --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --efr-dtx-decoder
+
+.PHONY: check-c54x-rom4-efr-dtx-decoder-staged
+check-c54x-rom4-efr-dtx-decoder-staged: build prepare-c54x-rom4-fixture
+	$(PYTHON) tools/verify_etsi_efr_reference.py $(ETSI_EFR_ARCHIVE) --dtx-fixture --fixture-dir $(MAME_DIR)/roms/tms54rom4
+	$(PYTHON) tools/run_c54x_rom4_crc.py --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --efr-dtx-decoder --staged
+
+.PHONY: check-c54x-rom4-efr-dtx-encoder
+check-c54x-rom4-efr-dtx-encoder: build prepare-c54x-rom4-fixture
+	$(PYTHON) tools/verify_etsi_efr_reference.py $(ETSI_EFR_ARCHIVE) --dtx-fixture --fixture-dir $(MAME_DIR)/roms/tms54rom4
+	$(PYTHON) tools/run_c54x_rom4_crc.py --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --efr-dtx-encoder
+
+.PHONY: check-c54x-rom4-efr-dtx-encoder-staged
+check-c54x-rom4-efr-dtx-encoder-staged: build prepare-c54x-rom4-fixture
+	$(PYTHON) tools/verify_etsi_efr_reference.py $(ETSI_EFR_ARCHIVE) --dtx-fixture --fixture-dir $(MAME_DIR)/roms/tms54rom4
+	$(PYTHON) tools/run_c54x_rom4_crc.py --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --efr-dtx-encoder --staged
+
+check-c54x-rom4-efr-packing: build prepare-c54x-rom4-fixture
+	$(PYTHON) tools/c54x_rom4_efr_tables.py $(MAME_DIR)/roms/tms54rom4/dsp_cold_data.bin
+	$(PYTHON) tools/run_c54x_rom4_crc.py --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --efr-packing
+
+check-c54x-rom4-fr-packing: build prepare-c54x-rom4-fixture
+	$(PYTHON) tools/run_c54x_rom4_crc.py --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --fr-packing
+
+.PHONY: check-c54x-rom4-fr-decoder
+check-c54x-rom4-fr-decoder: build prepare-c54x-rom4-fixture
+	$(PYTHON) tools/run_c54x_rom4_crc.py --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --fr-decoder
+
+.PHONY: check-c54x-rom4-fr-decoder-staged
+check-c54x-rom4-fr-decoder-staged: build prepare-c54x-rom4-fixture
+	$(PYTHON) tools/run_c54x_rom4_crc.py --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --fr-decoder --staged
+
+.PHONY: check-c54x-rom4-fr-encoder
+check-c54x-rom4-fr-encoder: build prepare-c54x-rom4-fixture
+	$(PYTHON) tools/run_c54x_rom4_crc.py --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --fr-encoder
+
+.PHONY: check-c54x-rom4-fr-encoder-staged
+check-c54x-rom4-fr-encoder-staged: build prepare-c54x-rom4-fixture
+	$(PYTHON) tools/run_c54x_rom4_crc.py --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --fr-encoder --staged
+
+# Diagnostic observation only: the short-period outcome is deliberately not
+# asserted until interrupt recognition/drain timing has an independent oracle.
+.PHONY: probe-c54x-timer-boundary
+C54X_TIMER_PROBE_RUN_DIR ?= tmp/c54x-timer-boundary
+probe-c54x-timer-boundary: build
+	mkdir -p $(C54X_TIMER_PROBE_RUN_DIR)
+	cd $(C54X_TIMER_PROBE_RUN_DIR) && $(abspath $(MAME_DIR)/mame) tms54test \
+		-bios timer -video none -sound none -nothrottle -seconds_to_run 1 \
+		-rompath $(abspath $(MAME_DIR)/roms) -cfg_directory cfg -nvram_directory nvram
+
+# Assert TRB/PSC register behavior before the non-asserting short-period
+# interrupt observations. This is deliberately not an interrupt-latency gate.
+.PHONY: check-c54x-timer-registers
+check-c54x-timer-registers: probe-c54x-timer-boundary
+
+.PHONY: check-c54x-rom4-rf-filter-mixed
+check-c54x-rom4-rf-filter-mixed: build
+	$(PYTHON) tools/run_c54x_rom4_rf_impulse.py --mame $(MAME_DIR)/mame \
+		--rompath $(MAME_DIR)/roms --mixed --output-root $(abspath tmp)
 
 prepare-c54x-rom4-fixture:
 	@test -f roms/research/nse1-rom4/working/transform_entry_prog.bin
@@ -1072,24 +1564,22 @@ prepare-c54x-rom4-fixture:
 		$(MAME_DIR)/roms/tms54rom4/dsp_cold_data.bin
 
 check-c54x-rom4-execute: build prepare-c54x-rom4-fixture
-	@$(MAME_DIR)/mame tms54rom4 -rompath $(MAME_DIR)/roms -video none -sound none \
-		-nothrottle -seconds_to_run 1 2>&1 | tee /tmp/tms320c54x-rom4-check.log
-	@grep -q "TMS320C54x ROM4 execution frontier: pc=7eca" \
-		/tmp/tms320c54x-rom4-check.log
-	@grep -q "TMS320C54x ROM4 frontier complete" \
-		/tmp/tms320c54x-rom4-check.log
+	@set -eu; mkdir -p "$(NATIVE_SCRATCH_ROOT)"; tmp="$$(mktemp -d "$(NATIVE_SCRATCH_ROOT)/rom4-execute.XXXXXX")"; \
+		cd "$$tmp"; $(abspath $(MAME_DIR)/mame) tms54rom4 -rompath $(abspath $(MAME_DIR)/roms) -video none -sound none \
+			-nothrottle -seconds_to_run 1 >output.log 2>&1 || { status=$$?; test "$$status" -eq 3; }; \
+		cat output.log; grep -q "TMS320C54x ROM4 execution frontier: pc=7eca" output.log; \
+		grep -q "TMS320C54x ROM4 frontier complete" output.log
 
 check-c54x-rom4-cold-execute: build prepare-c54x-rom4-fixture
-	@$(MAME_DIR)/mame tms54rom4 -bios cold -rompath $(MAME_DIR)/roms -video none -sound none \
-		-nothrottle -seconds_to_run 1 2>&1 | tee /tmp/tms320c54x-rom4-cold-check.log
-	@grep -q "TMS320C54x ROM4 cold frontier: pc=0f01 sp=0000 pmst=ffa8 idle=0" \
-		/tmp/tms320c54x-rom4-cold-check.log
-	@grep -q "TMS320C54x ROM4 cold frontier complete" \
-		/tmp/tms320c54x-rom4-cold-check.log
+	@set -eu; mkdir -p "$(NATIVE_SCRATCH_ROOT)"; tmp="$$(mktemp -d "$(NATIVE_SCRATCH_ROOT)/rom4-cold-execute.XXXXXX")"; \
+		cd "$$tmp"; $(abspath $(MAME_DIR)/mame) tms54rom4 -bios cold -rompath $(abspath $(MAME_DIR)/roms) -video none -sound none \
+			-nothrottle -seconds_to_run 1 >output.log 2>&1 || { status=$$?; test "$$status" -eq 3; }; \
+		cat output.log; grep -q "TMS320C54x ROM4 cold frontier: pc=0f01 sp=0000 pmst=ffa8 idle=0" output.log; \
+		grep -q "TMS320C54x ROM4 cold frontier complete" output.log
 
 .PHONY: check-c54x-rom4-counter-observe
 check-c54x-rom4-counter-observe: build
-	@set -eu; tmp="$$(mktemp -d /tmp/noki5110-counter.XXXXXX)"; \
+	@set -eu; mkdir -p "$(NATIVE_SCRATCH_ROOT)"; tmp="$$(mktemp -d "$(NATIVE_SCRATCH_ROOT)/noki5110-counter.XXXXXX")"; \
 		trap 'rm -rf "$$tmp"' EXIT; \
 		mkdir -p "$$tmp/nvram/noki5110"; \
 		$(PYTHON) $(abspath tools/make_5110_eeprom_profile.py) \
@@ -1107,7 +1597,7 @@ check-c54x-rom4-counter-observe: build
 
 .PHONY: check-c54x-rom4-compare
 check-c54x-rom4-compare: build
-	@set -eu; tmp="$$(mktemp -d /tmp/noki5110-compare.XXXXXX)"; \
+	@set -eu; mkdir -p "$(NATIVE_SCRATCH_ROOT)"; tmp="$$(mktemp -d "$(NATIVE_SCRATCH_ROOT)/noki5110-compare.XXXXXX")"; \
 		trap 'rm -rf "$$tmp"' EXIT; \
 		mkdir -p "$$tmp/nvram/noki5110"; \
 		$(PYTHON) $(abspath tools/make_5110_eeprom_profile.py) \
@@ -1123,9 +1613,83 @@ check-c54x-rom4-compare: build
 		cat output.log; \
 		grep -q '^ROM4 compare model conformance: PASS ' output.log
 
+.PHONY: check-c54x-rom4-codec-tone
+.PHONY: check-c54x-rom4-tone-levels
+check-c54x-rom4-tone-levels: build
+	$(VENV)/bin/python tools/run_c54x_rom4_tone_levels.py --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --output-root $(RUN_DIR)
+
+.PHONY: check-c54x-rom4-pcm-clock
+check-c54x-rom4-pcm-clock: build
+	$(VENV)/bin/python -m tools.run_c54x_rom4_pcm_clock --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --output-root tmp
+
+.PHONY: check-c54x-rom4-pcm-restore
+check-c54x-rom4-pcm-restore: build
+	$(VENV)/bin/python -m tools.run_c54x_rom4_pcm_clock --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --output-root tmp --restore
+
+.PHONY: check-c54x-rom4-pcm-wire
+check-c54x-rom4-pcm-wire: build
+	$(VENV)/bin/python -m tools.run_c54x_rom4_pcm_clock --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --output-root tmp --wire --restore
+
+.PHONY: check-c54x-rom4-clocked-boot
+check-c54x-rom4-clocked-boot: build
+	$(VENV)/bin/python -m tools.run_c54x_rom4_pcm_clock --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --output-root tmp --wire --restore --clocked-loopback --coverage
+
+.PHONY: check-c54x-rom4-staged
+.PHONY: check-c54x-rom4-staged-codec
+check-c54x-rom4-staged-codec: build
+	$(VENV)/bin/python -m tools.run_c54x_rom4_pcm_clock --mame $(MAME_DIR)/mame --rompath $(MAME_DIR)/roms --output-root tmp --staged --restore --coverage
+
+check-c54x-rom4-staged: build
+	@set -eu; mkdir -p "$(NATIVE_SCRATCH_ROOT)"; \
+		tmp="$$(mktemp -d "$(NATIVE_SCRATCH_ROOT)/noki5110-staged.XXXXXX")"; \
+		trap 'status=$$?; if test "$$status" -eq 0; then rm -rf "$$tmp"; else printf "Staged checkpoint failed; evidence retained: %s\n" "$$tmp" >&2; fi' EXIT; \
+		mkdir -p "$$tmp/nvram/nse1pipe"; \
+		$(PYTHON) $(abspath tools/make_5110_eeprom_profile.py) \
+			--eeprom $(abspath roms/noki5110/nse-1.bin) \
+			--flash $(abspath roms/noki5110/5110f530.fls) \
+			--output "$$tmp/nvram/nse1pipe/eeprom"; \
+		cd "$$tmp"; \
+		$(abspath $(MAME_DIR))/mame nse1pipe \
+			-rompath $(abspath $(MAME_DIR))/roms -nvram_directory "$$tmp/nvram" \
+			-video none -sound none -log -verbose -noreadconfig -skip_gameinfo -nothrottle \
+			-autoboot_delay 0 -seconds_to_run 10 \
+			-autoboot_script $(abspath tools/c54x_rom4_staged_observe.lua) >output.log 2>&1; \
+		$(PYTHON) $(abspath tools/c54x_rom4_staged_check.py) error.log \
+			$(abspath roms/noki5110/5110f530.fls); \
+		echo 'NSE-1 reset-free staged DSP checkpoint: PASS (no RF acquisition or speech claim)'
+
+check-c54x-rom4-codec-tone: build
+	@set -eu; mkdir -p "$(abspath $(RUN_DIR))"; \
+		tmp="$$(mktemp -d "$(abspath $(RUN_DIR))/rom4-codec-tone.XXXXXX")"; \
+		echo "Native codec evidence: $$tmp"; \
+		mkdir -p "$$tmp/nvram/noki5110" "$$tmp/snap"; \
+		$(PYTHON) $(abspath tools/make_5110_eeprom_profile.py) \
+			--eeprom $(abspath roms/noki5110/nse-1.bin) \
+			--flash $(abspath roms/noki5110/5110f530.fls) \
+			--output "$$tmp/nvram/noki5110/eeprom"; \
+		cd "$$tmp"; \
+		NOKIA_DCT3_POST_READY_KEYS=1 \
+		NOKIA_DCT3_POST_READY_KEY_DELAY_MS=8000 \
+		NOKIA_DCT3_POST_READY_KEY_DURATION_MS=220 \
+		NOKIA_DCT3_POST_READY_CAPTURE_DELAY_MS=1500 \
+		NOKIA_DCT3_SNAPSHOT_DIR="$$tmp/snap" \
+		$(abspath $(MAME_DIR))/mame noki5110 \
+			-rompath $(abspath $(MAME_DIR))/roms -nvram_directory "$$tmp/nvram" \
+			-video none -sound none -log -verbose -skip_gameinfo -nothrottle \
+			-seconds_to_run 11 \
+			-autoboot_script $(abspath tools/c54x_rom4_tone_observe.lua) >output.log 2>&1; \
+		$(PYTHON) $(abspath tools/c54x_rom4_codec_contract.py) \
+			$(abspath $(MAME_DIR)/roms/noki5110/nse1_rom4_dsp_program.bin) \
+			--tone-log error.log; \
+		if grep -Eq 'rom4_reset_request|TMS320C54x.*illegal|unsupported.*staged|staged.*unsupported|unimplemented.*C54x' error.log; then \
+			echo 'FAIL - native tone boot reset or DSP fault' >&2; exit 1; fi; \
+		if grep -Eiq 'lua.*error|error.*lua' output.log; then \
+			echo 'FAIL - native tone Lua error' >&2; exit 1; fi; \
+		echo 'NSE-1 native serial and physical tone-control boundary: PASS (no operational audio claim)'
+
 check-c54x-rom4-coherent: build
-	@set -eu; tmp="$$(mktemp -d /tmp/noki5110-c54x-coherent.XXXXXX)"; \
-		trap 'rm -rf "$$tmp"' EXIT; \
+	@set -eu; mkdir -p "$(NATIVE_SCRATCH_ROOT)"; tmp="$$(mktemp -d "$(NATIVE_SCRATCH_ROOT)/noki5110-c54x-coherent.XXXXXX")"; \
+		trap 'status=$$?; if test "$$status" -eq 0; then rm -rf "$$tmp"; else printf "Native coherent boot failed; evidence retained: %s\n" "$$tmp" >&2; fi' EXIT; \
 		mkdir -p "$$tmp/nvram/noki5110"; \
 		$(PYTHON) $(abspath tools/make_5110_eeprom_profile.py) \
 			--eeprom $(abspath roms/noki5110/nse-1.bin) \
@@ -1135,21 +1699,23 @@ check-c54x-rom4-coherent: build
 		$(abspath $(MAME_DIR))/mame noki5110 -rompath $(abspath $(MAME_DIR))/roms \
 			-nvram_directory "$$tmp/nvram" -video none -sound none -log -verbose \
 			-skip_gameinfo -nothrottle -seconds_to_run 4 \
-			-autoboot_script $(abspath mame_noki5110_c54x_check.lua) 2>&1 | \
-			tee /tmp/tms320c54x-rom4-coherent-check.log; \
+			-autoboot_script $(abspath mame_noki5110_c54x_check.lua) >output.log 2>&1; \
 		grep -q "rom4_validator: event=continue r6=00000001" error.log; \
 		grep -q "rom4_port_write: port=21" error.log; \
 		grep -q "rom4_port_write: port=2c" error.log; \
-		grep -q "cobba: parallel .* address=c data=008" error.log; \
-		grep -q "cobba: parallel .* address=c data=0c8" error.log; \
+		$(PYTHON) $(abspath tools/c54x_rom4_codec_contract.py) \
+			$(abspath $(MAME_DIR)/roms/noki5110/nse1_rom4_dsp_program.bin) \
+			--trace error.log; \
 		$(PYTHON) $(abspath tools/c54x_rom4_rf_boundary_check.py) error.log --minimum-frames 800; \
-		! grep -q "rom4_reset_request: reason=00000004" error.log
-	@grep -q "ROM4 DSP coherent execution: PASS completion=1074" \
-		/tmp/tms320c54x-rom4-coherent-check.log
+		if grep -Eq 'rom4_reset_request|TMS320C54x.*illegal|unsupported.*staged|staged.*unsupported|unimplemented.*C54x' error.log; then \
+			echo 'FAIL - native coherent boot reset or DSP fault' >&2; exit 1; fi; \
+		grep -q "ROM4 DSP coherent execution: PASS completion=1074" output.log
 
-check-c54x-rom4-rf-boundary: build
-	@set -eu; tmp="$$(mktemp -d /tmp/noki5110-c54x-rf.XXXXXX)"; \
-		trap 'rm -rf "$$tmp"' EXIT; \
+.PHONY: check-c54x-rom4-processing
+check-c54x-rom4-processing: build
+	@set -eu; mkdir -p "$(abspath tmp)"; \
+		tmp="$$(mktemp -d "$(abspath tmp)/noki5110-c54x-processing.XXXXXX")"; \
+		trap 'status=$$?; if test "$$status" -eq 0 && test "$(KEEP_NATIVE_EVIDENCE)" != 1; then rm -rf "$$tmp"; else printf "Native processing evidence retained: %s\n" "$$tmp" >&2; fi' EXIT; \
 		mkdir -p "$$tmp/nvram/noki5110"; \
 		$(PYTHON) $(abspath tools/make_5110_eeprom_profile.py) \
 			--eeprom $(abspath roms/noki5110/nse-1.bin) \
@@ -1158,109 +1724,144 @@ check-c54x-rom4-rf-boundary: build
 		cd "$$tmp"; \
 		$(abspath $(MAME_DIR))/mame noki5110 -rompath $(abspath $(MAME_DIR))/roms \
 			-nvram_directory "$$tmp/nvram" -video none -sound none -log \
-			-skip_gameinfo -nothrottle -seconds_to_run 30 >/dev/null; \
-		$(PYTHON) $(abspath tools/c54x_rom4_rf_boundary_check.py) error.log
+			-skip_gameinfo -nothrottle -seconds_to_run 30 \
+			-autoboot_script $(abspath tools/c54x_rom4_processing_observe.lua) >console.log 2>&1; \
+		$(PYTHON) $(abspath tools/c54x_rom4_processing_check.py) error.log --scan-30s; \
+		$(PYTHON) $(abspath tools/c54x_rom4_rf_consumers_check.py) \
+			--program $(abspath $(MAME_DIR))/roms/noki5110/nse1_rom4_dsp_program.bin \
+			--log error.log --output rf_consumers.json
 
-verify-5110-menu: build
-	@set -eu; tmp="$$(mktemp -d /tmp/noki5110-menu.XXXXXX)"; \
-		trap 'rm -rf "$$tmp"' EXIT; \
-		mkdir -p "$$tmp/nvram/noki5110" "$$tmp/snap"; \
+check-c54x-rom4-rf-boundary: build
+	@set -eu; mkdir -p "$(abspath tmp)"; \
+		tmp="$$(mktemp -d "$(abspath tmp)/noki5110-c54x-rf.XXXXXX")"; \
+		trap 'status=$$?; if test "$$status" -eq 0; then rm -rf "$$tmp"; else printf "Native RF evidence retained: %s\n" "$$tmp" >&2; fi' EXIT; \
+		mkdir -p "$$tmp/nvram/noki5110"; \
 		$(PYTHON) $(abspath tools/make_5110_eeprom_profile.py) \
 			--eeprom $(abspath roms/noki5110/nse-1.bin) \
 			--flash $(abspath roms/noki5110/5110f530.fls) \
 			--output "$$tmp/nvram/noki5110/eeprom"; \
+		cd "$$tmp"; \
+		$(abspath $(MAME_DIR))/mame noki5110 -rompath $(abspath $(MAME_DIR))/roms \
+			-nvram_directory "$$tmp/nvram" -video none -sound none -log \
+			-verbose -skip_gameinfo -nothrottle -seconds_to_run 30 \
+			-autoboot_script $(abspath tools/c54x_rom4_codec_observe.lua) >/dev/null; \
+		$(PYTHON) $(abspath tools/c54x_rom4_rf_boundary_check.py) error.log --scan-30s
+
+verify-5110-menu: build
+	@set -eu; mkdir -p "$(NATIVE_SCRATCH_ROOT)"; tmp="$$(mktemp -d "$(NATIVE_SCRATCH_ROOT)/noki5110-menu.XXXXXX")"; \
+		trap 'status=$$?; if test "$$status" -eq 0; then rm -rf "$$tmp"; else printf "Native menu failed; evidence retained: %s\n" "$$tmp" >&2; fi' EXIT; \
+		mkdir -p "$$tmp/nvram/$(NSE1_MACHINE)" "$$tmp/snap"; \
+		$(PYTHON) $(abspath tools/make_5110_eeprom_profile.py) \
+			--eeprom $(abspath roms/noki5110/nse-1.bin) \
+			--flash $(abspath roms/noki5110/5110f530.fls) \
+			--output "$$tmp/nvram/$(NSE1_MACHINE)/eeprom"; \
+		script="$(abspath mame_nokia_dct3_input_exerciser.lua)"; \
+		if [ "$(NSE1_MACHINE)" = nse1pipe ]; then script="$(abspath tools/c54x_rom4_staged_menu.lua)"; fi; \
 		cd "$$tmp"; \
 		NOKIA_DCT3_POST_READY_KEYS=menu \
 		NOKIA_DCT3_POST_READY_KEY_DELAY_MS=8000 \
 		NOKIA_DCT3_POST_READY_KEY_DURATION_MS=220 \
 		NOKIA_DCT3_POST_READY_CAPTURE_DELAY_MS=1500 \
 		NOKIA_DCT3_SNAPSHOT_DIR="$$tmp/snap" \
-		$(abspath $(MAME_DIR))/mame noki5110 \
+		$(abspath $(MAME_DIR))/mame $(NSE1_MACHINE) \
 			-rompath $(abspath $(MAME_DIR))/roms -nvram_directory "$$tmp/nvram" \
-			-video none -sound none -log -skip_gameinfo -nothrottle \
+			-video none -sound none -log -verbose -skip_gameinfo -nothrottle \
 			-seconds_to_run 11 \
-			-autoboot_script $(abspath mame_nokia_dct3_input_exerciser.lua) >/dev/null; \
+			-autoboot_script "$$script" >/dev/null; \
 		grep -q 'input-press: .* name=menu' error.log; \
 		grep -q 'input-release: .* name=menu' error.log; \
-		! grep -q 'rom4_reset_request' error.log; \
-		! grep -q 'TMS320C54x.*illegal' error.log; \
+		if grep -Eq 'rom4_reset_request|TMS320C54x.*illegal|unsupported.*staged|staged.*unsupported|unimplemented.*C54x' error.log; then \
+			echo 'FAIL - native menu boot reset or DSP fault' >&2; exit 1; fi; \
+		if [ "$(NSE1_MACHINE)" = nse1pipe ]; then grep -q 'rom4_staged_end: .*illegal=0' error.log; fi; \
 		sha256sum snap/*.pgm | grep -q \
 			d82cc6891fcf4efb0bd11ded583508f40826f58aa69463708a46897b76fdffb5; \
-		echo 'NSE-1 ROM4 unassisted Phone book menu: PASS'
+		echo 'NSE-1 ROM4 $(NSE1_MACHINE) unassisted Phone book menu: PASS'
 
 verify-5110-late-input: build
-	@set -eu; tmp="$$(mktemp -d /tmp/noki5110-late-input.XXXXXX)"; \
-		trap 'rm -rf "$$tmp"' EXIT; \
-		mkdir -p "$$tmp/nvram/noki5110" "$$tmp/snap"; \
+	@set -eu; mkdir -p "$(NATIVE_SCRATCH_ROOT)"; tmp="$$(mktemp -d "$(NATIVE_SCRATCH_ROOT)/noki5110-late-input.XXXXXX")"; \
+		trap 'status=$$?; if test "$$status" -eq 0; then rm -rf "$$tmp"; else printf "Native late input failed; evidence retained: %s\n" "$$tmp" >&2; fi' EXIT; \
+		mkdir -p "$$tmp/nvram/$(NSE1_MACHINE)" "$$tmp/snap"; \
 		$(PYTHON) $(abspath tools/make_5110_eeprom_profile.py) \
 			--eeprom $(abspath roms/noki5110/nse-1.bin) \
 			--flash $(abspath roms/noki5110/5110f530.fls) \
-			--output "$$tmp/nvram/noki5110/eeprom"; \
+			--output "$$tmp/nvram/$(NSE1_MACHINE)/eeprom"; \
+		script="$(abspath mame_nokia_dct3_input_exerciser.lua)"; \
+		if [ "$(NSE1_MACHINE)" = nse1pipe ]; then script="$(abspath tools/c54x_rom4_staged_menu.lua)"; fi; \
 		cd "$$tmp"; \
 		NOKIA_DCT3_POST_READY_KEYS=menu \
 		NOKIA_DCT3_POST_READY_KEY_DELAY_MS=12000 \
 		NOKIA_DCT3_POST_READY_KEY_DURATION_MS=220 \
 		NOKIA_DCT3_POST_READY_CAPTURE_DELAY_MS=1500 \
 		NOKIA_DCT3_SNAPSHOT_DIR="$$tmp/snap" \
-		$(abspath $(MAME_DIR))/mame noki5110 \
+		$(abspath $(MAME_DIR))/mame $(NSE1_MACHINE) \
 			-rompath $(abspath $(MAME_DIR))/roms -nvram_directory "$$tmp/nvram" \
 			-video none -sound none -log -verbose -skip_gameinfo -nothrottle \
 			-seconds_to_run 16 \
-			-autoboot_script $(abspath mame_nokia_dct3_input_exerciser.lua) >/dev/null; \
+			-autoboot_script "$$script" >/dev/null; \
 		$(PYTHON) $(abspath tools/rom4_idle_input_trace_check.py) error.log; \
+		if [ "$(NSE1_MACHINE)" = nse1pipe ]; then grep -q 'rom4_staged_end: .*illegal=0' error.log; fi; \
 		sha256sum snap/*.pgm | grep -q \
 			d82cc6891fcf4efb0bd11ded583508f40826f58aa69463708a46897b76fdffb5; \
-		echo 'NSE-1 ROM4 late physical Menu input: PASS'
+		echo 'NSE-1 ROM4 $(NSE1_MACHINE) late physical Menu input: PASS'
 
 verify-5110-power-lifecycle: build
-	@set -eu; for kind in short long; do \
-		tmp="$$(mktemp -d /tmp/noki5110-power.XXXXXX)"; \
-		mkdir -p "$$tmp/nvram/noki5110"; \
+	@set -eu; mkdir -p "$(NATIVE_SCRATCH_ROOT)"; tmp=""; \
+		trap 'status=$$?; if test "$$status" -ne 0; then printf "Native power lifecycle failed; evidence retained: %s\n" "$$tmp" >&2; fi' EXIT; \
+		for kind in short long; do \
+		tmp="$$(mktemp -d "$(NATIVE_SCRATCH_ROOT)/noki5110-power.XXXXXX")"; \
+		mkdir -p "$$tmp/nvram/$(NSE1_MACHINE)"; \
 		$(PYTHON) $(abspath tools/make_5110_eeprom_profile.py) \
 			--eeprom $(abspath roms/noki5110/nse-1.bin) \
 			--flash $(abspath roms/noki5110/5110f530.fls) \
-			--output "$$tmp/nvram/noki5110/eeprom"; \
+			--output "$$tmp/nvram/$(NSE1_MACHINE)/eeprom"; \
+		script="$(abspath mame_nokia_dct3_input_exerciser.lua)"; \
+		if [ "$(NSE1_MACHINE)" = nse1pipe ]; then script="$(abspath tools/c54x_rom4_staged_menu.lua)"; fi; \
 		if test "$$kind" = short; then duration=220; seconds=11; else duration=4000; seconds=14; fi; \
 		(cd "$$tmp"; \
 			NOKIA_DCT3_POST_READY_KEYS=power \
 			NOKIA_DCT3_POST_READY_KEY_DELAY_MS=8000 \
 			NOKIA_DCT3_POST_READY_KEY_DURATION_MS="$$duration" \
-			$(abspath $(MAME_DIR))/mame noki5110 \
+			$(abspath $(MAME_DIR))/mame $(NSE1_MACHINE) \
 				-rompath $(abspath $(MAME_DIR))/roms -nvram_directory "$$tmp/nvram" \
 				-video none -sound none -log -verbose -skip_gameinfo -nothrottle \
 				-seconds_to_run "$$seconds" \
-				-autoboot_script $(abspath mame_nokia_dct3_input_exerciser.lua) >/dev/null); \
+				-autoboot_script "$$script" >/dev/null); \
 		$(PYTHON) tools/power_5110_trace_check.py "$$kind" "$$tmp/error.log"; \
+		if [ "$(NSE1_MACHINE)" = nse1pipe ]; then grep -q 'rom4_staged_end: .*illegal=0' "$$tmp/error.log"; fi; \
 		rm -rf "$$tmp"; \
 	done
 
 verify-5110-save-state: build
-	@set -eu; tmp="$$(mktemp -d /tmp/noki5110-state.XXXXXX)"; \
-		trap 'rm -rf "$$tmp"' EXIT; \
-		mkdir -p "$$tmp/nvram/noki5110" "$$tmp/snap"; \
+	@set -eu; mkdir -p "$(NATIVE_SCRATCH_ROOT)"; tmp="$$(mktemp -d "$(NATIVE_SCRATCH_ROOT)/noki5110-state.XXXXXX")"; \
+		trap 'status=$$?; if test "$$status" -eq 0; then rm -rf "$$tmp"; else printf "Native save-state failed; evidence retained: %s\n" "$$tmp" >&2; fi' EXIT; \
+		mkdir -p "$$tmp/nvram/$(NSE1_MACHINE)" "$$tmp/snap"; \
 		$(PYTHON) $(abspath tools/make_5110_eeprom_profile.py) \
 			--eeprom $(abspath roms/noki5110/nse-1.bin) \
 			--flash $(abspath roms/noki5110/5110f530.fls) \
-			--output "$$tmp/nvram/noki5110/eeprom"; \
+			--output "$$tmp/nvram/$(NSE1_MACHINE)/eeprom"; \
 		cd "$$tmp"; \
 		NOKIA_DCT3_STATE_ROUNDTRIP_AT=7 \
+		NOKIA_DCT3_STATE_ROUNDTRIP_REPLAY_MS=200 \
 		NOKIA_DCT3_STATE_ROUNDTRIP_KEYS=menu \
 		NOKIA_DCT3_STATE_ROUNDTRIP_KEY_DELAY_MS=1000 \
 		NOKIA_DCT3_POST_READY_KEY_DURATION_MS=220 \
 		NOKIA_DCT3_POST_READY_CAPTURE_DELAY_MS=1500 \
 		NOKIA_DCT3_SNAPSHOT_DIR="$$tmp/snap" \
-		$(abspath $(MAME_DIR))/mame noki5110 \
+		$(abspath $(MAME_DIR))/mame $(NSE1_MACHINE) \
 			-rompath $(abspath $(MAME_DIR))/roms -nvram_directory "$$tmp/nvram" \
-			-video none -sound none -log -skip_gameinfo -nothrottle \
+			-video none -sound none -log -verbose -skip_gameinfo -nothrottle \
 			-seconds_to_run 11 \
-			-autoboot_script $(abspath mame_nokia_dct3_input_exerciser.lua) >/dev/null; \
+			-autoboot_script $(abspath tools/c54x_rom4_codec_restore.lua) >/dev/null; \
+		$(PYTHON) $(abspath tools/c54x_rom4_codec_contract.py) \
+			$(abspath $(MAME_DIR)/roms/noki5110/nse1_rom4_dsp_program.bin) \
+			--restore-log error.log --require-restore-replay; \
 		grep -q 'state_roundtrip: result=pass' error.log; \
 		grep -q 'input-press: .* name=menu' error.log; \
-		! grep -q 'rom4_reset_request' error.log; \
-		! grep -q 'TMS320C54x.*illegal' error.log; \
+		if grep -Eq 'rom4_reset_request|TMS320C54x.*illegal|unsupported.*staged|staged.*unsupported|unimplemented.*C54x' error.log; then \
+			echo 'FAIL - native restoration boot reset or DSP fault' >&2; exit 1; fi; \
 		sha256sum snap/*.pgm | grep -q \
 			d82cc6891fcf4efb0bd11ded583508f40826f58aa69463708a46897b76fdffb5; \
-		echo 'NSE-1 ROM4 C54x save-state round trip: PASS'
+		echo 'NSE-1 ROM4 $(NSE1_MACHINE) C54x save-state round trip: PASS'
 
 check-c54x-rom4-transform:
 	$(PYTHON) tools/c54x_rom4_transform_check.py $(TRACE) $(DATA_MEMORY)
@@ -1272,14 +1873,15 @@ check-c54x-opcode-coverage:
 	$(PYTHON) tools/c54x_opcode_coverage.py $(LOG) $(if $(ROM4_IDLE),--require-rom4-idle) $(if $(FIXTURE_LOG),--fixture-log $(FIXTURE_LOG)) $(if $(DECODE_SOURCE),--decoder-source $(DECODE_SOURCE)) $(if $(GROUPS),--group-report) $(if $(VARIANTS),--variant-report) $(if $(ALL_GAPS),--all-gaps)
 
 check-c54x-observed-coverage: build
-	@set -eu; tmp="$$(mktemp -d /tmp/noki5110-c54x-coverage.XXXXXX)"; \
-		trap 'rm -rf "$$tmp"' EXIT; \
+	@set -eu; mkdir -p "$(NATIVE_SCRATCH_ROOT)"; tmp="$$(mktemp -d "$(NATIVE_SCRATCH_ROOT)/noki5110-c54x-coverage.XXXXXX")"; \
+		trap 'status=$$?; if test "$$status" -eq 0; then rm -rf "$$tmp"; else printf "Native coverage failed; evidence retained: %s\n" "$$tmp" >&2; fi' EXIT; \
 		mkdir -p "$$tmp/core" "$$tmp/rom4/nvram/noki5110" "$$tmp/menu/nvram/noki5110" "$$tmp/power/nvram/noki5110"; \
+		status=0; \
 		(cd "$$tmp/core"; $(abspath $(MAME_DIR))/mame tms54test \
-			-rompath $(abspath $(MAME_DIR))/roms -video none -sound none \
-			-log -verbose -nothrottle -seconds_to_run 1 >output.log 2>&1 \
-			|| { status=$$?; test "$$status" -eq 3; }; \
-			grep -q 'TMS320C54x core conformance: PASS' output.log); \
+			-rompath $(abspath $(MAME_DIR))/roms -video none -sound none -joystickprovider none -midiprovider none \
+			-log -verbose -noreadconfig -nothrottle -seconds_to_run 5 >output.log 2>&1) || status=$$?; \
+		$(PYTHON) -c 'from pathlib import Path; import sys; from tools.run_c54x_core import check_result; check_result(Path(sys.argv[1]).read_text(), int(sys.argv[2]), verbose_teardown=True)' \
+			"$$tmp/core/output.log" "$$status"; \
 		$(PYTHON) $(abspath tools/make_5110_eeprom_profile.py) \
 			--eeprom $(abspath roms/noki5110/nse-1.bin) \
 			--flash $(abspath roms/noki5110/5110f530.fls) \
@@ -1288,14 +1890,14 @@ check-c54x-observed-coverage: build
 		cp "$$tmp/rom4/nvram/noki5110/eeprom" "$$tmp/power/nvram/noki5110/eeprom"; \
 		(cd "$$tmp/rom4"; $(abspath $(MAME_DIR))/mame noki5110 \
 			-rompath $(abspath $(MAME_DIR))/roms \
-			-nvram_directory "$$tmp/rom4/nvram" -video none -sound none \
+			-nvram_directory "$$tmp/rom4/nvram" -video none -sound none -joystickprovider none -midiprovider none \
 			-log -verbose -skip_gameinfo -nothrottle -seconds_to_run 30 >/dev/null 2>&1); \
 		(cd "$$tmp/menu"; NOKIA_DCT3_POST_READY_KEYS=menu \
 			NOKIA_DCT3_POST_READY_KEY_DELAY_MS=8000 \
 			NOKIA_DCT3_POST_READY_KEY_DURATION_MS=220 \
 			$(abspath $(MAME_DIR))/mame noki5110 \
 			-rompath $(abspath $(MAME_DIR))/roms \
-			-nvram_directory "$$tmp/menu/nvram" -video none -sound none \
+			-nvram_directory "$$tmp/menu/nvram" -video none -sound none -joystickprovider none -midiprovider none \
 			-log -verbose -skip_gameinfo -nothrottle -seconds_to_run 30 \
 			-autoboot_script $(abspath mame_nokia_dct3_input_exerciser.lua) >/dev/null 2>&1); \
 		grep -q 'input-press: .* name=menu' "$$tmp/menu/error.log"; \
@@ -1305,7 +1907,7 @@ check-c54x-observed-coverage: build
 			NOKIA_DCT3_POST_READY_KEY_DURATION_MS=4000 \
 			$(abspath $(MAME_DIR))/mame noki5110 \
 			-rompath $(abspath $(MAME_DIR))/roms \
-			-nvram_directory "$$tmp/power/nvram" -video none -sound none \
+			-nvram_directory "$$tmp/power/nvram" -video none -sound none -joystickprovider none -midiprovider none \
 			-log -verbose -skip_gameinfo -nothrottle -seconds_to_run 14 \
 			-autoboot_script $(abspath mame_nokia_dct3_input_exerciser.lua) >/dev/null 2>&1); \
 		$(PYTHON) $(abspath tools/power_5110_trace_check.py) long "$$tmp/power/error.log"; \
@@ -1316,12 +1918,15 @@ check-c54x-observed-coverage: build
 			--fixture-log "$$tmp/core/error.log" \
 			--decoder-source $(abspath cpu/tms320c54x/tms320c54x.cpp) \
 			--variant-report \
+			--frontend-report \
+			--extension-report \
+			--require-extension-decoded \
 			--observed-group f4 \
 			--observed-group f0 \
 			--require-all-asserted
 
 check-c54x-cross-rom:
-	$(MAKE) --no-print-directory check-c54x-core check-c54x-rom4-rf-boundary check-c54x-observed-coverage verify-frontier verify-5110-menu verify-3310-frontier verify-3330-frontier verify-3410-frontier
+	$(MAKE) --no-print-directory check-c54x-core check-c54x-rom4-rf-boundary check-c54x-rom4-processing check-c54x-observed-coverage verify-frontier verify-5110-menu verify-3310-frontier verify-3330-frontier verify-3410-frontier
 
 
 # Promote the latest informative LCD frame, falling back to the latest capture

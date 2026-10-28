@@ -92,7 +92,7 @@ schedules TX-ready and RX-ready on a timer, exposes RX bytes only when ready, an
 trailing event when the RX FIFO empties. A TX-only completion does not hide an
 already-readable character; newly returned card bytes are deferred before they
 become visible. The card may construct a complete T=0 response synchronously,
-so the controller retains a private serialization queue, but `0x39` exposes
+so the controller retains a private serialization queue, but `0x3c` exposes
 only the single character currently transferred to its receive holding register.
 
 Activation and T=0 traffic use the default ten-bit 9,600-bit/s character time,
@@ -100,6 +100,37 @@ approximately 1.042 ms per character. Although the synthetic ATR advertises TA1
 `0x05`, both ROMs answer PPS with `ff 00 ff`, retaining the default parameters.
 A bounded v6.00 trace observes consecutive ATR and PPS receive-register reads
 approximately 1.065 ms apart, with RX count one for each character.
+
+The card accepts a checksum-valid T=0 PTS request only before its first APDU.
+`ff 00 ff` retains default F/D; explicit default `ff 10 11 fe` is echoed.
+Unsupported F/D requests receive the default-parameter response, not an echo
+claiming an unimplemented speed. Bad checksums, reserved fields, other protocols
+and unsupported PTS2/PTS3 fields receive no response. Deactivation aborts a
+partial negotiation. This is byte-protocol coverage, not enhanced SIM clock or
+terminal waiting-time implementation. The default-speed fallback follows
+[GSM 11.11 v5.3.0, sections 5.8.2--5.8.3](https://www.etsi.org/deliver/etsi_gts/11/1111/05.03.00_60/gsmts_1111v050300p.pdf).
+`python3 tools/run_sim_pts.py RUN --mame mame/mame` checks ten request families,
+partial-request save/restore, reset recovery and a following SELECT MF; it
+claims neither a handset boot nor physical baud-divider validation.
+
+`verify-simi-restore` runs the development-only `simitest` controller/card
+composition without a handset CPU or ROM. It checkpoints SELECT MF with one
+body byte still in TX and the card awaiting that byte, then compares the replayed
+`9f 16` status and TX-empty/RX-ready sequence. A second checkpoint during GET
+RESPONSE replays the procedure byte, 22-byte MF metadata and `90 00` status,
+with identical RX-prefix, interrupt ordering and pending timer deadlines.
+A third checkpoint saves a failed VERIFY CHV2 after its attempt has been
+consumed but before its status is received. A second wrong PIN2 and STATUS
+prove one attempt remains before restore; replaying the saved status and
+issuing STATUS then prove two attempts remain, without repeating VERIFY.
+The security counter and queued response therefore restore together; the
+unchanged CHV1 counter is checked independently.
+Omitting the saved retry-counter array makes this final STATUS comparison fail.
+Work started after restore is compared by elapsed time; already-pending RX
+events retain their saved absolute deadlines. Omitting the card's saved
+body-reception latch makes the first replay fail; the unmodified devices pass.
+This is executable save-state conformance for the selected transactions,
+not physical UART timing, every APDU boundary or handset service acceptance.
 
 ## Stateful card device
 
@@ -117,11 +148,186 @@ implements:
 - persistent mutable `EF_ADN`, `EF_SMS`, `EF_SMSP` and cyclic `EF_ACM`
   contents through MAME device NVRAM.
 
+The synthetic card implements [GSM 09.91 section 5.1.1 option 1](https://www.etsi.org/deliver/etsi_etr/100_199/174/01_60/etr_174e01p.pdf)
+for legacy DCS1800 MEs: selecting `7f21` uses the same backing application
+as `7f20`, while SELECT/GET RESPONSE and STATUS retain visible identifier
+`7f21`. EF parent/access checks and RUN GSM ALGORITHM use the canonical
+application; Telecom remains a separate directory. There is no duplicate
+mutable application store or NVRAM-format change. The controller/card gate
+checks visible FID, selection save/restore, EF_PHASE access, authentication,
+and failure to select that EF from Telecom. This is an issuer-selected
+compatibility policy, not a claim that every real card aliases the directories.
+
+SIM NVRAM loading validates the complete serialized record before installing
+card fields. The supported append-only layouts retain base files, then SMS/SMSP,
+then security state, then EF_ACM, then preferred/forbidden PLMN lists, then
+EF_SMSS, then EF_ACMmax/EF_PUCT; missing later fields receive their declared
+defaults. Truncated records, trailing bytes and non-boolean CHV1-enable flags
+are rejected atomically. Device startup initializes defaults because MAME
+reports load failure without resetting NVRAM. `verify-sim-nvram-atomic` exercises
+eighteen cases through actual isolated MAME processes, including all six legacy
+layouts and an unchanged full record. Its short-ADN negative detects the former
+partial-load defect. This is storage conformance, not a handset-service claim;
+physical phonebook and security gates remain separate.
+The base record is 3570 bytes; its original 3562-byte prefix and all existing
+file/security offsets are unchanged. `run_sim_nvram_atomic.py --card-seed`
+additionally cold-loads an independently produced current record and requires
+byte-exact preservation, rejecting silent reinitialization.
+
 It does not inject task messages, call firmware handlers, or write SIM/registration RAM. When the
 device is disabled, SIMI reads and writes retain the legacy behavior used by the
 missing-hardware failure baseline.
 
 ## Contract audit
+
+The card implements the GSM application class `A0`. Other APDU classes return
+`6E 00` without executing a command or accepting its body. Incoming `P3=0`
+means no body, whereas outgoing `P3=0` requests 256 bytes; an empty VERIFY
+therefore returns `67 00` without consuming a retry. These rules follow
+[GSM 11.11 sections 9.1, 9.2 and 9.4.5](https://www.etsi.org/deliver/etsi_i_ets/300600_300699/300608/08_60/ets_300608e08p.pdf).
+The isolated `verify-simi-restore` fixture checks three rejected classes,
+empty VERIFY, unchanged selection/retries and a subsequent valid APDU. This
+is card/controller conformance, not additional handset-service coverage.
+SELECT, STATUS and GET RESPONSE reject nonzero reserved `P1/P2` with `6B 00`;
+SELECT rejects a file-ID length other than two with `67 00`. The same fixture
+checks all six reserved-parameter cases and SELECT lengths zero, one and three
+before a valid STATUS confirms unchanged file selection and PIN retries.
+
+GET RESPONSE also accepts the implicitly selected MF immediately after card
+activation. That allowance and pending command responses are consumed once;
+an intervening command or repeated GET RESPONSE returns `6F 00`, following
+[GSM 11.11 sections 9.2.18 and 9.4.5](https://www.etsi.org/deliver/etsi_i_ets/300600_300699/300608/08_60/ets_300608e08p.pdf).
+The isolated fixture checks initial MF access and its save/replay, ten further
+transactions covering authentication/MF/DF/EF responses, and STATUS interrupting
+a SELECT/GET RESPONSE pair. These are card-conformance checks, not proof that
+a handset uses first-command GET RESPONSE.
+
+Record addressing follows [GSM 11.11 sections 6.4 and 8.5/8.6](https://www.etsi.org/deliver/etsi_i_ets/300600_300699/300608/08_60/ets_300608e08p.pdf): linear EFs do
+not wrap at their boundaries; cyclic EFs do. Current access is `P1=0/P2=04`,
+absolute access leaves the pointer unchanged, and successful next/previous
+access alone advances it. A failed access preserves the pointer. The isolated
+fixture exercises eleven READ RECORD cases on virgin EF_ADN, including the
+last-record boundary, current access, absolute-pointer preservation and invalid
+mode bits. Thirty additional APDU transactions use distinct ADN contents to
+validate current/absolute/relative writes, failed-write data preservation and
+restoration of the record contents and pointer after an overwrite. They also
+check cyclic EF_ACM selection, all three disallowed update modes, successful
+PREVIOUS update and wrapping reads. Only the existing single-record cyclic
+EF is covered; multi-record cyclic rotation is not implemented or validated.
+
+READ/UPDATE BINARY use the full `P1:P2` offset as specified in GSM 11.11
+sections 9.2.3/9.2.4; the high bit is not a short-file selector. Out-of-range
+access returns `94 02` without modifying file contents. Fourteen isolated
+binary transactions on EF_LOCI check high-byte offsets `80` and `FF`, the
+last valid byte, the first invalid byte and readback after rejected writes.
+These are serial-path card conformance checks, not new handset capabilities.
+
+SEEK implements both types and all four linear-fixed search directions under
+[GSM 11.11 sections 8.7 and 9.2.7](https://www.etsi.org/deliver/etsi_i_ets/300600_300699/300608/08_60/ets_300608e08p.pdf).
+It matches record prefixes without wrapping, commits the pointer only on
+success, and exposes type-2 record numbers through GET RESPONSE. The serial
+fixture checks both undefined-pointer starts, one- and sixteen-byte patterns,
+interior-only mismatch, six parameter errors, incompatible cyclic/transparent
+files, and pending-result save/replay. Directory-only selection reports `94 00`
+for SEEK and both read commands; incompatible EFs report `94 08`. Current
+ADN, SMS, SMSP and ACM require CHV1 for READ; SEEK applies the selected
+file's READ condition. Disabled, unblocked CHV1 satisfies that condition; an enabled,
+unverified card returns `98 04`, including after restoration of an earlier
+unverified checkpoint. FCP advertises the same policy. The isolated serial
+fixture covers denial, wrong PIN, successful verification and restoration.
+Other transparent/vendor-file access conditions remain a separate audit.
+EF_IMSI (`6F07`) independently enforces and advertises CHV1 READ, as required
+by GSM 11.11 section 10.2.2. READ BINARY applies the descriptor's access
+condition before returning data. The serial fixture proves pre-PIN denial,
+successful verification and readback, then denial after restoring the earlier
+unverified session. Separate controller-driven activation checks restart an
+authenticated card, then disconnect/reinsert/reactivate it; both produce ATR
+and require fresh VERIFY before IMSI readback. These are isolated socket/card
+contracts, not handset hot-plug acceptance. They do not close the remaining
+transparent/vendor-file policy audit.
+EF_PUCT (`6F41`) also requires CHV1 READ (GSM 11.11 10.2.12). Its FCP and
+READ BINARY now agree; the serial fixture verifies denial before PIN,
+successful five-byte readback, and denial after unverified-state restoration.
+The laboratory profile fixes ACMmax (`6F37`) and PUCT UPDATE to CHV1, as for
+its existing ACM profile. GSM 11.11 10.2.6/10.2.12 permits this administratively
+selected CHV1/CHV2 policy; this does not claim all physical cards use CHV1.
+Both files now have mutable card-owned bytes with matching FCP, save-state
+and append-only NVRAM ownership. Serial tests check blocked-PIN denial,
+successful whole-file writes, exact readback, out-of-range write preservation
+and restoration of changed contents. Reset/reinsertion authorization replays
+retain their separate unverified baseline rather than an AoC mutation snapshot.
+The atomic loader gate cold-loads non-default values and rejects partial AoC
+extensions before installing fields.
+This is card conformance; handset tariff/ceiling editing remains unvalidated.
+
+EF_SMSS (`6F43`, SMS status) belongs to DF_TELECOM and enforces CHV1
+READ/UPDATE, with matching FCP (GSM 11.11 10.3.7). Its two card-owned bytes
+hold last-used TP-MR and the capacity-exceeded notification flag; the initial
+profile is `FF FF` (flag unset/capacity available). The serial fixture checks
+wrong-parent selection, pre-PIN denial, mutation, failed bounds preservation
+and exact restoration. Both bytes are saved and appended to NVRAM; complete
+legacy PLMN records receive defaults, while partial extensions are rejected
+before any retained state is installed. A serial-written record is independently
+cold-loaded byte-for-byte by the atomic-storage gate.
+Physical two-process SMS gates additionally correlate retained SMSS with
+actual submitted TP-MR and its cold increment on the 6210 and 8210. Their
+first references differ (1 and 0 respectively), as do relative TP-VP bytes
+(`FF` and `A7`); the shared checker does not normalize those product choices.
+The standard GSM transparent set Kc (`6F20`), PLMNsel (`6F30`), HPLMN
+(`6F31`), ACMmax (`6F37`), BCCH (`6F74`), ACC (`6F78`), FPLMN (`6F7B`),
+LOCI (`6F7E`) and SST (`6F38`) also enforces CHV1 READ. Serial tests check
+each FCP, denial before verification and exact one-byte readback afterward,
+including after reset and reinsertion. Other unclassified file policies
+remain separate work. IMSI, HPLMN, ACC and SST are not CHV1-writable: GSM 11.11
+10.2.2/10.2.5/10.2.15/10.2.7 assigns UPDATE to ADM. Their FCP reports READ CHV1
+and UPDATE ADM (laboratory ADM level 4), while the card implements no ADM
+credential or administrative update command. The serial fixture checks that
+a verified PIN still receives `98 04` for UPDATE and each file's contents
+remain unchanged, including on reset/reinsertion replay. This corrects
+advertised policy; it does not claim administrator provisioning support.
+The normative reference is
+[GSM 11.11 v4.20.1](https://www.etsi.org/deliver/etsi_i_ets/300600_300699/300608/08_60/ets_300608e08p.pdf),
+whose access-level table permits ADM levels 4 through 14.
+The bounded serial runner permits 16 seconds
+for the expanded command sequences and still requires every completion marker.
+PLMNsel and FPLMN now also support CHV1-protected UPDATE BINARY, as specified
+in GSM 11.11 10.2.4/10.2.16. Their 24-/12-byte bodies are mutable card-owned
+arrays with exact FCP READ/UPDATE conditions, bounds checking, save/load and
+append-only NVRAM persistence. The serial fixture verifies both updates and
+restoration, then checks the exact serialized bodies; the storage gate cold-loads
+that same record. The 6210 forbidden-PLMN persistence gate additionally proves
+firmware-originated cause-11 handling for visited test PLMN 001-02: an actual
+FPLMN update survives a cold boot and prevents automatic access. Clearing only
+that list allows the same accepting cell to register and persist its LAI.
+This is a bounded 30-second cold-selection comparison, not a claim about every
+roaming PLMN. The 6210 home-PLMN rejection control proves the complementary rule:
+cause 11 updates EF_LOCI to roaming-not-allowed but leaves EF_FPLMN erased.
+The HPLMN must not be forbidden (GSM 03.22). International visited selection
+remains separate; see `6210_bringup.md` for the exact coverage.
+These record-file conditions follow GSM 11.11 sections 10.2.8 and 10.3
+([ETSI specification](https://www.etsi.org/deliver/etsi_i_ets/300600_300699/300608/08_60/ets_300608e08p.pdf)).
+No retained handset trace uses SEEK;
+this is standards-derived card conformance, not new UI capability.
+
+RUN GSM ALGORITHM also requires current directory DFGSM and CHV1
+authorization (satisfied while CHV1 is disabled and unblocked), following GSM 11.11 8.16.
+The serial fixture proves `98 04` before PIN verification, `94 08` under
+DF_TELECOM, no pending authentication result after either rejection, and
+independently computed SRES/Kc after valid verification and directory selection.
+These checks are repeated following controller reset and reinsertion.
+CHV1 authorization also requires a nonzero retry count. Three wrong ENABLE
+attempts can block a still-disabled CHV1 (GSM 11.11 8.12); disabled mode must
+not bypass that state. One shared authorization predicate covers protected
+READ, UPDATE and authentication. Serial tests block this disabled card, deny
+all three operations, retain ALWAYS ICCID access, and recover through UNBLOCK
+without changing the ADN record rejected by the failed update.
+With an authentication algorithm selected, RUN GSM ALGORITHM rejects nonzero
+`P1/P2` with `6B 00` and a RAND length other than sixteen with `67 00`
+(GSM 11.11 sections 9.2.16 and 9.4.5). With no algorithm selected it remains
+unsupported (`6D 00`). The isolated fixture rejects two parameter cases and
+lengths zero, fifteen and seventeen, then checks a valid laboratory RAND and
+the twelve-byte SRES/Kc response. This checks parser recovery and framing;
+the independent algorithm vector gate remains the cryptographic oracle.
 
 The implemented surface is classified by ownership and evidence:
 
@@ -132,8 +338,9 @@ The implemented surface is classified by ownership and evidence:
 | IIR write-one-clear and causes `0x10`/`0x40` | Derived contract | Firmware acknowledgement and organic TX/RX progression are observed. Decoded causes `0x02`, `0x20`, and `0x80` have a typed, activity-gated ingress for a future electrical/card backend, but normal traffic never synthesizes them because their physical trigger conditions and timing remain unknown. |
 | Socket detect status bit 3 and FIQ7 | Validated hardware contract | Physical removal deactivates transport/card state and posts the firmware removal result; reinsertion organically reactivates SIMI, ATR and file initialization in v6.00 and v5.01. Phase 2+, removal and save/load variants are independently gated. |
 | ATR/PPS and T=0 exchange | Partial card contract | The ordinary initialization conversation is coherent. Both ROMs emit PPS `ff 00 ff`, so controller delivery retains the default approximately 1.042 ms character time. ATR start and card turnaround delays remain approximations. |
-| SELECT/STATUS/GET RESPONSE/READ behavior | Partial card contract | It satisfies organically requested initialization, presence polling and the absolute linear-record scan. GET RESPONSE is now scoped to the immediately preceding SELECT or data-producing command. INVALIDATE, REHABILITATE, SEEK and broader error behavior remain unsupported: no retained firmware trace issues those commands, including the organic REFRESH lifecycle. |
-| UPDATE RECORD and record persistence | Partial card contract | Firmware organically writes both a standard 32-byte ADN record and a 176-byte unread SMS record. ADN is read after a card-NVRAM reload; the MT-SMS gate checks the exact persisted SMS-DELIVER bytes. Current/next/previous modes are modeled but only absolute mode has a firmware acceptance trace. |
+| SELECT/STATUS/GET RESPONSE/READ behavior | Partial card contract | It satisfies organically requested initialization, presence polling and the absolute linear-record scan. GET RESPONSE is scoped to the preceding SELECT/data-producing command or implicit MF selection after activation. Opt-in FDN images add CHV2-controlled ADN INVALIDATE/REHABILITATE and persistent validity, with strict/readable-invalid card conformance. NSM-1 physical activation, cold On/Off interpretation, deactivation and protected-record operations are qualified through the identity-session handshake; per-product limits remain in sim_emulator_scope.md and model_coverage.md. Organic REFRESH does not issue validity commands. |
+| SEEK record search | Standards-derived dormant contract | Both types, all four linear-fixed directions, prefix matching, failure-preserved pointers and pending-result restoration have isolated serial conformance coverage. No handset acceptance trace currently issues SEEK. |
+| UPDATE RECORD and record persistence | Partial card contract | Firmware organically writes both a standard 32-byte ADN record and a 176-byte unread SMS record. ADN is read after a card-NVRAM reload; the MT-SMS gate checks the exact persisted SMS-DELIVER bytes. Relative/current record reads and writes, write-failure preservation and single-record cyclic updates have isolated conformance coverage; only absolute mode has a handset acceptance trace. Multi-record cyclic UPDATE RECORD ordering remains unsupported. |
 | Cyclic EF_ACM and INCREASE | Standards-derived dormant contract | The descriptor, CHV1 access conditions, checked 24-bit addition, `98 50` overflow result, six-byte delayed response and append-only persistence follow GSM 11.11. NSE-3 constructs the exact `A0 32 00 00 03` APDU, but no product firmware acceptance trace currently exercises it. |
 | RUN GSM ALGORITHM | Organic authenticated registration | The card accepts only `A0 88 00 00 10`, consumes the 16-byte RAND and exposes `SRES || Kc` through the immediately following twelve-byte GET RESPONSE. A3/A8 remains explicitly operator-selectable: the card defaults to no algorithm, while the synthetic laboratory subscriber selects TS 55.205 section 5's AES example and a separately provisioned test key. The AES projection has an independent FIPS-derived vector gate. With authentication explicitly enabled, both 3210 v6.00 and 3310 v6.39 organically execute the command, fetch all twelve bytes, require typed result `0x0066`, copy Kc, publish SRES and emit MM Authentication Response. Both then accept Location Updating Accept, persist EF_LOCI, release the dedicated channel and return to camp. |
 | Default and CPHS filesystem contents | Provisioning fixture | File sizes are ROM-informed and the data is internally coherent enough for the tested paths, but identities and service contents are synthetic test data, not 3210 hardware behavior. |
@@ -252,7 +459,7 @@ gates rather than being implied by this signalling-focused toolkit fixture.
 `SELECT ITEM` is also supported: the card supplies two item TLVs, physical Down
 and Select choose the second firmware-rendered entry, and the ME returns item
 identifier `02` in TERMINAL RESPONSE. Conversely, NSE-8 v6.00 returns general
-result `31` (command beyond ME capabilities) for `SET UP EVENT LIST` requesting
+result `31` (command type not understood by ME) for `SET UP EVENT LIST` requesting
 User Activity and Idle Screen Available. The card accepts that result and does
 not expect or synthesize an Event Download envelope. These are separate
 positive and negative gates because event download is not an applicable 3210
@@ -263,14 +470,24 @@ TERMINAL PROFILE before returning the REFRESH TERMINAL RESPONSE. The card must
 therefore preserve that in-flight command across re-profiling, accept its one
 delayed completion, and only then schedule the new application session.
 `make verify-sim-toolkit-refresh` protects this ordering and catches both lost
-completion state and overlapping proactive commands.
+completion state and overlapping proactive commands. The command-ready timer
+must publish DISPLAY TEXT's command ID and number before setting pending;
+REFRESH completion cleared the old ID, so merely logging readiness previously
+advertised9100 and caused zero-length FETCH attempts. The NSB-7 REFRESH gate
+now proves a real post-refresh FETCH and a complete second interactive/menu
+session, not only the timer's readiness log.
 
-`POLL INTERVAL` and `POLLING OFF` are both supported. For a requested
-five-second interval the firmware returns result `00` plus an effective-duration
-TLV of five seconds, then accepts the chained off command. No later periodic
-STATUS occurs in the bounded run. `make verify-sim-toolkit-polling` protects the
-echoed duration and the absence after disable, rather than treating a bare
-success result as proof that polling changed.
+The NSE-8 `POLL INTERVAL`/`POLLING OFF` fixture returns result `00` plus a
+five-second effective-duration TLV, then accepts the immediately chained off
+command. No later STATUS occurs in that bounded run; the existing gate
+preserves this measured silence as a fixture-specific regression.
+It is not a universal prohibition: [GSM 11.14 section 6.4.14](https://www.etsi.org/deliver/etsi_TS/101200_101299/101267/08.02.01_60/ts_101267v080201p.pdf)
+disables proactive polling without affecting SIM presence detection.
+The NSB-7 fixture accepts the same commands while ordinary STATUS continues
+at an observed roughly31-second cadence. The shared protocol checker is
+separate from those product observations. Neither immediately chained fixture
+proves that a five-second polling schedule ran before OFF; reported duration
+alone is not elapsed-time evidence.
 
 `PLAY TONE` reaches the modeled DSP audio boundary: general-beep tone `10`
 produces an organic 1750 Hz start and stop. With an alpha identifier, physical
@@ -324,6 +541,91 @@ NHM-6 v4.50 (3330) reaches the same FETCH boundary but returns `20 01`
 (terminal currently unable, screen busy) in its current presentation
 lifecycle. That result is preserved as a product limitation, not rewritten as
 card or transport failure.
+
+The separate NSM-1 v5.23 native-compatibility composition (6150) independently
+advertises `0b41ff7700`, displays the same card payload and returns result00
+only after physical Menu. Matched Phase-2 input has no proactive traffic;
+complete handset/card storage is unchanged. The NSK-3 v5.61 composition
+(6130) instead advertises `03018000` and automatically returns result30
+(beyond ME capabilities), without displaying the text. These observed
+product-specific outcomes must not be unified into a fabricated success.
+Own fixture scope and gates are in [6150 bring-up](6150_bringup.md) and
+[6130 bring-up](6130_bringup.md).
+
+The5190's own clean-idle composition independently passes physical GET INKEY5
+and GET INPUT42 after DISPLAY TEXT, returning its own `0f41ff7700` terminal
+profile and exact input responses with unchanged whole EEPROM/card/flash.
+Its physical Navi contact differs from the6150 despite sharing the lab schedule.
+`nsb1_toolkit_check.py --interactive` guards this independently of its older
+Field test01 DISPLAY TEXT fixture; native RF and speech remain unqualified.
+The5190 also installs DCT3 menu and returns distinct physical Continue/Exit
+envelopes. Both ACK-only selections return to the clean list with the selected
+item highlighted, unlike the separate6150/6190 Wait observations. Product
+wrappers retain these different pixel contracts (`--menu-item 1` / `2`).
+The5190 also independently accepts a card-issued SELECT ITEM after Continue;
+physical Beta returns the exact item-2 result and restores the clean installed
+list with unchanged complete storage (`--select-item`).
+The5190 pending-display restoration gate also proves one FETCH followed by
+two physical successful responses, observed native architecture/checksum/I/O
+restoration and identical returned-idle pixels with unchanged complete storage
+(`nsb1_toolkit_state_check.py`). This is not mid-character SIMI coverage.
+
+Separate5190 profile9 additionally completes REFRESH through own terminal
+re-profiling and successful response, displaying SIM update started before
+exact idle return. Its product-specific settings write has a pinned complete
+EEPROM output; card/flash remain unchanged (`nsb1_toolkit_check.py --refresh`).
+This is not inferred from the6150 result or a later application-cycle claim.
+
+The6150 also independently handles a three-command external card: physical
+DISPLAY TEXT dismissal, GET INKEY5 and GET INPUT42 produce exact successful
+responses and return to its own clean idle frame. Full persistent card,
+EEPROM and flash are unchanged. This is not inferred from the6190's support;
+the common lab command bytes/validator are shared while product inputs and
+acceptance remain separate (`nsm1_toolkit_check.py --interactive`).
+Separate6150 profile4 runs also install DCT3 menu and physically select
+Continue/Exit, returning distinct item-1/item-2 envelopes with9000 and unchanged
+complete storage. Both ACK-only results show Wait; automatic menu return is
+not promoted (`--menu-item 1` / `--menu-item 2`).
+A separate6150 profile7 follows Continue with SELECT ITEM. Physical Beta
+selection emits the exact item-2 terminal response, accepted with9000, and
+returns to the clean installed list with unchanged complete storage
+(`--select-item`). This does not change the ACK-only return boundary.
+Separate6150 profile9 accepts REFRESH qualifier00, re-downloads its own
+terminal profile before returning success, displays SIM card update started
+and returns to exact idle. Its complete EEPROM has a separately pinned
+firmware-owned settings update; card/flash stay unchanged. Full re-read wire
+capture uses an explicit higher observation cap, not a relaxed storage gate
+(`--refresh`; details in6150_bringup.md). A later application restart is not
+qualified by this92s window.
+The6150 independently presents PLAY TONE and physically cancels it with
+result11, returning to the installed menu with unchanged whole storage.
+The matched no-key control remains pending through92s despite three nonstopped
+native samples. This is a cancellation contract, not audible playback
+(`nsm1_toolkit_check.py --tone cancel` / `--tone hold`).
+The separate `--tone late` window reaches organic Timer1/FIQ5 expiry near93s,
+successful response and exact menu return without a key. The shorter hold is
+horizon-limited; current clock calibration does not establish duration accuracy.
+The separate publication census observes no late compiler entry or MCU/DSP
+HPI write, with early compiler/aperture positives and continuing native I/O;
+the output boundary is MCU-side, not an established unanswered DSP tone request
+(`nsm1_toolkit_tone_boundary_check.py`; scope in6150_bringup.md).
+The6150 pending DISPLAY TEXT also survives native save/load with one FETCH,
+two physical successful completions and exact observed architecture/I/O/pixel
+replay, preserving complete persistent storage (`nsm1_toolkit_state_check.py`).
+This is proactive-command state, not a claim about saving mid-character.
+
+NSK-1 v5.61 (5130) independently produces that same four-byte profile and
+automatic result30 refusal. Its matched Phase-2 control has no proactive
+exchange. Unlike the6130 fixture, this Phase-2+ trial also rewrites108 EEPROM
+bytes while the Phase-2 control preserves them; [5130 bring-up](5130_bringup.md)
+localizes the differences to firmware-copied stack padding in empty encoded
+digit fields, not bytes damaged in transport. Both card profiles execute the
+same accepted-code record updates; the control's unused padding already
+matches storage. General record validity remains unclaimed; the whole bank
+is checked, not region-whitelisted.
+This is not a successful feature. The shared wire validator distinguishes automatic
+capability refusal from success after a physical contact; product wrappers
+retain their own storage, native-execution and pixel requirements.
 
 NSM-5 v5.40 (5210) independently submits a nine-byte TERMINAL PROFILE, FETCHes
 the same DISPLAY TEXT command, renders `DCT3 SAT`, and returns result `00`

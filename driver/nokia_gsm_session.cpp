@@ -18,7 +18,8 @@ nokia_gsm_session_device::nokia_gsm_session_device(
 	m_network(*this, "^gsm_network"),
 	m_call_alerting_output(*this, "nokia_gsm_call_alerting"),
 	m_call_active_output(*this, "nokia_gsm_call_active"),
-	m_release_waiting_output(*this, "nokia_gsm_call_release_waiting_handset")
+	m_release_waiting_output(*this, "nokia_gsm_call_release_waiting_handset"),
+	m_reset_cb(*this)
 {
 }
 
@@ -209,6 +210,10 @@ void nokia_gsm_session_device::device_reset()
 	m_handover_target_arfcn = 0;
 	m_handover_reference = 0;
 	clear_pending_downlink();
+	// Also reached by radio-link failure and switched-baseband reset, neither
+	// of which necessarily resets the host adapter as a MAME device.
+	m_reset_cb(1);
+	m_reset_cb(0);
 }
 
 void nokia_gsm_session_device::clear_dedicated_cipher()
@@ -468,6 +473,20 @@ nokia_gsm_session_device::contention_resolution_delivered()
 				request.data(), request.size());
 	}
 
+	return location_update_reply();
+}
+
+nokia_gsm_session_device::downlink_kind nokia_gsm_session_device::location_update_reply()
+{
+	if (m_network->location_update_result() ==
+			nokia_gsm_network_device::location_update_outcome::plmn_not_allowed)
+	{
+		const auto reject = m_network->location_update_reject();
+		m_release_completes_registration = false;
+		m_state = u8(state::awaiting_location_update_reject_acknowledgement);
+		return queue_downlink(downlink_kind::location_update_reject,
+				reject.data(), reject.size());
+	}
 	const auto accept = m_network->location_update_accept(
 			m_established_layer3.data(), m_established_layer3_length,
 			m_serving_arfcn);
@@ -603,6 +622,10 @@ nokia_gsm_session_device::downlink_acknowledged()
 				release.data(), release.size());
 	}
 
+	if (m_state == u8(state::awaiting_location_update_reject_acknowledgement) &&
+			m_pending_downlink.kind == u8(downlink_kind::location_update_reject))
+		return begin_channel_release();
+
 	if (m_state == u8(state::awaiting_location_update_accept_acknowledgement) &&
 			m_pending_downlink.kind == u8(downlink_kind::location_update_accept))
 	{
@@ -637,12 +660,10 @@ nokia_gsm_session_device::downlink_acknowledged()
 	if (m_state == u8(state::awaiting_cipher_mode_command_acknowledgement) &&
 			m_pending_downlink.kind == u8(downlink_kind::cipher_mode_command))
 	{
-		// Supply deterministic network time before entering call control or
-		// SAPI-3 SMS, matching the ordering expected by this firmware.
-		const auto information = m_network->mm_information();
-		m_state = u8(state::awaiting_mm_information_acknowledgement);
-		return queue_downlink(downlink_kind::mm_information,
-				information.data(), information.size());
+		// An LAPDm acknowledgement does not complete the RR cipher procedure.
+		// Wait for the validated Cipher Mode Complete before sending L3 data.
+		clear_pending_downlink();
+		return downlink_kind::none;
 	}
 
 	if (m_state == u8(state::awaiting_mm_information_acknowledgement) &&
@@ -678,11 +699,10 @@ nokia_gsm_session_device::downlink_acknowledged()
 		{
 			const bool notification = m_incoming_service ==
 					u8(incoming_service::ussd_notification);
-			const auto request = notification ?
-					(m_network->host_incoming_ussd_pending() ?
-							m_network->host_incoming_ussd() :
-							gsm::ss::network_unstructured_uss_notify(
-									0x0b, 1, "Nokia test network")) :
+			const auto request = m_network->host_incoming_ussd_pending() ?
+					m_network->host_incoming_ussd() : notification ?
+					gsm::ss::network_unstructured_uss_notify(
+							0x0b, 1, "Nokia test network") :
 					gsm::ss::network_unstructured_uss_request(
 							0x0b, 1, "Enter reply");
 			m_state = u8(state::awaiting_network_ussd_register_acknowledgement);
@@ -694,7 +714,16 @@ nokia_gsm_session_device::downlink_acknowledged()
 			return queue_downlink(downlink_kind::supplementary_register,
 					request.data.data(), request.length);
 		}
-		if (m_mobile_originated_call)
+		if (m_mobile_originated_call && m_cipher_active)
+		{
+			// RR cipher completion implicitly accepts the MM connection.
+			// SETUP can piggyback this MM Information acknowledgement.
+			clear_pending_downlink();
+			m_state = u8(state::awaiting_outgoing_call_setup);
+			return downlink_kind::none;
+		}
+		if (m_mobile_originated_call || m_mobile_originated_sms ||
+				m_mobile_originated_supplementary)
 		{
 			const auto accept = m_network->cm_service_accept();
 			m_state = u8(state::awaiting_cm_service_accept_acknowledgement);
@@ -1168,6 +1197,11 @@ nokia_gsm_session_device::receive_layer3(
 		const bool continued = m_network->configured_ussd_outcome() ==
 				nokia_gsm_network_device::ussd_outcome::continuation_request &&
 				request.operation_code == gsm::ss::operation::process_uss_request;
+		if (continued)
+		{
+			m_ussd_transaction = request.transaction;
+			m_ussd_invoke_id = request.invoke_id;
+		}
 		m_state = u8(continued ?
 				state::awaiting_supplementary_facility_acknowledgement :
 				state::awaiting_supplementary_release_acknowledgement);
@@ -1188,7 +1222,25 @@ nokia_gsm_session_device::receive_layer3(
 				machine().time().as_double());
 		if (message_type == 0x2a)
 			return begin_channel_release();
-		return downlink_kind::none;
+		const auto result = gsm::ss::parse_ussd_facility_result(information, length);
+		if (!result.valid || result.transaction != m_ussd_transaction ||
+				result.invoke_id != u8(m_ussd_invoke_id + 1))
+			return downlink_kind::none;
+		LOGMASKED(LOG_GSM_SESSION,
+				"gsm_ss: continued_result transaction=%02x invoke=%u dcs=%02x packed_length=%u empty=%u t=%.6f\n",
+				result.transaction, result.invoke_id, result.data_coding_scheme,
+				result.ussd_length, result.has_parameters ? 0 : 1, machine().time().as_double());
+		gsm::ss::request original;
+		original.valid = true;
+		original.transaction = m_ussd_transaction;
+		original.invoke_id = m_ussd_invoke_id;
+		original.operation_code = gsm::ss::operation::process_uss_request;
+		const auto response = result.has_parameters ?
+				gsm::ss::process_uss_request_result(original, "Nokia test network") :
+				gsm::ss::network_release_complete(m_ussd_transaction ^ 0x80);
+		m_state = u8(state::awaiting_supplementary_release_acknowledgement);
+		return queue_downlink(downlink_kind::supplementary_release_complete,
+				response.data.data(), response.length);
 	}
 	if (sapi == 0 && m_state == u8(state::awaiting_network_ussd_response) &&
 			protocol_discriminator == 0x0b)
@@ -1202,6 +1254,15 @@ nokia_gsm_session_device::receive_layer3(
 				information_hex.c_str(), machine().time().as_double());
 		if (message_type == 0x3a)
 		{
+			const auto result = gsm::ss::parse_ussd_facility_result(information, length);
+			if (!result.valid || result.transaction != 0x8b || result.invoke_id != 1 ||
+					(m_incoming_service == u8(incoming_service::ussd_notification) && result.has_parameters))
+				return downlink_kind::none;
+			LOGMASKED(LOG_GSM_SESSION,
+					"gsm_ss: network_result transaction=%02x invoke=%u dcs=%02x packed_length=%u empty=%u t=%.6f\n",
+					result.transaction, result.invoke_id, result.data_coding_scheme,
+					result.ussd_length, result.has_parameters ? 0 : 1, machine().time().as_double());
+			m_network->record_host_incoming_ussd_reply(result);
 			const auto release = gsm::ss::network_release_complete(0x0b);
 			m_state = u8(state::awaiting_network_ussd_release_acknowledgement);
 			return queue_downlink(downlink_kind::supplementary_release_complete,
@@ -1305,16 +1366,28 @@ nokia_gsm_session_device::receive_layer3(
 	if (sapi == 0 && protocol_discriminator == 0x06 &&
 			message_type == 0x32)
 	{
-		if (gsm::a5::activation_allowed(
+		const bool activate = gsm::a5::activation_allowed(
 				gsm::a5::algorithm(m_cipher_algorithm),
 				m_cipher_key_valid, m_cipher_command_pending, sapi,
-				information, length))
+				information, length);
+		const bool clear_complete =
+				m_state == u8(state::awaiting_cipher_mode_command_acknowledgement) &&
+				m_cipher_algorithm == u8(gsm::a5::algorithm::a5_0) &&
+				length == 2 && information[0] == 0x06 && information[1] == 0x32;
+		if (activate)
 		{
 			m_cipher_active = true;
 			m_cipher_command_pending = false;
 			LOGMASKED(LOG_GSM_SESSION,
 					"gsm_cipher: event=activated algorithm=%u t=%.6f\n",
 					m_cipher_algorithm, machine().time().as_double());
+		}
+		if (activate || clear_complete)
+		{
+			const auto information = m_network->mm_information();
+			m_state = u8(state::awaiting_mm_information_acknowledgement);
+			return queue_downlink(downlink_kind::mm_information,
+					information.data(), information.size());
 		}
 		return downlink_kind::none;
 	}
@@ -1425,12 +1498,7 @@ nokia_gsm_session_device::receive_layer3(
 				return queue_downlink(downlink_kind::cipher_mode_command,
 						command.data(), command.size());
 			}
-			const auto accept = m_network->location_update_accept(
-					m_established_layer3.data(),
-					m_established_layer3_length, m_serving_arfcn);
-			m_state = u8(state::awaiting_location_update_accept_acknowledgement);
-			return queue_downlink(downlink_kind::location_update_accept,
-					accept.data(), accept.size());
+			return location_update_reply();
 		}
 
 		const auto reject = m_network->authentication_reject();
@@ -1588,6 +1656,9 @@ nokia_gsm_session_device::receive_layer3(
 		}
 		if (message_type == 0x2a)
 		{
+			// Remember CC completion across the subsequent RR release, just as
+			// when this response races the DISCONNECT acknowledgement.
+			m_release_complete_received = true;
 			return begin_channel_release();
 		}
 	}
@@ -1773,6 +1844,30 @@ nokia_gsm_session_device::receive_layer3(
 	return downlink_kind::none;
 }
 
+bool nokia_gsm_session_device::mobile_link_release_acknowledged(u8 sapi)
+{
+	// A silent RP transaction can end with mobile main-link DISC rather than
+	// a network Layer-3 Channel Release. Retire it only after the link UA.
+	if (sapi != 0 || !m_mobile_originated_sms ||
+			m_state != u8(state::awaiting_mobile_sms_timeout))
+		return false;
+	clear_pending_downlink();
+	m_established_layer3.fill(0);
+	m_established_layer3_length = 0;
+	m_mobile_originated_sms = false;
+	m_outgoing_sms_request_pending = false;
+	m_outgoing_sms_decision_accepted = false;
+	m_sms_cp_transaction = 0;
+	m_sms_rp_reference = 0;
+	m_sms_cp_data_acknowledged = false;
+	m_sms_rp_acknowledged = false;
+	m_sms_status_report_requested = false;
+	m_sms_submit_recipient_length = 0;
+	m_state = u8(state::idle);
+	clear_dedicated_cipher();
+	return true;
+}
+
 void nokia_gsm_session_device::mobile_sms_sapi3_established()
 {
 	if (m_state == u8(state::awaiting_mobile_sms_sapi3_establishment))
@@ -1811,6 +1906,25 @@ bool nokia_gsm_session_device::submit_outgoing_sms_decision(
 	m_sms_rp_acknowledged = true;
 	queue_downlink(downlink_kind::outgoing_sms_rp_ack,
 			acknowledge.data(), acknowledge.size(), 3);
+	return true;
+}
+
+bool nokia_gsm_session_device::terminate_network_ussd()
+{
+	if (m_state != u8(state::awaiting_network_ussd_response) ||
+			!m_network->host_incoming_ussd_pending() ||
+			!m_network->host_incoming_ussd_is_request() ||
+			pending_downlink_kind() != downlink_kind::none)
+		return false;
+	// TS 24.090 5.1.1: application termination clears the SS transaction;
+	// it is not a handset ReturnResult and does not complete RR locally.
+	const auto release = gsm::ss::network_release_complete(0x0b);
+	m_state = u8(state::awaiting_network_ussd_release_acknowledgement);
+	queue_downlink(downlink_kind::supplementary_release_complete,
+			release.data.data(), release.length);
+	LOGMASKED(LOG_GSM_SESSION,
+			"gsm_ss: network_terminated transaction=0b t=%.6f\n",
+			machine().time().as_double());
 	return true;
 }
 

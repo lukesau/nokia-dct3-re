@@ -7,6 +7,11 @@ deleted incrementally as observed contracts become components.
 `upstream_architecture.md` is authoritative for the intended MAME device graph,
 the real-DSP/HLE substitution seam and internal-ROM ownership. This document
 describes the current source layout within that target.
+Its [machine-composition source map](upstream_architecture.md#machine-composition)
+defines the shared board state/product data and the separate research
+configuration module. The C54x bench has its own
+[compiled contract-family modules](c54x_execution_contracts.md#harness-preservation-contract),
+not hardware behavior embedded in handset configuration.
 
 The generic GSM-FR codec and receive-side bad-frame substitution live in
 `lib/util/gsmfr.cpp/.h`, over the bundled `third_party/libgsm` C library. MAME's
@@ -19,11 +24,17 @@ See `gsm_fr_codec.md` for the state and dependency contract.
 
 The memory-map-registered handlers are thin. Diagnostic execution observations
 are isolated in `driver/nokia_dct3_trace.inc`; no memory read path overrides a
-firmware result:
+firmware result.
+
+`DCT3_RESEARCH_TRACES=0` compiles out that quarantine and its call sites, not
+the hardware RAM/flash operations. `make check-tracefree` verifies both 3210
+physical-menu oracles and linked-probe absence. See the build-boundary contract
+in `upstream_architecture.md`; the default repository build retains the probes
+for their existing focused consumers.
 
 | hardware entry point | quarantined research helper |
 |---|---|
-| `flash_r/w` | thin routing through `nokia_b3_flash_device`; selected read-only contract probes run before the physical read |
+| `flash_r/w` | thin routing to native `intelfsh16_device`; selected read-only contract probes run before the physical read |
 | `ram_w` | backing-store write plus calls to observation-only helpers for the focused audio/authentication gates |
 | `ram_r`   (≈2 lines)  | none; display provisioning now arrives through EEPROM/NV |
 | `mad2_io_r/w` | functional register routing and board-output helpers, followed by observation-only MAD2 trace helpers |
@@ -85,11 +96,11 @@ state, byte callbacks and FIQ2/FIQ3 outputs without supplying a peer. The phone
 state retains board wiring and less-established
 peripheral windows. Its MAD2 memory-map handlers delegate register ownership,
 interrupt routing and diagnostics to separate helpers so traces do not obscure the
-functional dispatch. `nokia_b3_flash_device` is a transitional wrapper over
-MAME's generic Intel-compatible flash core; it owns the 3410's independently
-observable B3 lock, erase-suspend, partition-status timer and save-state until
-those generic read-while-write semantics move into `intelfsh`. The phone state
-only maps accesses and selects the product capability. `nokia_gensio_device`
+functional dispatch. Native flash parts own command/protection state and
+operation timing; the ST M28W320ECT subclass has an independent engine with
+focused conformance and 3410 PMM persistence coverage. No Nokia flash adapter
+or product command-state knob remains. `flash_storage.md` states its limits.
+`nokia_gensio_device`
 owns its sparse serial/status/SELECT
 registers and connects CCONT and the PCD8544 through callbacks. A separate
 MAME patch extends the otherwise-unused native PCD8544 implementation with

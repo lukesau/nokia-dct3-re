@@ -41,6 +41,7 @@ public:
 	void set_fiq8_hz(u32 value) { m_fiq8_hz = value; }
 	void set_timer0_catchup(bool value) { m_timer0_catchup = value; }
 	void set_clock_stop_enabled(bool value) { m_clock_stop_enabled = value; }
+	void set_sleep_wake_irq3(bool value) { m_sleep_wake_irq3 = value; }
 	void set_external_status(u8 value) { m_external_status = value & 0x07; }
 	void set_dsp_reset_wiring_contract(dsp_reset_wiring_contract contract);
 
@@ -54,6 +55,7 @@ public:
 	void set_fiq_mask_bits(u8 mask);
 	bool watchdog_tick();
 	void set_reset_cause(u8 mask) { m_regs[0x01] |= mask; }
+	void set_reset_status(u8 status) { m_regs[0x01] = status; }
 
 	u16 fiq_status() const { return m_fiq_status; }
 	u16 irq_status() const { return m_irq_status; }
@@ -72,6 +74,8 @@ private:
 	TIMER_CALLBACK_MEMBER(timer1_tick);
 	TIMER_CALLBACK_MEMBER(fiq8_tick);
 	void ack_irq(u16 mask);
+	bool fiq_pending_unmasked() const;
+	bool irq_pending_unmasked() const;
 	void update_fiq_line();
 	void update_irq_line();
 	void update_timer0_compare();
@@ -94,6 +98,7 @@ private:
 	u8 m_external_status = 0;
 	u16 m_fiq_status = 0;
 	u16 m_irq_status = 0;
+	u16 m_irq_levels = 0;
 	u16 m_timer0_counter = 0;
 	u16 m_timer1_counter = 0;
 	u16 m_timer1_destination = 0x7fff;
@@ -110,6 +115,7 @@ private:
 	u32 m_fiq8_hz = 100;
 	bool m_timer0_catchup = false;
 	bool m_clock_stop_enabled = true;
+	bool m_sleep_wake_irq3 = false;
 	dsp_reset_wiring_contract m_dsp_reset_wiring;
 	bool m_timer_trace = false;
 	bool m_interrupt_trace = false;

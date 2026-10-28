@@ -28,10 +28,26 @@ CHECKPOINTS = (
 )
 
 
-def verify(text, *, pcs1900=False):
+def verify(text, *, pcs1900=False, configured_gsm900=False, preserved_location=False):
     if '[LUA ERROR]' in text:
         raise ValueError('fixture error')
     checkpoints = list(CHECKPOINTS)
+    if pcs1900 and configured_gsm900:
+        raise ValueError('PCS1900 and configured GSM900 are distinct compositions')
+    if preserved_location:
+        if pcs1900:
+            raise ValueError('preserved-location acceptance is not established for PCS1900')
+        # The restarted own handset sends 72 and its retained LAI, not the
+        # cold unlocated 70/00f000fffe request. Keep both exact grammars.
+        checkpoints = [(label, pattern.replace('05087000f000fffe23', '05087200f110000123'))
+                       for label, pattern in checkpoints]
+    if configured_gsm900:
+        checkpoints[1] = ('configured GSM900 candidate channel',
+            r'TX packet type=02 payload=20 .*radio_phase=candidate_channel_change data=04120200000000505000003c')
+        checkpoints[12] = ('configured GSM900 deconfiguration',
+            r'TX packet type=02 payload=20 .*radio_phase=release_channel_change data=041202000000001a6000003c0000000f00000000')
+        checkpoints.insert(1, ('configured carrier SCH',
+            r'RX enqueue type=80 payload=14 .*data=4012[0-9a-f]{8}003c000048'))
     if pcs1900:
         checkpoints[1] = ('PCS candidate channel',
             r'TX packet type=02 payload=20 .*radio_phase=candidate_channel_change data=041202000000005050000258')
@@ -48,6 +64,15 @@ def verify(text, *, pcs1900=False):
         ]
         checkpoints.insert(6, ('PCS SI1 band indicator',
             r'RX enqueue type=80 payload=34 .*data=5012[0-9a-f]{8}02580000590619[0-9a-f]{38}6b00'))
+    if preserved_location:
+        checkpoints = [(label, pattern) for label, pattern in checkpoints
+                       if label not in ('stored LAI', 'stored status')]
+        stored_read = re.search(r'sim_device: read-binary fid=6f7e offset=0 length=11\b', text)
+        request = re.search(r'TX packet type=1b .*data=0080013f49050872', text)
+        if not stored_read or not request or stored_read.start() >= request.start():
+            raise ValueError('preserved location was not read before registration')
+        if 'sim_device: update-binary fid=6f7e' in text:
+            raise ValueError('preserved location was unexpectedly rewritten')
     require_ordered(text, tuple((label, re.compile(pattern)) for label, pattern in checkpoints),
                     '8890 registration')
     if len(re.findall(r'TX packet type=1b .*data=0080013f490508', text)) != 1:
@@ -59,9 +84,14 @@ if __name__ == '__main__':
     parser.add_argument('log', type=Path)
     parser.add_argument('--pcs1900', action='store_true',
                         help='require independent PCS scan, ARFCN 600 and SI1 band indication')
+    parser.add_argument('--configured-gsm900', action='store_true',
+                        help='require configured ARFCN60 SCH and recovered channel parameters')
+    parser.add_argument('--preserved-location', action='store_true',
+                        help='require the separately observed retained-LAI request on configured GSM900')
     args = parser.parse_args()
     try:
-        verify(args.log.read_text(errors='replace'), pcs1900=args.pcs1900)
+        verify(args.log.read_text(errors='replace'), pcs1900=args.pcs1900,
+               configured_gsm900=args.configured_gsm900, preserved_location=args.preserved_location)
     except (OSError, ValueError) as error:
         parser.exit(1, f'8890 registration FAIL: {error}\n')
     print('8890 laboratory registration/EF_LOCI/release/paging PASS; calls unproved')
