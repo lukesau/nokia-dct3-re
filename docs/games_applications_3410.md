@@ -97,3 +97,97 @@ the levels are known (runtime, approximate):
 | Bumper | 77 ms, with longer gaps |
 | Bantumi | 85..101 ms |
 | Link5 | about 290 ms |
+
+## Munkiki's Castles
+
+The one Java game is not in Select game, which is the five native handlers
+above and never asks the Java application manager. It is under More games,
+the fourth entry of the Games menu, listed by its suite folder's name
+(runtime):
+
+```
+enter                   main menu (Messages)
+up x4                   Games
+enter                   Games: Select game, Download game, Settings, More games
+down x3, enter          More games: Munkiki        (softkeys Options, Back)
+enter                   Options: Open, WAP access, Check version
+enter                   Open: the KVM starts the MIDlet; its title, then its
+                        menu: New game, High scores, Instructions, Options
+```
+
+```
+make run-keys GAMES_PRODUCT=3410 RUN_DIR=run_3410_munkiki SECONDS=70 \
+  KEYS=enter,wait1500,up,wait300,up,wait300,up,wait300,up,wait1000,enter,wait1500,down,wait800,down,wait800,down,wait800,enter,wait2500,enter,wait1500,enter,wait4000,enter,wait4000,enter,wait4000,enter,wait4000
+```
+
+Applications → Select app. (main menu entry 8) asks the same manager for
+the other folder, MyApps, which the virgin PMM leaves empty, so it shows
+"(empty)". Both lists come from the phone's own file system; MAME needs
+nothing beyond the virgin PMM image.
+
+### The Java file system in the PMM
+
+Static, from the virgin PMM (`3410 virgin eeprom 005f0000.fls`, which MAME
+loads at flash offset `0x370000`). The PMMCAT blocks at `0x20000`,
+`0x30000`, `0x40000` and `0x50000` of the file hold a small file system
+among the other records (`tools/dct3_pmm_catalog.py`'s `parse_catalog` on
+each 64 KiB block): type `0xf491` records are directory entries, a UTF-16
+name with its length first, then fixed fields; type `0xf490` records are file
+contents. Inferred from the entries: a directory's record ends in a list of
+`(1, index)` pairs naming its children; a file's record carries the index of
+its contents record and of its parent.
+
+| Record | Name | What |
+|---|---|---|
+| `0xf491/1` | PMM | the root directory, child Java |
+| `0xf491/2` | Java | children MyApps, JavaGames, preinstalled |
+| `0xf491/3` | MyApps | empty |
+| `0xf491/4` | JavaGames | child Munkiki |
+| `0xf491/0` | Munkiki | children RMS, Munkiki.jar, Munkiki.jad |
+| `0xf491/5` | RMS | the suite's record stores, empty |
+| `0xf491/6` | Munkiki.jar | contents `0xf490/0`, 40888 bytes, the JAR |
+| `0xf491/7` | Munkiki.jad | contents `0xf490/1`, 199 bytes, the manifest (`Nokia-MIDlet-Category: Game`) |
+| `0xf491/8` | preinstalled | contents `0xf490/2`, the one byte `1` |
+
+The virgin image has them spread over the `0x30000` and `0x40000` blocks.
+Runtime: the first boot compacts the PMM, copying the live records into the
+`0x20000` block and erasing the `0x40000` and `0x50000` ones; the Java
+records survive it unchanged.
+
+### The application manager
+
+Static, confirmed at runtime with the breakpoints below. The manager runs
+as task `0x44`; its event handler is `jam_handler_333ac8(event)`:
+
+| Event | Does |
+|---:|---|
+| `0x5e2` | at boot: `fs_stat_31cfe0("/PMM/Java/preinstalled")`, and when it is missing, `fs_fopen_31d6da(path, "wb")`, writes `1`, closes |
+| `0x5dc` | lists the current folder: `fs_stat_w_31cf3e` on it (must be a directory), then `jam_list_folder_3339ac`, which counts the entries with `fs_dir_count_w_31d28e(path, 2)`, walks them with `fs_find_first_w_31d7de(path, 2, &handle)` and posts one 28-byte entry per child to task `0x44`; with no entries it posts the "(empty)" entry from `jam_empty_entry_333350` |
+
+The current folder is `jam_folder_path_12e078`, set by
+`jam_set_folder_3dfc2c(mode)`: mode 1 is `java_games_path_4c3d8c`
+("/PMM/Java/JavaGames", More games) and anything else
+`my_apps_path_4c3d68` ("/PMM/Java/MyApps", Select app.), with the mode
+kept in `jam_folder_is_games_12e07c`. The file API below the manager takes
+UTF-16 paths (`fs_stat_w_31cf3e`, `fs_open_w_31cd76`,
+`fs_find_first_w_31d7de`, `fs_dir_count_w_31d28e`); `fs_stat_31cfe0` and
+`fs_fopen_31d6da` are ASCII wrappers that widen the path first.
+`jam_jad_from_jar_333d30` (inferred) writes a suite's `.jad` next to its
+`.jar` when the `.jad` is missing, from the JAR's manifest; the virgin PMM
+already has it, so this is not seen.
+
+To watch it, on top of the input exerciser with `-debug -debugger none`
+(the exerciser's `-log` puts `logerror` in `error.log`):
+
+```lua
+dofile("../mame_nokia_dct3_input_exerciser.lua")
+local dbg = manager.machine.devices[":maincpu"].debug
+dbg:bpset(0x333ac8, "1", 'logerror "JAMEV %x\\n",r0; g')
+dbg:bpset(0x31cf3e, "1", 'logerror "STATW %04x%04x%04x%04x%04x%04x%04x%04x\\n",maincpu.pw@(r0),maincpu.pw@(r0+2),maincpu.pw@(r0+4),maincpu.pw@(r0+6),maincpu.pw@(r0+8),maincpu.pw@(r0+0xa),maincpu.pw@(r0+0xc),maincpu.pw@(r0+0xe); g')
+```
+
+`maincpu.pw@` reads the MAD2's big-endian halfwords, so the dump reads as
+the path's UTF-16. The debugger takes bare numbers as hex: `r0+10` is
+`r0 + 0x10`. Name the link register `r14`: the debugger does not know
+`lr`, and an action that uses it fails on its first hit and silences every
+breakpoint in the script.
